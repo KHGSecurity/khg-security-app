@@ -926,7 +926,8 @@ function toast(msg){
   var t = document.getElementById('vs-toast');
   t.textContent = msg; t.classList.add('show');
   clearTimeout(t._h);
-  t._h = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  var duration = msg.length > 60 ? 7000 : 2200;
+  t._h = setTimeout(function(){ t.classList.remove('show'); }, duration);
 }
 
 function addHistory(entry){
@@ -2099,7 +2100,7 @@ var VS = {
         body:JSON.stringify({ jobNumber:jobRef, itemName: jobItem?jobItem.name:'Item', quantity:qty })
       }).then(function(res){ return res.json(); }).then(function(data){
         if(data.success){ toast('Added to ServiceM8 job '+jobRef); }
-        else { toast('Saved here, but ServiceM8 sync failed: '+(data.error||'unknown error')); }
+        else { toast('ServiceM8 sync failed: '+(data.error||'unknown error')+(data.detail?' \u2014 '+String(data.detail).slice(0,200):'')); }
       }).catch(function(){ toast('Saved here, but couldn\u2019t reach ServiceM8'); });
     }
   },
