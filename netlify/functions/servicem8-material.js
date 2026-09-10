@@ -64,4 +64,12 @@ exports.handler = async function (event) {
 
     if (!materialRes.ok) {
       const detail = await materialRes.text();
-      return { statusCode: 502, body: JSON.stringify({ success: false, error: 'ServiceM8
+      return { statusCode: 502, body: JSON.stringify({ success: false, error: 'ServiceM8 rejected the material line item.', detail }) };
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ success: true }) };
+  } catch (err) {
+    console.error('ServiceM8 function error:', err);
+    return { statusCode: 500, body: JSON.stringify({ success: false, error: (err && err.message) || 'Unknown error contacting ServiceM8.', detail: (err && err.stack) || String(err) }) };
+  }
+};
