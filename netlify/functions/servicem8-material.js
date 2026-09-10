@@ -58,7 +58,7 @@ exports.handler = async function (event) {
       body: JSON.stringify({
         job_uuid: job.uuid,
         name: itemName,
-        qty: String(quantity)
+        quantity: String(quantity)
       })
     });
 
