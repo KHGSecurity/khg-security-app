@@ -1,0 +1,2245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KHG Security</title>
+<link rel="icon" href="icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KHG Security">
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg:#0B1B33;
+  --panel:#11274A;
+  --panel-2:#17325C;
+  --line:#284872;
+  --accent:#26D0C4;
+  --accent-dim:#123B39;
+  --amber:#E8A93D;
+  --amber-dim:#4A3B22;
+  --red:#E15C50;
+  --red-dim:#402724;
+  --green:#4FBF83;
+  --green-dim:#243228;
+  --text:#F1F4FA;
+  --muted:#8FA3C4;
+  --muted-2:#56698C;
+  font-family:'Inter',sans-serif;
+}
+*{box-sizing:border-box;}
+html, body{ margin:0; padding:0; background:var(--bg); }
+.vs-app-bg{
+  position:fixed; inset:0; z-index:-1;
+  background-image:url('bg-faint.jpg');
+  background-size:cover; background-position:center top; background-repeat:no-repeat;
+  opacity:0.06; pointer-events:none;
+}
+#vs-root{
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  padding:0;
+  font-family:'Inter',sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+#vs-root h1,#vs-root h2,#vs-root h3,.numeral,.tag-label{
+  font-family:'Archivo',sans-serif;
+}
+.vs-header{
+  padding:20px 20px 0 20px;
+  border-bottom:1px solid var(--line);
+}
+.vs-header-top{
+  display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  margin-bottom:16px;
+}
+.vs-title{ display:flex; align-items:baseline; gap:10px; }
+.vs-title h1{
+  font-size:22px; font-weight:800; letter-spacing:-0.01em; margin:0; color:var(--text);
+}
+.vs-title .vs-tag{
+  font-size:11px; font-weight:700; color:var(--accent); border:1px solid var(--accent); border-radius:3px;
+  padding:2px 6px; letter-spacing:0.03em;
+}
+.vs-shared-note{ font-size:12px; color:var(--muted-2); }
+.vs-tabs{
+  display:flex; gap:4px; overflow-x:auto; padding-bottom:0; scrollbar-width:none;
+}
+.vs-tabs::-webkit-scrollbar{display:none;}
+.vs-tab{
+  background:transparent; border:none; color:var(--muted); font-family:'Inter'; font-size:13.5px; font-weight:600;
+  padding:10px 14px; cursor:pointer; white-space:nowrap; border-bottom:2px solid transparent; transition:color .15s, border-color .15s;
+}
+.vs-tab:hover{ color:var(--text); }
+.vs-tab.active{ color:var(--accent); border-bottom-color:var(--accent); }
+.vs-van-chips{
+  display:flex; gap:6px; overflow-x:auto; padding:12px 20px; background:var(--panel); border-bottom:1px solid var(--line); scrollbar-width:none;
+}
+.vs-van-chips::-webkit-scrollbar{display:none;}
+.vs-chip{
+  background:var(--panel-2); border:1px solid var(--line); color:var(--muted); font-family:'Archivo'; font-weight:700; font-size:12px;
+  padding:7px 12px; border-radius:3px; cursor:pointer; white-space:nowrap; letter-spacing:0.02em;
+}
+.vs-chip.active{ background:var(--accent); border-color:var(--accent); color:var(--bg); }
+.vs-chip .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; position:relative; top:-1px; }
+main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
+.vs-loading, .vs-error{ text-align:center; padding:60px 20px; color:var(--muted); }
+.vs-error button{ margin-top:12px; }
+.vs-section-head{
+  display:flex; align-items:center; justify-content:space-between; margin:22px 0 10px 0; gap:10px; flex-wrap:wrap;
+}
+.vs-section-head h2{ font-size:14px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin:0; }
+.vs-section-head:first-child{ margin-top:0; }
+.vs-btn{
+  background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-family:'Inter'; font-weight:600; font-size:13px;
+  padding:8px 13px; border-radius:6px; cursor:pointer; transition:border-color .15s, background .15s;
+}
+.vs-btn:hover{ border-color:var(--accent); }
+.vs-btn.primary{ background:var(--accent); border-color:var(--accent); color:var(--bg); }
+.vs-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+.vs-btn:disabled:hover{ border-color:var(--line); }
+.vs-btn.primary:hover{ opacity:.92; }
+.vs-btn.danger{ color:var(--red); }
+.vs-btn.small{ padding:5px 9px; font-size:12px; border-radius:5px; }
+.vs-cards{ display:grid; gap:10px; grid-template-columns:1fr; }
+@media(min-width:640px){ .vs-cards{ grid-template-columns:1fr 1fr; } }
+.vs-item-row{
+  background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--line); border-radius:8px;
+  padding:12px 14px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+.vs-item-row.low{ border-left-color:var(--amber); }
+.vs-item-row.out{ border-left-color:var(--red); }
+.vs-item-info{ min-width:0; }
+.vs-item-name{ font-weight:600; font-size:16px; color:var(--text); line-height:1.35; }
+.vs-item-meta{ font-size:12px; color:var(--muted-2); margin-top:2px; }
+.vs-item-meta .cat{ color:var(--muted); }
+.vs-stock-badge{ font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:3px; margin-left:6px; letter-spacing:0.02em; }
+.vs-stock-badge.low{ background:var(--amber-dim); color:var(--amber); }
+.vs-stock-badge.out{ background:var(--red-dim); color:var(--red); }
+.vs-stock-badge.ok{ background:var(--green-dim); color:var(--green); }
+.vs-stepper{ display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.vs-stepper button{
+  width:30px; height:30px; border-radius:6px; border:1px solid var(--line); background:var(--panel-2); color:var(--text);
+  font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1;
+}
+.vs-stepper button:active{ background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.vs-stepper .qty{ font-family:'Archivo'; font-weight:800; font-size:17px; min-width:26px; text-align:center; }
+.vs-transfer-link{ font-size:11.5px; color:var(--muted); text-decoration:underline; cursor:pointer; background:none; border:none; font-family:'Inter'; padding:0; margin-top:4px; display:inline-block; }
+.vs-transfer-link:hover{ color:var(--accent); }
+.vs-dash-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:6px; }
+@media(min-width:640px){ .vs-dash-grid{ grid-template-columns:repeat(4,1fr); } }
+.vs-metric{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }
+.vs-metric .num{ font-family:'Archivo'; font-size:26px; font-weight:800; }
+.vs-metric .lbl{ font-size:11.5px; color:var(--muted-2); margin-top:2px; }
+.vs-metric.alert .num{ color:var(--amber); }
+.vs-metric-btn{ cursor:pointer; text-align:left; font-family:inherit; appearance:none; transition:border-color .15s; }
+.vs-metric-btn:hover{ border-color:var(--accent); }
+.vs-metric-btn:active{ background:var(--panel-2); }
+.vs-dash-action{
+  background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; cursor:pointer;
+  text-align:left; font-family:'Inter'; color:var(--text); width:100%; appearance:none; transition:border-color .15s;
+}
+.vs-dash-action:hover{ border-color:var(--accent); }
+.vs-dash-action:active{ background:var(--panel-2); }
+.vs-dash-action .lbl{ font-family:'Archivo'; font-weight:800; font-size:15px; color:var(--accent); }
+.vs-dash-action .sub{ font-size:11px; color:var(--muted-2); margin-top:3px; }
+.vs-hist-row{ display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px; align-items:center; }
+.vs-hist-row:last-child{ border-bottom:none; }
+.vs-hist-time{ color:var(--muted-2); font-size:11.5px; white-space:nowrap; font-family:'Archivo'; }
+.vs-hist-what{ color:var(--text); }
+.vs-hist-what b{ color:var(--accent); font-weight:700; }
+.vs-empty{ text-align:center; padding:30px 10px; color:var(--muted-2); font-size:13.5px; }
+.vs-modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; }
+.vs-modal{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; width:100%; max-width:380px; }
+.vs-modal h3{ font-size:16px; margin:0 0 14px 0; font-weight:800; }
+.vs-field{ margin-bottom:12px; }
+.vs-field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600; }
+.vs-field input, .vs-field select{
+  width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:9px 10px; font-size:14px; font-family:'Inter';
+}
+.vs-field input:focus, .vs-field select:focus{ outline:none; border-color:var(--accent); }
+.vs-modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+.vs-toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--panel-2); border:1px solid var(--accent);
+  color:var(--text); padding:9px 16px; border-radius:8px; font-size:13px; z-index:200; opacity:0; transition:opacity .25s;
+}
+.vs-toast.show{ opacity:1; }
+.vs-cat-table{ width:100%; border-collapse:collapse; }
+.vs-cat-table th{ text-align:left; font-size:11px; color:var(--muted-2); text-transform:uppercase; letter-spacing:0.04em; padding:6px 8px; border-bottom:1px solid var(--line); }
+.vs-cat-table td{ padding:8px; border-bottom:1px solid var(--line); font-size:13px; }
+.vs-cat-table input{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:5px; padding:5px 7px; font-size:13px; width:100%; font-family:'Inter'; }
+.vs-drag-handle{ cursor:grab; color:var(--muted-2); text-align:center; font-size:16px; user-select:none; width:28px; padding:0 !important; }
+.vs-drag-handle:active{ cursor:grabbing; }
+.vs-cat-table tr.sortable-ghost{ opacity:0.35; }
+.vs-cat-table tr.sortable-chosen td{ background:var(--panel-2); }
+.vs-team-row{ display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); }
+.vs-team-row:last-child{ border-bottom:none; }
+.vs-team-row input{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:5px; padding:6px 9px; font-size:13.5px; font-family:'Inter'; flex:1; min-width:0; }
+.vs-team-row select{ background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:5px; padding:6px 9px; font-size:12.5px; font-family:'Inter'; flex-shrink:0; }
+.vs-scroll-x{ overflow-x:auto; }
+.vs-manual-row{ display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+.vs-manual-link{ display:flex; align-items:center; gap:10px; flex:1; min-width:0; text-decoration:none; color:inherit; }
+.vs-manual-icon{ width:26px; height:26px; stroke:var(--accent); flex-shrink:0; }
+.vs-manual-info{ min-width:0; }
+.vs-manual-name{ font-weight:600; font-size:14px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.vs-manual-meta{ font-size:11.5px; color:var(--muted-2); margin-top:2px; }
+.vs-rota-day{
+  aspect-ratio:1; background:var(--panel); border:1px solid var(--line); border-radius:6px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:2px; cursor:pointer; color:var(--text); font-family:'Inter'; padding:2px; min-width:0;
+}
+.vs-rota-day .daynum{ font-size:11px; color:var(--muted-2); }
+.vs-rota-day .who{ font-family:'Archivo'; font-weight:800; font-size:10.5px; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.vs-rota-day.today{ border-color:var(--accent); }
+.vs-lock-wrap{
+  min-height:100vh; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px;
+  font-family:'Inter',sans-serif; color:var(--text);
+}
+.vs-lock-card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:26px; width:100%; max-width:320px; text-align:center; }
+.vs-brand-logo{ width:64px; height:64px; border-radius:14px; display:block; margin:0 auto 14px auto; }
+.vs-setup-card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:26px; width:100%; max-width:460px; text-align:left; max-height:90vh; overflow-y:auto; }
+.vs-setup-card h1{ font-family:'Archivo'; font-size:19px; font-weight:800; margin:0 0 4px 0; color:var(--text); text-align:center; }
+.vs-setup-card p{ font-size:12.5px; color:var(--muted); margin:0 0 16px 0; text-align:center; }
+.vs-setup-row{ display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line); }
+.vs-setup-row:last-child{ border-bottom:none; }
+.vs-setup-row .name{ flex:1; font-size:13.5px; font-weight:600; color:var(--text); }
+.vs-setup-row input{ width:90px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:5px; padding:6px 9px; font-size:13.5px; font-family:'Inter'; text-align:center; }
+.vs-lock-card h1{ font-family:'Archivo'; font-size:19px; font-weight:800; margin:0 0 4px 0; }
+.vs-lock-card p{ font-size:12.5px; color:var(--muted); margin:0 0 18px 0; }
+.vs-lock-card input{
+  width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px;
+  padding:11px 12px; font-size:16px; text-align:center; letter-spacing:0.08em; font-family:'Inter'; margin-bottom:10px;
+}
+.vs-lock-card input:focus{ outline:none; border-color:var(--accent); }
+.vs-lock-card button{
+  width:100%; background:var(--accent); border:1px solid var(--accent); color:var(--bg); font-family:'Inter'; font-weight:700;
+  font-size:14px; padding:10px; border-radius:6px; cursor:pointer;
+}
+.vs-lock-err{ color:var(--red); font-size:12.5px; min-height:16px; margin-top:8px; }
+.vs-whoami-overlay{
+  position:fixed; inset:0; background:var(--bg); z-index:150; display:none; align-items:center; justify-content:center; padding:20px;
+}
+.vs-whoami-btn{
+  width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-family:'Inter'; font-weight:600;
+  font-size:14px; padding:10px; border-radius:6px; cursor:pointer; margin-bottom:8px; transition:border-color .15s, color .15s;
+}
+.vs-whoami-btn:hover{ border-color:var(--accent); color:var(--accent); }
+.vs-who-badge{ margin-top:6px; }
+.vs-welcome-title{ font-family:'Archivo'; font-weight:800; font-size:19px; color:var(--text); }
+.vs-welcome-sub{ font-size:12px; color:var(--muted-2); margin-top:2px; }
+.vs-who-badge b{ color:var(--text); }
+.vs-save-status{ font-size:12px; color:var(--muted-2); margin-top:5px; display:flex; align-items:center; gap:6px; }
+.vs-save-dot{ width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
+.vs-save-dot.ok{ background:var(--green); }
+.vs-save-dot.error{ background:var(--red); }
+.vs-save-dot.saving{ background:var(--amber); animation:vs-pulse 1s ease-in-out infinite; }
+@keyframes vs-pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
+.vs-hist-actor{
+  width:24px; height:24px; border-radius:6px; background:var(--panel-2); border:1px solid var(--line); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-family:'Archivo'; font-weight:800; font-size:10px; color:var(--accent);
+}
+.vs-home-wrap{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px 20px 40px 20px;
+  font-family:'Inter',sans-serif; color:var(--text);
+}
+.vs-home-inner{ width:100%; max-width:460px; }
+.vs-home-header{ text-align:center; margin-bottom:28px; }
+.vs-home-header h1{ font-family:'Archivo'; font-size:26px; font-weight:900; margin:0 0 4px 0; letter-spacing:-0.01em; }
+.vs-home-header p{ font-size:13px; color:var(--muted); margin:0; }
+.vs-home-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.vs-home-tile{
+  background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 14px; text-align:left;
+  cursor:pointer; color:var(--text); display:flex; flex-direction:column; gap:10px; transition:border-color .15s, transform .1s;
+}
+.vs-home-tile:hover{ border-color:var(--accent); }
+.vs-home-tile:active{ transform:scale(0.98); }
+.vs-home-tile svg{ width:26px; height:26px; stroke:var(--accent); flex-shrink:0; }
+.vs-home-tile-label{ font-family:'Archivo'; font-weight:800; font-size:14.5px; }
+.vs-home-tile-sub{ font-size:11.5px; color:var(--muted-2); margin-top:-6px; }
+.vs-home-tile-wide{ grid-column:1 / -1; flex-direction:row; align-items:center; gap:14px; }
+.vs-home-tile-wide .vs-home-notif-body{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+.vs-home-tile-wide.has-alerts{ border-color:var(--amber); }
+.vs-home-tile-wide svg{ flex-shrink:0; }
+.vs-back-link{
+  background:none; border:none; color:var(--muted); font-family:'Inter'; font-weight:600; font-size:13px;
+  cursor:pointer; padding:0; display:inline-flex; align-items:center; gap:4px;
+}
+.vs-back-link:hover{ color:var(--accent); }
+.vs-placeholder-inner{ text-align:center; }
+.vs-placeholder-inner h1{ font-family:'Archivo'; font-size:22px; font-weight:800; margin:20px 0 6px 0; }
+.vs-placeholder-inner p{ font-size:13.5px; color:var(--muted); }
+.vs-placeholder-icon{ width:48px; height:48px; stroke:var(--muted-2); margin:0 auto; display:block; }
+</style>
+</head>
+<body>
+<div class="vs-app-bg"></div>
+<div class="vs-toast" id="vs-toast"></div>
+
+<div id="vs-home-wrap" class="vs-home-wrap" style="display:none;">
+  <div class="vs-home-inner">
+    <div class="vs-home-header">
+      <img class="vs-brand-logo" src="icon-180.png" alt="KHG Security">
+      <h1>KHG Security</h1>
+      <p>Choose a section</p>
+      <div class="vs-who-badge" id="vs-home-who-badge"></div>
+    </div>
+    <div id="vs-home-notifications" style="margin-bottom:12px;"></div>
+    <div class="vs-home-grid">
+      <button class="vs-home-tile" onclick="VS.enterStock()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+        <span class="vs-home-tile-label">Stock</span>
+        <span class="vs-home-tile-sub">Van &amp; stores stock</span>
+      </button>
+      <button class="vs-home-tile" onclick="VS.enterLeave()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+        <span class="vs-home-tile-label">Leave &amp; Rota</span>
+      </button>
+      <button class="vs-home-tile" onclick="window.open('https://skillsondemand.co.uk/#/login','_blank')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
+        <span class="vs-home-tile-label">Training</span>
+      </button>
+      <button class="vs-home-tile" onclick="VS.openPlaceholder('Manuals')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span class="vs-home-tile-label">Manuals</span>
+      </button>
+      <button class="vs-home-tile" onclick="VS.openPlaceholder('Forms')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/></svg>
+        <span class="vs-home-tile-label">Forms</span>
+      </button>
+      <button class="vs-home-tile" onclick="VS.openPlaceholder('HR')">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/></svg>
+        <span class="vs-home-tile-label">HR</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="vs-placeholder-wrap" class="vs-home-wrap" style="display:none;">
+  <div class="vs-home-inner vs-placeholder-inner">
+    <div style="text-align:left;margin-bottom:20px;"><button class="vs-back-link" onclick="VS.showHome()">&larr; Back</button></div>
+    <svg class="vs-placeholder-icon" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l2.5 2.5"/></svg>
+    <h1 id="vs-placeholder-title">Coming soon</h1>
+    <p>This section isn't built yet — check back soon.</p>
+  </div>
+</div>
+
+<div id="vs-lock-wrap" class="vs-lock-wrap" style="display:flex;">
+  <div class="vs-lock-card">
+    <img class="vs-brand-logo" src="icon-180.png" alt="KHG Security" style="width:56px;height:56px;">
+    <h1>KHG Security</h1>
+    <p>Enter your PIN to continue</p>
+    <input id="vs-lock-input" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" onkeydown="if(event.key==='Enter') VS.tryPinLogin()">
+    <button onclick="VS.tryPinLogin()">Log in</button>
+    <div class="vs-lock-err" id="vs-lock-err"></div>
+  </div>
+</div>
+
+<div id="vs-setup-wrap" class="vs-whoami-overlay" style="display:none;">
+  <div class="vs-setup-card">
+    <img class="vs-brand-logo" src="icon-180.png" alt="KHG Security" style="width:48px;height:48px;margin-bottom:10px;">
+    <h1>Set up your team's PINs</h1>
+    <p>No one has a PIN yet. Give each person a PIN below — they'll use it to log in as themselves. You can add, remove, or re-pin anyone later once you're logged in as an admin.</p>
+    <div id="vs-setup-list"></div>
+    <button class="vs-btn primary" style="width:100%;margin-top:8px;" onclick="VS.finishSetup()">Done — go to login</button>
+    <div class="vs-lock-err" id="vs-setup-err"></div>
+  </div>
+</div>
+
+<div id="vs-root" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <h1>Stock</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+      <div class="vs-shared-note">Shared with your team — everyone with this link sees the same stock data</div>
+    </div>
+    <div class="vs-who-badge" id="vs-who-badge"></div>
+    <div class="vs-save-status" id="vs-save-status"></div>
+    <div class="vs-tabs" id="vs-tabs"></div>
+  </div>
+  <div id="vs-subnav"></div>
+  <main id="vs-content"><div class="vs-loading">Loading stock data…</div></main>
+</div>
+
+<div id="vs-leave-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <h1>Leave &amp; Rota</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+    </div>
+    <div class="vs-who-badge" id="vs-leave-who-badge"></div>
+  </div>
+  <main id="vs-leave-content"></main>
+</div>
+
+<div id="vs-manuals-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <h1>Manuals</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+    </div>
+    <div class="vs-who-badge" id="vs-manuals-who-badge"></div>
+  </div>
+  <main id="vs-manuals-content"></main>
+</div>
+
+<div id="vs-modal-root"></div>
+
+
+<script>
+(function(){
+
+var CATEGORIES = ["Intruder","CCTV","Access","Fire","Other","Sundries"];
+
+function categoryOptions(current){
+  var cur = current || '';
+  var opts = CATEGORIES.map(function(cat){
+    return '<option value="'+cat+'" '+(cat===cur?'selected':'')+'>'+cat+'</option>';
+  }).join('');
+  if(cur && CATEGORIES.indexOf(cur)===-1){
+    opts = '<option value="'+escapeAttr(cur)+'" selected>'+escapeAttr(cur)+'</option>' + opts;
+  }
+  return opts;
+}
+var SCOPES = [{v:"both", label:"Van + Stores"}, {v:"van", label:"Van only"}, {v:"warehouse", label:"Stores only"}];
+
+var DEFAULT_ITEMS = [
+  {id:"it1", name:"LightSYS Plus Panel", category:"Panels", unit:"ea", vanPar:1, whPar:4, scope:"both"},
+  {id:"it2", name:"PIR Detector", category:"Sensors", unit:"ea", vanPar:6, whPar:20, scope:"both"},
+  {id:"it3", name:"Door Contact", category:"Sensors", unit:"ea", vanPar:8, whPar:30, scope:"both"},
+  {id:"it4", name:"Glass Break Sensor", category:"Sensors", unit:"ea", vanPar:2, whPar:10, scope:"both"},
+  {id:"it5", name:"LCD Keypad", category:"Keypads", unit:"ea", vanPar:2, whPar:8, scope:"both"},
+  {id:"it6", name:"Internal Sounder", category:"Sirens", unit:"ea", vanPar:3, whPar:12, scope:"both"},
+  {id:"it7", name:"External Bellbox", category:"Sirens", unit:"ea", vanPar:1, whPar:6, scope:"both"},
+  {id:"it8", name:"6-Core Alarm Cable (100m)", category:"Cable", unit:"reel", vanPar:1, whPar:4, scope:"both"},
+  {id:"it9", name:"Cat6 Cable (100m)", category:"Cable", unit:"reel", vanPar:1, whPar:3, scope:"both"},
+  {id:"it10", name:"Rawl Plugs & Screws", category:"Fixings", unit:"pack", vanPar:3, whPar:15, scope:"both"},
+  {id:"it11", name:"Plastic Back Box", category:"Fixings", unit:"ea", vanPar:6, whPar:25, scope:"both"},
+  {id:"it12", name:"Dome CCTV Camera", category:"CCTV", unit:"ea", vanPar:2, whPar:10, scope:"both"},
+  {id:"it13", name:"Turret CCTV Camera", category:"CCTV", unit:"ea", vanPar:2, whPar:10, scope:"both"},
+  {id:"it14", name:"NVR (4-channel)", category:"CCTV", unit:"ea", vanPar:1, whPar:4, scope:"both"},
+  {id:"it15", name:"RFID Fob Reader", category:"Access", unit:"ea", vanPar:1, whPar:5, scope:"both"},
+  {id:"it16", name:"12V 7Ah Battery", category:"Power", unit:"ea", vanPar:4, whPar:20, scope:"both"},
+  {id:"it17", name:"Cable Ties (pack)", category:"Consumables", unit:"pack", vanPar:2, whPar:10, scope:"both"}
+];
+var DEFAULT_ENGINEERS = [
+  {id:"e1", name:"Rob", hasVan:true, isAdmin:true, pin:"1111"},
+  {id:"e2", name:"Bobby", hasVan:true, isAdmin:false, pin:"2222"},
+  {id:"e3", name:"Jamie", hasVan:true, isAdmin:false, pin:"3333"},
+  {id:"e4", name:"Brennan", hasVan:true, isAdmin:false, pin:"4444"},
+  {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
+];
+
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' } };
+var appView = 'home'; // 'home' | 'stock' | 'placeholder'
+
+function isAdminPerson(person){ return !!(person && person.isAdmin); }
+function canEditPars(person){ return isAdminPerson(person) || (person && !personHasVan(person)); }
+function currentPerson(){ return state.currentUser ? engById(state.currentUser) : null; }
+
+function initials(name){
+  var parts = String(name||'').trim().split(/\s+/).filter(Boolean);
+  var s = parts.map(function(p){ return p.charAt(0).toUpperCase(); }).join('');
+  return s.slice(0,2) || '?';
+}
+
+// ---------- App shell navigation (Home / Stock / Coming-soon placeholder) ----------
+// The whole app sits behind login now: refreshAppScreen() is the single source of
+// truth for what's on screen, checked first on every auth change and every nav click.
+
+function hideAllScreens(){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.style.display = 'none';
+  });
+}
+
+function showHome(){ appView = 'home'; refreshAppScreen(); }
+
+function openPlaceholder(name){
+  appView = 'placeholder';
+  document.getElementById('vs-placeholder-title').textContent = name;
+  refreshAppScreen();
+}
+
+function enterStock(){ appView = 'stock'; refreshAppScreen(); }
+function enterLeave(){ appView = 'leave'; refreshAppScreen(); }
+function enterManuals(){ appView = 'manuals'; refreshAppScreen(); }
+
+// Decides what's on screen right now: connecting, first-run setup, the PIN
+// gate, or (once logged in) whichever app view is currently active.
+function refreshAppScreen(){
+  hideAllScreens();
+  if(!state.authResolved){
+    document.getElementById('vs-lock-wrap').style.display = 'flex';
+    document.getElementById('vs-lock-err').textContent = 'Connecting…';
+    return;
+  }
+  if(state.needsSetup){
+    renderSetupScreen();
+    document.getElementById('vs-setup-wrap').style.display = 'flex';
+    return;
+  }
+  if(!state.currentUser){
+    document.getElementById('vs-lock-wrap').style.display = 'flex';
+    document.getElementById('vs-lock-err').textContent = '';
+    var input = document.getElementById('vs-lock-input');
+    if(input){ input.value = ''; input.focus(); }
+    return;
+  }
+  if(appView==='stock'){
+    document.getElementById('vs-root').style.display = 'block';
+    render();
+  } else if(appView==='leave'){
+    document.getElementById('vs-leave-wrap').style.display = 'block';
+    renderLeaveScreen();
+  } else if(appView==='manuals'){
+    document.getElementById('vs-manuals-wrap').style.display = 'block';
+    renderManualsScreen();
+  } else if(appView==='placeholder'){
+    document.getElementById('vs-placeholder-wrap').style.display = 'flex';
+  } else {
+    document.getElementById('vs-home-wrap').style.display = 'flex';
+    renderWhoBadge();
+    renderHomeNotifications();
+  }
+}
+
+function renderHomeNotifications(){
+  var el = document.getElementById('vs-home-notifications');
+  if(!el || !state.catalog || !state.stock) return;
+  var me = currentPerson();
+  var admin = isAdminPerson(me);
+  var lowVan = lowStockList('van');
+  var lowWh = lowStockList('warehouse');
+  var noStock = noStockList();
+  var totalLow = lowVan.length + lowWh.length;
+  var stockAlerts = totalLow>0 || noStock.length>0;
+
+  var pendingApprovals = admin ? (state.leaveRequests||[]).filter(function(r){ return r.status==='pending'; }).length : 0;
+  var pendingSwaps = me ? (state.swapRequests||[]).filter(function(s){ return s.targetId===me.id && s.status==='pending'; }).length : 0;
+  var leaveAlerts = pendingApprovals>0 || pendingSwaps>0;
+
+  var parts = [];
+  if(noStock.length) parts.push(noStock.length+' item'+(noStock.length===1?'':'s')+' with no stock');
+  if(totalLow) parts.push(totalLow+' item'+(totalLow===1?'':'s')+' below minimum');
+  if(pendingApprovals) parts.push(pendingApprovals+' leave request'+(pendingApprovals===1?'':'s')+' to approve');
+  if(pendingSwaps) parts.push(pendingSwaps+' swap request'+(pendingSwaps===1?'':'s')+' waiting on you');
+
+  var hasAlerts = stockAlerts || leaveAlerts;
+  var target = stockAlerts ? 'VS.enterStock()' : (leaveAlerts ? 'VS.enterLeave()' : 'VS.enterStock()');
+  var iconColor = hasAlerts ? 'var(--amber)' : 'var(--accent)';
+  var body;
+  if(!hasAlerts){
+    body = '<span class="vs-home-tile-label">Notifications</span><span class="vs-home-tile-sub">All good \u2014 nothing needs attention</span>';
+  } else {
+    body = '<span class="vs-home-tile-label" style="color:var(--amber);">Notifications</span><span class="vs-home-tile-sub" style="color:var(--text);">'+parts.join(' · ')+'</span>';
+  }
+  el.innerHTML = '<button class="vs-home-tile vs-home-tile-wide'+(hasAlerts?' has-alerts':'')+'" onclick="'+target+'">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" style="stroke:'+iconColor+';"><path d="M12 3a5 5 0 0 0-5 5v3.2c0 .8-.3 1.6-.9 2.2L5 14.8c-.7.7-.2 2 .8 2h12.4c1 0 1.5-1.3.8-2l-1.1-1.4c-.6-.6-.9-1.4-.9-2.2V8a5 5 0 0 0-5-5z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>'+
+    '<div class="vs-home-notif-body">'+body+'</div>'+
+  '</button>';
+}
+
+// ---------- PIN-based login (resolved silently in the background from page load) ----------
+
+// Called once, the first time the catalog has loaded: decides whether PINs
+// still need setting up, or attempts a silent auto-login from a remembered device.
+function resolveAuth(){
+  if(state.authResolved) return;
+  var anyPinSet = state.catalog.engineers.some(function(e){ return e.pin; });
+  state.needsSetup = !anyPinSet;
+  if(state.needsSetup){
+    state.authResolved = true;
+    refreshAppScreen();
+    return;
+  }
+  storageGet('my-login', false).then(function(res){
+    var creds = res && res.value ? JSON.parse(res.value) : null;
+    var person = creds ? engById(creds.id) : null;
+    if(person && person.pin && person.pin === creds.pin){
+      state.currentUser = person.id;
+      state.currentUserPin = person.pin;
+      appView = 'home';
+    }
+    state.authResolved = true;
+    refreshAppScreen();
+  }).catch(function(){
+    state.authResolved = true;
+    refreshAppScreen();
+  });
+}
+
+// Runs on every live catalog update once already logged in, so removing someone
+// or changing their PIN signs them out immediately, even mid-session.
+function checkStillAuthorized(){
+  if(!state.currentUser) return;
+  var person = engById(state.currentUser);
+  if(!person || !person.pin || person.pin !== state.currentUserPin){
+    logout(true);
+  }
+}
+
+function tryPinLogin(){
+  var input = document.getElementById('vs-lock-input');
+  if(!state.catalog){
+    document.getElementById('vs-lock-err').textContent = 'Still connecting — try again in a moment';
+    return;
+  }
+  var pin = input.value.trim();
+  var person = pin ? state.catalog.engineers.filter(function(e){ return e.pin && e.pin===pin; })[0] : null;
+  if(person){
+    state.currentUser = person.id;
+    state.currentUserPin = person.pin;
+    appView = 'home';
+    storageSet('my-login', JSON.stringify({id:person.id, pin:person.pin}), false);
+    refreshAppScreen();
+  } else {
+    document.getElementById('vs-lock-err').textContent = 'Incorrect PIN';
+    input.value = '';
+    input.focus();
+  }
+}
+
+function logout(wasRevoked){
+  state.currentUser = null;
+  state.currentUserPin = null;
+  storageDelete('my-login', false);
+  refreshAppScreen();
+  if(wasRevoked) toast('You have been signed out');
+}
+
+// ---------- First-run setup screen (only shown when no PINs exist yet) ----------
+
+function renderSetupScreen(){
+  var list = document.getElementById('vs-setup-list');
+  if(!list) return;
+  list.innerHTML = state.catalog.engineers.map(function(e){
+    return '<div class="vs-setup-row"><span class="name">'+escapeAttr(e.name)+'</span>'+
+      '<input value="'+escapeAttr(e.pin||'')+'" placeholder="PIN" inputmode="numeric" onchange="VS.setPersonPin(\''+e.id+'\',this.value)"></div>';
+  }).join('');
+}
+
+function renderWhoBadge(){
+  var p = currentPerson();
+  var html = p ? (
+    '<div class="vs-welcome-title">Welcome '+p.name+'</div>'+
+    '<div class="vs-welcome-sub">Not '+p.name+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
+  ) : '';
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.innerHTML = html;
+  });
+}
+
+function itemAppliesTo(item, loc){
+  var s = item.scope || 'both';
+  return s==='both' || s===loc;
+}
+
+function itemMatchesFilter(item){
+  if(state.stockFilter.cat && item.category!==state.stockFilter.cat) return false;
+  if(state.stockFilter.q && item.name.toLowerCase().indexOf(state.stockFilter.q.toLowerCase())===-1) return false;
+  return true;
+}
+
+function renderStockFilterBar(){
+  var opts = '<option value="">All categories</option>' + CATEGORIES.map(function(cat){
+    return '<option value="'+cat+'" '+(state.stockFilter.cat===cat?'selected':'')+'>'+cat+'</option>';
+  }).join('');
+  return '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">'+
+    '<input id="stock-search" value="'+escapeAttr(state.stockFilter.q)+'" placeholder="Search stock\u2026" oninput="VS.setStockSearch(this.value)" style="flex:1;min-width:140px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-size:14px;font-family:\'Inter\';">'+
+    '<select onchange="VS.setStockCategory(this.value)" style="background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-size:13px;font-family:\'Inter\';">'+opts+'</select>'+
+  '</div>';
+}
+
+function personHasVan(person){
+  return person.hasVan !== false;
+}
+
+// Non-admins only ever see their own van; admins see everyone's.
+function visibleVanHolders(){
+  var me = currentPerson();
+  if(isAdminPerson(me)) return state.catalog.engineers.filter(personHasVan);
+  return (me && personHasVan(me)) ? [me] : [];
+}
+
+// Keeps state.activeVan pointed at a van the current user is actually allowed to see —
+// re-checked on every render so it self-corrects on login, logout, or role changes.
+function ensureValidActiveVan(){
+  var visible = visibleVanHolders();
+  var stillValid = state.activeVan && visible.some(function(e){ return e.id===state.activeVan; });
+  if(!stillValid){
+    state.activeVan = visible.length ? visible[0].id : null;
+  }
+}
+
+function seedStock(){
+  var van = {}, warehouse = {};
+  DEFAULT_ENGINEERS.forEach(function(e){
+    van[e.id] = {};
+    DEFAULT_ITEMS.forEach(function(it){
+      if(itemAppliesTo(it,'van')) van[e.id][it.id] = Math.max(0, it.vanPar - (Math.floor(Math.random()*2)));
+    });
+  });
+  DEFAULT_ITEMS.forEach(function(it){ if(itemAppliesTo(it,'warehouse')) warehouse[it.id] = it.whPar; });
+  return {van:van, warehouse:warehouse};
+}
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+// ---------- Storage: Firestore for shared team data, localStorage for per-device settings ----------
+
+var firebaseConfig = {
+  apiKey: "AIzaSyBi-KL0nkWfnLcOX_82jIXAf4IuaCewfYY",
+  authDomain: "van-stock-app-ccd8c.firebaseapp.com",
+  projectId: "van-stock-app-ccd8c",
+  storageBucket: "van-stock-app-ccd8c.firebasestorage.app",
+  messagingSenderId: "291666109283",
+  appId: "1:291666109283:web:74be20751e968482fb2956"
+};
+
+var db = null;
+var fbStorage = null;
+try{
+  if(typeof firebase !== 'undefined'){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    fbStorage = firebase.storage();
+  }
+}catch(e){ db = null; }
+
+// shared=true  -> Firestore, visible to everyone who opens this app
+// shared=false -> this browser's own localStorage (passcode-unlock state, who you are)
+function storageGet(key, shared){
+  if(shared){
+    if(!db) return Promise.reject(new Error('no-db'));
+    return db.collection('shared').doc(key).get().then(function(doc){
+      if(!doc.exists) return Promise.reject(new Error('not-found'));
+      return { key:key, value:doc.data().value, shared:true };
+    });
+  }
+  try{
+    var v = window.localStorage.getItem('vs_'+key);
+    if(v===null) return Promise.reject(new Error('not-found'));
+    return Promise.resolve({ key:key, value:v, shared:false });
+  }catch(e){ return Promise.reject(e); }
+}
+function storageSet(key, value, shared){
+  if(shared){
+    if(!db) return Promise.resolve(null);
+    return db.collection('shared').doc(key).set({ value:value }).then(function(){
+      return { key:key, value:value, shared:true };
+    }).catch(function(){ return null; });
+  }
+  try{
+    window.localStorage.setItem('vs_'+key, value);
+    return Promise.resolve({ key:key, value:value, shared:false });
+  }catch(e){ return Promise.resolve(null); }
+}
+function storageDelete(key, shared){
+  if(shared){
+    if(!db) return Promise.resolve(null);
+    return db.collection('shared').doc(key).delete().then(function(){
+      return { key:key, deleted:true, shared:true };
+    }).catch(function(){ return null; });
+  }
+  try{
+    window.localStorage.removeItem('vs_'+key);
+    return Promise.resolve({ key:key, deleted:true, shared:false });
+  }catch(e){ return Promise.resolve(null); }
+}
+
+// ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
+
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false };
+
+function startLiveSync(){
+  if(!db){
+    document.getElementById('vs-lock-err').textContent = 'Could not connect to the database. Check your connection and try again.';
+    return;
+  }
+  subscribeShared('catalog', function(value, exists){
+    if(exists){ state.catalog = JSON.parse(value); }
+    else if(!state.catalog){ state.catalog = {items:DEFAULT_ITEMS, engineers:DEFAULT_ENGINEERS}; saveCatalog(); }
+    liveLoaded.catalog = true;
+    onSharedUpdate('catalog');
+  });
+  subscribeShared('stock', function(value, exists){
+    if(exists){ state.stock = JSON.parse(value); }
+    else if(!state.stock){ state.stock = seedStock(); saveStock(); }
+    liveLoaded.stock = true;
+    onSharedUpdate('stock');
+  });
+  subscribeShared('history', function(value, exists){
+    state.history = exists ? JSON.parse(value) : [];
+    liveLoaded.history = true;
+    onSharedUpdate('history');
+  });
+  subscribeShared('leave-requests', function(value, exists){
+    state.leaveRequests = exists ? JSON.parse(value) : [];
+    liveLoaded.leave = true;
+    onSharedUpdate('leave');
+  });
+  subscribeShared('callout-rota', function(value, exists){
+    state.rota = exists ? JSON.parse(value) : [];
+    liveLoaded.rota = true;
+    onSharedUpdate('rota');
+  });
+  subscribeShared('swap-requests', function(value, exists){
+    state.swapRequests = exists ? JSON.parse(value) : [];
+    liveLoaded.swaps = true;
+    onSharedUpdate('swaps');
+  });
+  subscribeShared('manuals', function(value, exists){
+    state.manuals = exists ? JSON.parse(value) : [];
+    liveLoaded.manuals = true;
+    onSharedUpdate('manuals');
+  });
+}
+
+function subscribeShared(key, onData){
+  db.collection('shared').doc(key).onSnapshot(function(doc){
+    onData(doc.exists ? doc.data().value : null, doc.exists);
+  }, function(){
+    if(state.currentUser){
+      state.error = 'Could not load stock data. Check your connection and try again.';
+      render();
+    } else {
+      var errEl = document.getElementById('vs-lock-err');
+      if(errEl) errEl.textContent = 'Could not connect. Check your connection and try again.';
+    }
+  });
+}
+
+// Which tabs actually need to redraw when a given shared doc changes, so a stock
+// update elsewhere doesn't interrupt someone mid-edit on a tab that doesn't use it.
+var TAB_DEPENDS_ON = {
+  dashboard:['catalog','stock','history'], van:['catalog','stock'],
+  warehouse:['catalog','stock'], history:['catalog','history'], items:['catalog']
+};
+
+function allCoreLoaded(){
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals;
+}
+
+function onSharedUpdate(changedKey){
+  if(!allCoreLoaded()) return;
+  if(!state.loaded){
+    state.loaded = true;
+    render();
+    resolveAuth();
+    return;
+  }
+  if(changedKey==='catalog'){
+    if(state.authResolved && state.currentUser){ checkStillAuthorized(); }
+    if(!state.currentUser){ var w = document.getElementById('vs-setup-wrap'); if(w && w.style.display==='flex') renderSetupScreen(); }
+  }
+  if(appView==='home' && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
+  if(appView==='leave' && ['catalog','leave','rota','swaps'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
+  if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
+  var deps = TAB_DEPENDS_ON[state.tab];
+  if(!deps || deps.indexOf(changedKey)!==-1) render();
+}
+
+function saveCatalog(){
+  trackSave(function(){
+    return storageSet('catalog', JSON.stringify(state.catalog), true);
+  });
+}
+function saveStock(){
+  trackSave(function(){
+    return storageSet('stock', JSON.stringify(state.stock), true);
+  });
+}
+function saveHistory(){
+  if(state.history.length > 300){ state.history = state.history.slice(state.history.length-300); }
+  trackSave(function(){
+    return storageSet('history', JSON.stringify(state.history), true);
+  });
+}
+function saveLeaveRequests(){
+  trackSave(function(){
+    return storageSet('leave-requests', JSON.stringify(state.leaveRequests), true);
+  });
+}
+function saveRota(){
+  trackSave(function(){
+    return storageSet('callout-rota', JSON.stringify(state.rota), true);
+  });
+}
+function saveSwapRequests(){
+  trackSave(function(){
+    return storageSet('swap-requests', JSON.stringify(state.swapRequests), true);
+  });
+}
+function saveManuals(){
+  trackSave(function(){
+    return storageSet('manuals', JSON.stringify(state.manuals), true);
+  });
+}
+
+var saveState = { pending:0, lastSaved:null, error:false };
+
+function trackSave(fn){
+  saveState.pending++;
+  renderSaveStatus();
+  return fn().then(function(res){
+    saveState.pending = Math.max(0, saveState.pending-1);
+    if(res){ saveState.lastSaved = new Date(); saveState.error = false; }
+    else { saveState.error = true; }
+    renderSaveStatus();
+    return res;
+  });
+}
+
+function renderSaveStatus(){
+  var el = document.getElementById('vs-save-status');
+  if(!el) return;
+  if(saveState.pending>0){
+    el.innerHTML = '<span class="vs-save-dot saving"></span>Saving\u2026';
+  } else if(saveState.error){
+    el.innerHTML = '<span class="vs-save-dot error"></span><button class="vs-transfer-link" onclick="VS.retrySave()">Not saved \u2014 tap to retry</button>';
+  } else if(saveState.lastSaved){
+    el.innerHTML = '<span class="vs-save-dot ok"></span>Saved '+saveState.lastSaved.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function toast(msg){
+  var t = document.getElementById('vs-toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+function addHistory(entry){
+  entry.id = uid(); entry.ts = new Date().toISOString();
+  var actorEng = state.currentUser ? engById(state.currentUser) : null;
+  entry.actor = actorEng ? actorEng.name : 'Unknown';
+  entry.actorId = state.currentUser || null;
+  state.history.push(entry);
+  saveHistory();
+}
+
+// Admins see everyone's history; everyone else only sees their own. Older
+// entries (logged before actorId existed) fall back to matching by name.
+function visibleHistory(){
+  var me = currentPerson();
+  if(isAdminPerson(me)) return state.history;
+  if(!me) return [];
+  return state.history.filter(function(h){
+    return h.actorId ? h.actorId===me.id : h.actor===me.name;
+  });
+}
+
+function itemById(id){ return state.catalog.items.filter(function(i){ return i.id===id; })[0]; }
+function engById(id){ return state.catalog.engineers.filter(function(e){ return e.id===id; })[0]; }
+
+function statusFor(qty, par){
+  if(qty<=0) return 'out';
+  if(qty<par) return 'low';
+  return 'ok';
+}
+
+function lowStockList(location){
+  var list = [];
+  if(location==='warehouse'){
+    state.catalog.items.forEach(function(it){
+      if(!itemAppliesTo(it,'warehouse')) return;
+      var qty = state.stock.warehouse[it.id]||0;
+      var s = statusFor(qty, it.whPar);
+      if(s!=='ok') list.push({item:it, qty:qty, status:s, location:'Stores'});
+    });
+  } else {
+    visibleVanHolders().forEach(function(eng){
+      state.catalog.items.forEach(function(it){
+        if(!itemAppliesTo(it,'van')) return;
+        var qty = (state.stock.van[eng.id]||{})[it.id]||0;
+        var s = statusFor(qty, it.vanPar);
+        if(s!=='ok') list.push({item:it, qty:qty, status:s, location:eng.name, engId:eng.id});
+      });
+    });
+  }
+  return list;
+}
+
+// ---------- Rendering ----------
+
+function render(){
+  if(state.loaded) ensureValidActiveVan();
+  renderTabs();
+  renderSubnav();
+  renderWhoBadge();
+  renderSaveStatus();
+  var c = document.getElementById('vs-content');
+  if(state.error){ c.innerHTML = '<div class="vs-error">'+state.error+'<div><button class="vs-btn primary" onclick="VS.retry()">Retry</button></div></div>'; return; }
+  if(!state.loaded){ c.innerHTML = '<div class="vs-loading">Loading stock data…</div>'; return; }
+  if(state.tab==='dashboard') return renderDashboard(c);
+  if(state.tab==='van') return renderVan(c);
+  if(state.tab==='warehouse') return renderWarehouse(c);
+  if(state.tab==='history') return renderHistory(c);
+  if(state.tab==='items') return renderItems(c);
+}
+
+function renderTabs(){
+  var tabs = [['dashboard','Dashboard'],['van','Vans'],['warehouse','Stores'],['history','History'],['items','Items']];
+  var html = tabs.map(function(t){
+    return '<button class="vs-tab '+(state.tab===t[0]?'active':'')+'" onclick="VS.setTab(\''+t[0]+'\')">'+t[1]+'</button>';
+  }).join('');
+  document.getElementById('vs-tabs').innerHTML = html;
+}
+
+function renderSubnav(){
+  var el = document.getElementById('vs-subnav');
+  var visible = visibleVanHolders();
+  if(state.tab!=='van' || !state.loaded || visible.length<2){ el.innerHTML=''; return; }
+  var html = '<div class="vs-van-chips">' + visible.map(function(e){
+    var low = 0;
+    state.catalog.items.forEach(function(it){
+      if(!itemAppliesTo(it,'van')) return;
+      var qty = (state.stock.van[e.id]||{})[it.id]||0;
+      if(statusFor(qty, it.vanPar)!=='ok') low++;
+    });
+    var dotColor = low>0 ? 'var(--amber)' : 'var(--green)';
+    return '<button class="vs-chip '+(state.activeVan===e.id?'active':'')+'" onclick="VS.setVan(\''+e.id+'\')">'+
+      '<span class="dot" style="background:'+dotColor+'"></span>'+e.name+(low>0?' · '+low:'')+'</button>';
+  }).join('') + '</div>';
+  el.innerHTML = html;
+}
+
+function renderDashboard(c){
+  var lowVan = lowStockList('van');
+  var lowWh = lowStockList('warehouse');
+  var noStock = noStockList();
+  var recent = visibleHistory().slice(-8).reverse();
+  var html = '';
+  html += '<div class="vs-dash-grid">';
+  html += metricButton(noStock.length, 'No Stock items', noStock.length>0, 'VS.openNoStockList()');
+  html += metricButton(lowVan.length, 'Van low-stock alerts', lowVan.length>0, 'VS.goUseVan()');
+  html += actionTile('Use Item', 'Log stock used', 'VS.openUseItemChoice()');
+  html += actionTile('Transfer Item', 'Stores \u2192 van or job', 'VS.openGeneralTransfer()');
+  html += '</div>';
+
+  html += sectionHead('Needs attention');
+  if(lowVan.length+lowWh.length===0){
+    html += '<div class="vs-empty">Nothing below par right now.</div>';
+  } else {
+    html += '<div class="vs-cards">';
+    lowWh.concat(lowVan).slice(0,8).forEach(function(row){
+      html += '<div class="vs-item-row '+row.status+'"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+row.item.name+'<span class="vs-stock-badge '+row.status+'">'+row.status.toUpperCase()+'</span></div>'+
+        '<div class="vs-item-meta">'+row.location+' · '+row.qty+' '+row.item.unit+' in stock</div></div></div>';
+    });
+    html += '</div>';
+  }
+
+  html += sectionHead('Recent activity');
+  if(recent.length===0){
+    html += '<div class="vs-empty">No stock movements logged yet.</div>';
+  } else {
+    html += '<div>' + recent.map(historyRowHtml).join('') + '</div>';
+  }
+  c.innerHTML = html;
+}
+
+function metric(num, label, alert){
+  return '<div class="vs-metric'+(alert?' alert':'')+'"><div class="num">'+num+'</div><div class="lbl">'+label+'</div></div>';
+}
+function metricButton(num, label, alert, onclickFn){
+  return '<button class="vs-metric vs-metric-btn'+(alert?' alert':'')+'" onclick="'+onclickFn+'"><div class="num">'+num+'</div><div class="lbl">'+label+'</div></button>';
+}
+function actionTile(label, sub, onclickFn){
+  return '<button class="vs-dash-action" onclick="'+onclickFn+'"><div class="lbl">'+label+'</div><div class="sub">'+sub+'</div></button>';
+}
+
+// Items with zero stock in any location visible to the current user (their own
+// van, or any van if admin) plus stores.
+function noStockList(){
+  var list = [];
+  state.catalog.items.forEach(function(it){
+    if(!itemAppliesTo(it,'warehouse')) return;
+    var qty = state.stock.warehouse[it.id]||0;
+    if(qty<=0) list.push({item:it, location:'Stores'});
+  });
+  visibleVanHolders().forEach(function(eng){
+    state.catalog.items.forEach(function(it){
+      if(!itemAppliesTo(it,'van')) return;
+      var qty = (state.stock.van[eng.id]||{})[it.id]||0;
+      if(qty<=0) list.push({item:it, location:eng.name});
+    });
+  });
+  return list;
+}
+
+function openNoStockList(){
+  var list = noStockList();
+  var html = '<h3>No stock</h3>';
+  if(list.length===0){
+    html += '<p style="font-size:13px;color:var(--muted);margin:0;">Nothing is completely out of stock right now.</p>';
+  } else {
+    html += '<div style="max-height:340px;overflow-y:auto;">' + list.map(function(row){
+      return '<div class="vs-item-row out" style="margin-bottom:8px;"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+row.item.name+'</div><div class="vs-item-meta">'+row.location+'</div></div></div>';
+    }).join('') + '</div>';
+  }
+  html += '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+  openModal(html);
+}
+
+function sectionHead(title, actionHtml){
+  return '<div class="vs-section-head"><h2>'+title+'</h2>'+(actionHtml||'')+'</div>';
+}
+
+function historyRowHtml(h){
+  var it = itemById(h.itemId);
+  var itName = it ? it.name : (h.itemId ? '(deleted item)' : '');
+  var d = new Date(h.ts);
+  var timeStr = d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  var verb = {use:'used',found:'added',received:'received',transfer:'transferred',adjust:'set',item_add:'added item',item_edit:'edited item',job:'sent to job'}[h.type]||h.type;
+  var qtyPart = (h.qty!==undefined) ? ' <b>'+ (h.qty>0 && h.type!=='adjust' ? '+' : '') + h.qty+'</b> ' : ' ';
+  var actorName = h.actor || 'Unknown';
+  return '<div class="vs-hist-row"><span class="vs-hist-actor" title="'+escapeAttr(actorName)+'">'+initials(actorName)+'</span>'+
+    '<div class="vs-hist-time">'+timeStr+'</div><div class="vs-hist-what">'+
+    (h.locationLabel||'')+' '+verb+qtyPart+itName+(h.note?' — '+h.note:'')+'</div></div>';
+}
+
+function renderVan(c){
+  var eng = engById(state.activeVan);
+  if(!eng){
+    var me = currentPerson();
+    if(me && !isAdminPerson(me) && !personHasVan(me)){
+      c.innerHTML = '<div class="vs-empty">You don\'t have a van on your account — this section is for engineers with a van.</div>';
+    } else {
+      c.innerHTML = '<div class="vs-empty">No engineers set up yet — add one in Items.</div>';
+    }
+    return;
+  }
+  var html = sectionHead(eng.name + '\u2019s van', '<button class="vs-btn small" onclick="VS.openTransfer(\''+eng.id+'\')">Transfer from stores</button>');
+  html += renderStockFilterBar();
+  html += '<div class="vs-cards">';
+  var shown = 0;
+  state.catalog.items.forEach(function(it){
+    if(!itemAppliesTo(it,'van')) return;
+    if(!itemMatchesFilter(it)) return;
+    shown++;
+    var qty = (state.stock.van[eng.id]||{})[it.id]||0;
+    var status = statusFor(qty, it.vanPar);
+    html += '<div class="vs-item-row '+status+'">'+
+      '<div class="vs-item-info"><div class="vs-item-name">'+it.name+
+        (status!=='ok' ? '<span class="vs-stock-badge '+status+'">'+status.toUpperCase()+'</span>' : '')+
+      '</div></div>'+
+      '<div class="vs-stepper">'+
+        '<button onclick="VS.adjustVan(\''+eng.id+'\',\''+it.id+'\',-1)">\u2212</button>'+
+        '<span class="qty">'+qty+'</span>'+
+        '<button onclick="VS.adjustVan(\''+eng.id+'\',\''+it.id+'\',1)">+</button>'+
+      '</div></div>';
+  });
+  html += '</div>';
+  if(shown===0) html += '<div class="vs-empty">No items match your search.</div>';
+  c.innerHTML = html;
+  var sInput = document.getElementById('stock-search');
+  if(sInput){ sInput.focus(); sInput.setSelectionRange(sInput.value.length, sInput.value.length); }
+}
+
+function renderWarehouse(c){
+  var html = sectionHead('Stores stock', '<button class="vs-btn small" onclick="VS.openRestockStores()">Restock Stores</button>');
+  html += renderStockFilterBar();
+  html += '<div class="vs-cards">';
+  var shown = 0;
+  state.catalog.items.forEach(function(it){
+    if(!itemAppliesTo(it,'warehouse')) return;
+    if(!itemMatchesFilter(it)) return;
+    shown++;
+    var qty = state.stock.warehouse[it.id]||0;
+    var status = statusFor(qty, it.whPar);
+    html += '<div class="vs-item-row '+status+'">'+
+      '<div class="vs-item-info"><div class="vs-item-name">'+it.name+
+        (status!=='ok' ? '<span class="vs-stock-badge '+status+'">'+status.toUpperCase()+'</span>' : '')+
+      '</div></div>'+
+      '<div class="vs-stepper">'+
+        '<button onclick="VS.adjustWarehouse(\''+it.id+'\',-1)">\u2212</button>'+
+        '<span class="qty">'+qty+'</span>'+
+        '<button onclick="VS.adjustWarehouse(\''+it.id+'\',1)">+</button>'+
+      '</div></div>';
+  });
+  html += '</div>';
+  if(shown===0) html += '<div class="vs-empty">No items match your search.</div>';
+  c.innerHTML = html;
+  var sInput = document.getElementById('stock-search');
+  if(sInput){ sInput.focus(); sInput.setSelectionRange(sInput.value.length, sInput.value.length); }
+}
+
+function renderHistory(c){
+  var rows = visibleHistory().slice().reverse();
+  var admin = isAdminPerson(currentPerson());
+  var html = sectionHead('Full history', rows.length ? '<span style="font-size:12px;color:var(--muted-2)">'+rows.length+' entries</span>' : '');
+  if(!admin) html += '<p style="font-size:12px;color:var(--muted-2);margin:-4px 0 12px 0;">Showing your own activity only.</p>';
+  if(rows.length===0){
+    html += '<div class="vs-empty">No stock movements logged yet.</div>';
+  } else {
+    html += '<div>' + rows.map(historyRowHtml).join('') + '</div>';
+  }
+  c.innerHTML = html;
+}
+
+function noAdminYet(){
+  return !state.catalog.engineers.some(function(e){ return e.isAdmin; });
+}
+
+function renderItems(c){
+  var me = currentPerson();
+  var bootstrap = noAdminYet();
+  var admin = isAdminPerson(me) || bootstrap;
+  var editPars = canEditPars(me) || bootstrap;
+  var html = '';
+
+  if(bootstrap){
+    html += '<div class="vs-empty" style="background:var(--panel);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;text-align:left;margin-bottom:16px;color:var(--text);">'+
+      '<b style="color:var(--amber);">No one is set as admin yet.</b> Everyone can currently edit everything below. Tick "Admin" next to your own name in Team to lock this down properly.</div>';
+  }
+
+  if(admin){
+    html += sectionHead('Team', '<button class="vs-btn small primary" onclick="VS.openAddPerson()">+ Add team member</button>');
+    html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 14px;margin-bottom:8px;">';
+    state.catalog.engineers.forEach(function(e){
+      var hv = personHasVan(e);
+      html += '<div class="vs-team-row" style="flex-wrap:wrap;">'+
+        '<input value="'+escapeAttr(e.name)+'" onchange="VS.renameEngineer(\''+e.id+'\',this.value)" style="flex:1 1 100%;">'+
+        '<select onchange="VS.setPersonRole(\''+e.id+'\',this.value)">'+
+          '<option value="van" '+(hv?'selected':'')+'>Engineer (van)</option>'+
+          '<option value="office" '+(!hv?'selected':'')+'>Office / Stores</option>'+
+        '</select>'+
+        '<input value="'+escapeAttr(e.pin||'')+'" placeholder="PIN" style="width:60px;flex:none;" onchange="VS.setPersonPinLive(\''+e.id+'\',this.value)">'+
+        '<input value="'+escapeAttr(e.code||'')+'" placeholder="Code" title="Short code for the callout rota (e.g. RR)" style="width:60px;flex:none;" onchange="VS.setPersonCode(\''+e.id+'\',this.value)">'+
+        '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;"><input type="checkbox" '+(isAdminPerson(e)?'checked':'')+' onchange="VS.setPersonAdmin(\''+e.id+'\',this.checked)" style="width:auto;">Admin</label>'+
+        '<button class="vs-btn small danger" onclick="VS.removePerson(\''+e.id+'\')">Remove</button>'+
+      '</div>';
+    });
+    html += '</div>';
+  }
+
+  html += sectionHead('Item catalog', '<button class="vs-btn small primary" onclick="VS.openAddItem()">+ Add item</button>');
+  html += '<div class="vs-scroll-x"><table class="vs-cat-table"><thead><tr>'+(admin?'<th></th>':'')+'<th style="min-width:150px;">Name</th><th>Category</th>'+(admin?'<th>Tracked in</th>':'')+'<th>Unit</th><th>Van Min</th><th>Stores Min</th>'+(admin?'<th></th>':'')+'</tr></thead><tbody id="vs-items-tbody">';
+  state.catalog.items.forEach(function(it){
+    var scope = it.scope || 'both';
+    html += '<tr data-item-id="'+it.id+'">'+
+      (admin?'<td class="vs-drag-handle">\u2837</td>':'')+
+      '<td><input value="'+escapeAttr(it.name)+'" onchange="VS.editItem(\''+it.id+'\',\'name\',this.value)" style="min-width:140px;font-size:14.5px;" '+(admin?'':'disabled')+'></td>'+
+      '<td><select onchange="VS.editItem(\''+it.id+'\',\'category\',this.value)" '+(admin?'':'disabled')+'>'+categoryOptions(it.category)+'</select></td>'+
+      (admin?'<td><select onchange="VS.editItem(\''+it.id+'\',\'scope\',this.value)">'+SCOPES.map(function(s){return '<option value="'+s.v+'" '+(s.v===scope?'selected':'')+'>'+s.label+'</option>';}).join('')+'</select></td>':'')+
+      '<td><input value="'+escapeAttr(it.unit)+'" onchange="VS.editItem(\''+it.id+'\',\'unit\',this.value)" style="width:60px" '+(admin?'':'disabled')+'></td>'+
+      '<td><input type="number" min="0" value="'+it.vanPar+'" onchange="VS.editItem(\''+it.id+'\',\'vanPar\',this.value)" style="width:60px" '+(scope==='warehouse'||!editPars?'disabled':'')+'></td>'+
+      '<td><input type="number" min="0" value="'+it.whPar+'" onchange="VS.editItem(\''+it.id+'\',\'whPar\',this.value)" style="width:60px" '+(scope==='van'||!editPars?'disabled':'')+'></td>'+
+      (admin?'<td><button class="vs-btn small danger" onclick="VS.removeItem(\''+it.id+'\')">Remove</button></td>':'')+
+      '</tr>';
+  });
+  html += '</tbody></table></div>';
+  if(admin) html += '<p style="font-size:11.5px;color:var(--muted-2);margin-top:6px;">Drag \u2837 to reorder items.</p>';
+
+  if(admin){
+    html += sectionHead('Data');
+    html += '<button class="vs-btn danger" onclick="VS.resetAll()">Reset all stock data</button>';
+  }
+  c.innerHTML = html;
+  initItemsSortable(admin);
+}
+
+var itemsSortable = null;
+function initItemsSortable(admin){
+  if(itemsSortable){ itemsSortable.destroy(); itemsSortable = null; }
+  if(!admin || typeof Sortable==='undefined') return;
+  var tbody = document.getElementById('vs-items-tbody');
+  if(!tbody) return;
+  itemsSortable = Sortable.create(tbody, {
+    handle: '.vs-drag-handle',
+    animation: 150,
+    onEnd: function(){
+      var ids = Array.prototype.map.call(tbody.querySelectorAll('tr'), function(tr){ return tr.getAttribute('data-item-id'); });
+      var byId = {};
+      state.catalog.items.forEach(function(it){ byId[it.id] = it; });
+      var reordered = ids.map(function(id){ return byId[id]; }).filter(Boolean);
+      if(reordered.length === state.catalog.items.length){
+        state.catalog.items = reordered;
+        saveCatalog();
+      }
+    }
+  });
+}
+
+function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+// ---------- Leave, Callout Rota, and Swap requests ----------
+
+var rotaViewMonth = new Date();
+rotaViewMonth.setDate(1);
+
+function renderLeaveScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-leave-content');
+  if(!c) return;
+  if(state.leaveTab==='mine') return renderMyLeaveRequests(c);
+  if(state.leaveTab==='rota') return renderCalloutRota(c);
+  if(state.leaveTab==='swap') return renderRequestSwap(c);
+  if(state.leaveTab==='approvals') return renderLeaveApprovals(c);
+  if(state.leaveTab==='request') return renderLeaveRequestForm(c);
+  return renderLeaveMenu(c);
+}
+
+function leaveMenuTile(tab, label, sub, svgPaths){
+  return '<button class="vs-home-tile" onclick="VS.setLeaveTab(\''+tab+'\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">'+svgPaths+'</svg>'+
+    '<span class="vs-home-tile-label">'+label+'</span>'+
+    '<span class="vs-home-tile-sub">'+sub+'</span>'+
+  '</button>';
+}
+
+function leaveBackLink(){
+  return '<button class="vs-back-link" onclick="VS.setLeaveTab(\'menu\')" style="margin-bottom:16px;">&larr; Leave &amp; Rota</button>';
+}
+
+function renderLeaveMenu(c){
+  var admin = isAdminPerson(currentPerson());
+  var pendingCount = admin ? state.leaveRequests.filter(function(r){ return r.status==='pending'; }).length : 0;
+  var html = '<div class="vs-home-grid">';
+  html += leaveMenuTile('request', 'Request Leave', 'Ask for time off', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M8.5 15l2 2 4.5-4.5"/>');
+  html += leaveMenuTile('mine', 'My Requests', 'Status of your requests', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h10M7 17h6"/>');
+  html += leaveMenuTile('rota', 'Callout Rota', 'Who\u2019s on call, and when', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="8" cy="14" r="1"/><circle cx="12" cy="14" r="1"/><circle cx="16" cy="14" r="1"/>');
+  html += leaveMenuTile('swap', 'Cover / Swap', 'Hand over or trade dates', '<path d="M7 3L3 7l4 4"/><path d="M3 7h13a4 4 0 0 1 4 4v1"/><path d="M17 21l4-4-4-4"/><path d="M21 17H8a4 4 0 0 1-4-4v-1"/>');
+  if(admin){
+    html += leaveMenuTile('approvals', 'Approvals'+(pendingCount?' ('+pendingCount+')':''), 'Review pending requests', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
+  }
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+function fmtLeaveDate(d){
+  return new Date(d+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short'});
+}
+function fmtLeaveDates(r){
+  var startPart = fmtLeaveDate(r.startDate) + (r.startHalf==='pm' ? ' (PM)' : '');
+  var endPart = fmtLeaveDate(r.endDate) + (r.endHalf==='am' ? ' (AM)' : '');
+  return r.startDate===r.endDate ? startPart : (startPart + ' \u2192 ' + endPart);
+}
+var LEAVE_STATUS_LABEL = {pending:'Pending', approved:'Approved', approved_conditions:'Approved (conditions)', rejected:'Rejected'};
+var LEAVE_STATUS_CLASS = {pending:'low', approved:'ok', approved_conditions:'low', rejected:'out'};
+
+function leaveRequestRowHtml(r, showName){
+  var statusClass = LEAVE_STATUS_CLASS[r.status];
+  var title = (showName ? escapeAttr(r.requesterName)+' \u2014 ' : '') + fmtLeaveDates(r);
+  var html = '<div class="vs-item-row '+statusClass+'"><div class="vs-item-info">'+
+    '<div class="vs-item-name">'+title+'<span class="vs-stock-badge '+statusClass+'">'+LEAVE_STATUS_LABEL[r.status].toUpperCase()+'</span></div>';
+  if(r.notes) html += '<div class="vs-item-meta">Note: '+escapeAttr(r.notes)+'</div>';
+  if(r.adminNote) html += '<div class="vs-item-meta">Admin: '+escapeAttr(r.adminNote)+'</div>';
+  html += '</div></div>';
+  return html;
+}
+
+function renderLeaveRequestForm(c){
+  var html = leaveBackLink();
+  html += sectionHead('Request leave');
+  html += '<div class="vs-field"><label>Start date</label><input type="date" id="lv-start"></div>';
+  html += '<div class="vs-field"><label>Start day</label><select id="lv-start-half"><option value="full">Full day</option><option value="pm">Half day (afternoon only)</option></select></div>';
+  html += '<div class="vs-field"><label>End date</label><input type="date" id="lv-end"></div>';
+  html += '<div class="vs-field"><label>End day</label><select id="lv-end-half"><option value="full">Full day</option><option value="am">Half day (morning only)</option></select></div>';
+  html += '<div class="vs-field"><label>Notes (optional)</label><input id="lv-notes" placeholder="Anything the admin should know"></div>';
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:14px 0;">'+
+    '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text);margin-bottom:10px;"><input type="checkbox" id="lv-check1" onchange="VS.updateLeaveSubmitState()" style="margin-top:3px;width:auto;flex-shrink:0;">I\u2019ve checked the callout rota and other requests \u2014 nobody critical is already off over these dates.</label>'+
+    '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text);"><input type="checkbox" id="lv-check2" onchange="VS.updateLeaveSubmitState()" style="margin-top:3px;width:auto;flex-shrink:0;">If I\u2019m on call during this period, I\u2019ve arranged cover in writing \u2014 or I\u2019m not on call.</label>'+
+  '</div>';
+  html += '<button class="vs-btn primary" id="lv-submit-btn" disabled onclick="VS.submitLeaveRequest()">Submit request</button>';
+  c.innerHTML = html;
+}
+
+function renderMyLeaveRequests(c){
+  var me = currentPerson();
+  var mine = state.leaveRequests.filter(function(r){ return r.requesterId===me.id; }).slice().reverse();
+  var html = leaveBackLink();
+  html += sectionHead('My leave requests');
+  if(mine.length===0){
+    html += '<div class="vs-empty">You haven\u2019t requested any leave yet.</div>';
+  } else {
+    html += '<div class="vs-cards">' + mine.map(function(r){ return leaveRequestRowHtml(r,false); }).join('') + '</div>';
+  }
+  c.innerHTML = html;
+  var changed = false;
+  mine.forEach(function(r){ if(!r.seenByRequester){ r.seenByRequester = true; changed = true; } });
+  if(changed) saveLeaveRequests();
+}
+
+function renderLeaveApprovals(c){
+  var pending = state.leaveRequests.filter(function(r){ return r.status==='pending'; }).slice().reverse();
+  var decided = state.leaveRequests.filter(function(r){ return r.status!=='pending'; }).slice().reverse().slice(0,10);
+  var html = leaveBackLink();
+  html += sectionHead('Pending approval');
+  if(pending.length===0){
+    html += '<div class="vs-empty">Nothing waiting on you.</div>';
+  } else {
+    html += pending.map(function(r){
+      return leaveRequestRowHtml(r,true) +
+        '<div style="display:flex;gap:8px;margin:8px 0 16px 0;flex-wrap:wrap;">'+
+          '<button class="vs-btn small primary" onclick="VS.decideLeave(\''+r.id+'\',\'approved\')">Approve</button>'+
+          '<button class="vs-btn small" onclick="VS.openLeaveConditions(\''+r.id+'\')">Approve with conditions</button>'+
+          '<button class="vs-btn small danger" onclick="VS.openLeaveReject(\''+r.id+'\')">Reject</button>'+
+        '</div>';
+    }).join('');
+  }
+  html += sectionHead('Recent decisions');
+  if(decided.length===0){
+    html += '<div class="vs-empty">No decisions yet.</div>';
+  } else {
+    html += '<div class="vs-cards">' + decided.map(function(r){ return leaveRequestRowHtml(r,true); }).join('') + '</div>';
+  }
+  c.innerHTML = html;
+}
+
+function renderCalloutRota(c){
+  var admin = isAdminPerson(currentPerson());
+  var year = rotaViewMonth.getFullYear(), month = rotaViewMonth.getMonth();
+  var monthLabel = rotaViewMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  var html = leaveBackLink();
+  html += sectionHead('Callout rota',
+    '<div style="display:flex;gap:6px;">'+
+      '<button class="vs-btn small" onclick="VS.rotaMonthShift(-1)">\u2039</button>'+
+      '<button class="vs-btn small" onclick="VS.rotaMonthShift(1)">\u203a</button>'+
+    '</div>');
+  html += '<div style="text-align:center;font-family:\'Archivo\';font-weight:800;font-size:15px;margin-bottom:10px;color:var(--text);">'+monthLabel+'</div>';
+
+  var firstDay = new Date(year, month, 1);
+  var startWeekday = firstDay.getDay();
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+  var todayStr = new Date().toISOString().slice(0,10);
+
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--muted-2);text-align:center;margin-bottom:4px;">'+
+    ['S','M','T','W','T','F','S'].map(function(d){ return '<div>'+d+'</div>'; }).join('') + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
+  for(var i=0;i<startWeekday;i++) html += '<div></div>';
+  for(var d=1; d<=daysInMonth; d++){
+    var dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var entries = state.rota.filter(function(r){ return r.date===dateStr; });
+    var who = entries.map(function(e){ var p = engById(e.engineerId); return p ? (p.code || initials(p.name)) : '?'; }).join(' ');
+    html += '<button class="vs-rota-day'+(dateStr===todayStr?' today':'')+'" onclick="VS.'+(admin?'openRotaDay':'viewRotaDay')+'(\''+dateStr+'\')">'+
+      '<span class="daynum">'+d+'</span>'+(who ? '<span class="who">'+who+'</span>' : '')+
+    '</button>';
+  }
+  html += '</div>';
+
+  if(admin){
+    html += sectionHead('Bulk import');
+    html += '<p style="font-size:12px;color:var(--muted);margin:0 0 8px 0;">One per line: YYYY-MM-DD, Person name or code (set codes below). Useful for importing from a photo of your existing calendar.</p>';
+    html += '<textarea id="rota-bulk" rows="4" style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px;font-family:monospace;font-size:12px;" placeholder="2026-09-12, Bobby&#10;2026-09-13, Jamie"></textarea>';
+    html += '<button class="vs-btn small primary" style="margin-top:8px;" onclick="VS.bulkImportRota()">Import</button>';
+  }
+  c.innerHTML = html;
+}
+
+function renderRequestSwap(c){
+  var me = currentPerson();
+  var admin = isAdminPerson(me);
+  var todayStr = new Date().toISOString().slice(0,10);
+  var myDates = state.rota.filter(function(r){ return r.engineerId===me.id && r.date>=todayStr; }).sort(function(a,b){ return a.date<b.date?-1:1; });
+  var others = state.catalog.engineers.filter(function(e){ return e.id!==me.id; });
+
+  var html = leaveBackLink();
+  html += sectionHead('Ask someone to cover a date');
+  if(myDates.length===0){
+    html += '<div class="vs-empty">You don\u2019t have any upcoming on-call dates.</div>';
+  } else {
+    html += '<div class="vs-field"><label>Which date(s) of yours?</label>'+
+      myDates.map(function(r){
+        return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="cover-date-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
+      }).join('') + '</div>';
+    html += '<div class="vs-field"><label>Ask</label><select id="cover-target">'+others.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('')+'</select></div>';
+    html += '<button class="vs-btn primary" onclick="VS.submitCoverRequest()">Send request</button>';
+  }
+
+  html += sectionHead('Swap dates with someone');
+  if(myDates.length===0){
+    html += '<div class="vs-empty">You don\u2019t have any upcoming on-call dates to offer in a swap.</div>';
+  } else {
+    html += '<div class="vs-field"><label>Which date(s) of yours?</label>'+
+      myDates.map(function(r){
+        return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="swapx-my-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
+      }).join('') + '</div>';
+    html += '<div class="vs-field"><label>Swap with</label><select id="swapx-target" onchange="VS.onSwapTargetChange()">'+others.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>For which of their date(s)?</label><div id="swapx-target-dates"></div></div>';
+    html += '<button class="vs-btn primary" onclick="VS.submitSwapDates()">Send swap request</button>';
+  }
+
+  html += sectionHead('Requests for you to agree');
+  var forMe = state.swapRequests.filter(function(s){ return s.targetId===me.id && s.status==='pending'; });
+  if(forMe.length===0){
+    html += '<div class="vs-empty">Nothing waiting on you.</div>';
+  } else {
+    html += forMe.map(function(s){
+      var theirDates = s.dates.map(fmtLeaveDate).join(', ');
+      if(s.type==='swap'){
+        var yourDates = s.targetDates.map(fmtLeaveDate).join(', ');
+        return '<div class="vs-item-row low"><div class="vs-item-info"><div class="vs-item-name">'+escapeAttr(s.requesterName)+' wants to swap</div>'+
+          '<div class="vs-item-meta">Their '+theirDates+' \u2194 your '+yourDates+'</div></div></div>'+
+          '<div style="display:flex;gap:8px;margin:8px 0 16px 0;"><button class="vs-btn small primary" onclick="VS.respondSwap(\''+s.id+'\',true)">Agree</button><button class="vs-btn small danger" onclick="VS.respondSwap(\''+s.id+'\',false)">Decline</button></div>';
+      }
+      return '<div class="vs-item-row low"><div class="vs-item-info"><div class="vs-item-name">'+escapeAttr(s.requesterName)+' wants you to cover</div><div class="vs-item-meta">'+theirDates+'</div></div></div>'+
+        '<div style="display:flex;gap:8px;margin:8px 0 16px 0;"><button class="vs-btn small primary" onclick="VS.respondSwap(\''+s.id+'\',true)">Agree</button><button class="vs-btn small danger" onclick="VS.respondSwap(\''+s.id+'\',false)">Decline</button></div>';
+    }).join('');
+  }
+
+  html += sectionHead('Your sent requests');
+  var sent = state.swapRequests.filter(function(s){ return s.requesterId===me.id; }).slice().reverse();
+  if(sent.length===0){
+    html += '<div class="vs-empty">You haven\u2019t sent any cover or swap requests.</div>';
+  } else {
+    html += '<div class="vs-cards">' + sent.map(function(s){
+      var statusClass = s.status==='agreed'?'ok':s.status==='declined'?'out':'low';
+      var label = s.type==='swap' ?
+        'Swap with '+escapeAttr(s.targetName)+': '+s.dates.map(fmtLeaveDate).join(', ')+' \u2194 '+s.targetDates.map(fmtLeaveDate).join(', ') :
+        'To '+escapeAttr(s.targetName)+': '+s.dates.map(fmtLeaveDate).join(', ');
+      return '<div class="vs-item-row '+statusClass+'"><div class="vs-item-info"><div class="vs-item-name">'+label+'<span class="vs-stock-badge '+statusClass+'">'+s.status.toUpperCase()+'</span></div></div></div>';
+    }).join('') + '</div>';
+  }
+
+  if(admin){
+    html += sectionHead('Admin: adjust a day directly');
+    html += '<p style="font-size:12px;color:var(--muted);margin:0 0 8px 0;">Skip the request process and set who\u2019s on call for any date, right from the Callout Rota tab.</p>';
+    html += '<button class="vs-btn small" onclick="VS.setLeaveTab(\'rota\')">Go to Callout Rota</button>';
+  }
+
+  c.innerHTML = html;
+  if(myDates.length>0) onSwapTargetChangeInit();
+}
+
+function onSwapTargetChangeInit(){
+  var sel = document.getElementById('swapx-target');
+  if(sel) populateSwapTargetDates(sel.value);
+}
+function populateSwapTargetDates(targetId){
+  var el = document.getElementById('swapx-target-dates');
+  if(!el) return;
+  var todayStr = new Date().toISOString().slice(0,10);
+  var theirDates = state.rota.filter(function(r){ return r.engineerId===targetId && r.date>=todayStr; }).sort(function(a,b){ return a.date<b.date?-1:1; });
+  if(theirDates.length===0){
+    el.innerHTML = '<p style="font-size:12.5px;color:var(--muted-2);margin:4px 0;">This person has no upcoming on-call dates.</p>';
+    return;
+  }
+  el.innerHTML = theirDates.map(function(r){
+    return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="swapx-target-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
+  }).join('');
+}
+
+// ---------- Manuals ----------
+
+function formatFileSize(bytes){
+  if(!bytes) return '';
+  if(bytes<1024) return bytes+' B';
+  if(bytes<1024*1024) return Math.round(bytes/1024)+' KB';
+  return (bytes/(1024*1024)).toFixed(1)+' MB';
+}
+
+function manualIcon(fileType){
+  if(fileType==='image'){
+    return '<svg class="vs-manual-icon" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+  }
+  return '<svg class="vs-manual-icon" viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+}
+
+function renderManualsScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-manuals-content');
+  if(!c || !state.manuals) return;
+  var admin = isAdminPerson(currentPerson());
+  var html = sectionHead('System manuals', '<button class="vs-btn small primary" onclick="VS.openUploadManual()">+ Upload</button>');
+  if(!fbStorage){
+    html += '<div class="vs-empty" style="background:var(--panel);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;text-align:left;color:var(--text);">File storage isn\u2019t set up for this app yet \u2014 ask your admin to finish the Firebase Storage setup.</div>';
+  }
+  var list = state.manuals.slice().sort(function(a,b){ return a.name.toLowerCase()<b.name.toLowerCase() ? -1 : 1; });
+  if(list.length===0){
+    html += '<div class="vs-empty">No manuals uploaded yet.</div>';
+  } else {
+    html += list.map(function(m){
+      return '<div class="vs-manual-row">'+
+        '<a href="'+m.url+'" target="_blank" rel="noopener" class="vs-manual-link">'+manualIcon(m.fileType)+
+          '<div class="vs-manual-info"><div class="vs-manual-name">'+escapeAttr(m.name)+'</div>'+
+          '<div class="vs-manual-meta">'+escapeAttr(m.uploadedBy||'Unknown')+' \u00b7 '+formatFileSize(m.size)+'</div></div>'+
+        '</a>'+
+        (admin ? '<button class="vs-btn small danger" onclick="VS.deleteManual(\''+m.id+'\')">Delete</button>' : '')+
+      '</div>';
+    }).join('');
+  }
+  c.innerHTML = html;
+}
+
+function openUploadManual(){
+  var html = '<h3>Upload manual</h3>'+
+    '<div class="vs-field"><label>File (PDF or image)</label><input type="file" id="man-file" accept=".pdf,image/*"></div>'+
+    '<div class="vs-field"><label>Name (optional)</label><input id="man-name" placeholder="Defaults to the file name"></div>'+
+    '<div id="man-progress" style="display:none;margin:10px 0;">'+
+      '<div style="background:var(--panel-2);border-radius:6px;height:8px;overflow:hidden;"><div id="man-progress-bar" style="background:var(--accent);height:100%;width:0%;"></div></div>'+
+      '<div id="man-progress-text" style="font-size:11px;color:var(--muted-2);margin-top:4px;"></div>'+
+    '</div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" id="man-upload-btn" onclick="VS.doUploadManual()">Upload</button></div>';
+  openModal(html);
+}
+
+// ---------- Modal ----------
+
+function openModal(html){
+  document.getElementById('vs-modal-root').innerHTML = '<div class="vs-modal-backdrop" onclick="if(event.target===this) VS.closeModal()"><div class="vs-modal">'+html+'</div></div>';
+}
+function closeModal(){ document.getElementById('vs-modal-root').innerHTML=''; }
+
+function openUseItemChoice(){
+  var html = '<h3>Use item</h3>'+
+    '<p style="font-size:13px;color:var(--muted);margin:0 0 14px 0;">Which stock are you using from?</p>'+
+    '<div style="display:flex;flex-direction:column;gap:8px;">'+
+      '<button class="vs-btn primary" onclick="VS.goUseVan()">Van item</button>'+
+      '<button class="vs-btn" onclick="VS.goUseStores()">Stores item</button>'+
+    '</div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button></div>';
+  openModal(html);
+}
+
+function eligibleTransferItems(dest){
+  return state.catalog.items.filter(function(it){
+    return dest==='van' ? (it.scope||'both')==='both' : itemAppliesTo(it,'warehouse');
+  });
+}
+
+function populateTransferItems(dest){
+  var sel = document.getElementById('vs-tr-item');
+  if(!sel) return;
+  var eligible = eligibleTransferItems(dest);
+  if(eligible.length===0){
+    sel.innerHTML = '<option value="">No eligible items</option>';
+    return;
+  }
+  sel.innerHTML = eligible.map(function(it){
+    var whQty = state.stock.warehouse[it.id]||0;
+    return '<option value="'+it.id+'">'+it.name+' (stores: '+whQty+' '+it.unit+')</option>';
+  }).join('');
+}
+
+function openGeneralTransfer(){
+  var vanHolders = state.catalog.engineers.filter(personHasVan);
+  var html = '<h3>Transfer item</h3>'+
+    '<div class="vs-field"><label>Send to</label><select id="vs-tr-dest" onchange="VS.onTransferDestChange()">'+
+      '<option value="van">A van</option>'+
+      '<option value="job">A job</option>'+
+    '</select></div>'+
+    '<div class="vs-field" id="vs-tr-van-field"><label>Van</label><select id="vs-tr-van">'+
+      (vanHolders.length ? vanHolders.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('') : '<option value="">No vans set up</option>')+
+    '</select></div>'+
+    '<div class="vs-field" id="vs-tr-job-field" style="display:none;"><label>ServiceM8 job number</label><input id="vs-tr-job" placeholder="e.g. 4521"><p style="font-size:11px;color:var(--muted-2);margin:4px 0 0 0;">Must match the job number in ServiceM8 exactly \u2014 this is what adds the material to the right job.</p></div>'+
+    '<div class="vs-field"><label>Item</label><select id="vs-tr-item"></select></div>'+
+    '<div class="vs-field"><label>Quantity</label><input id="vs-tr-qty" type="number" min="1" value="1"></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doGeneralTransfer()">Transfer</button></div>';
+  openModal(html);
+  populateTransferItems('van');
+}
+
+function populateRestockItems(source, vanId){
+  var sel = document.getElementById('rs-item');
+  if(!sel) return;
+  var eligible = eligibleTransferItems(source==='van' ? 'van' : 'job');
+  if(eligible.length===0){
+    sel.innerHTML = '<option value="">No eligible items</option>';
+    return;
+  }
+  sel.innerHTML = eligible.map(function(it){
+    var qtyLabel;
+    if(source==='van' && vanId){
+      qtyLabel = 'van has '+((state.stock.van[vanId]||{})[it.id]||0)+' '+it.unit;
+    } else {
+      qtyLabel = 'stores has '+(state.stock.warehouse[it.id]||0)+' '+it.unit;
+    }
+    return '<option value="'+it.id+'">'+it.name+' ('+qtyLabel+')</option>';
+  }).join('');
+}
+
+function openRestockStores(){
+  var vanHolders = state.catalog.engineers.filter(personHasVan);
+  var html = '<h3>Restock stores</h3>'+
+    '<div class="vs-field"><label>Restock from</label><select id="rs-source" onchange="VS.onRestockChange()">'+
+      '<option value="van">A van</option>'+
+      '<option value="supplier">Site / supplier</option>'+
+    '</select></div>'+
+    '<div class="vs-field" id="rs-van-field"><label>Van</label><select id="rs-van" onchange="VS.onRestockChange()">'+
+      (vanHolders.length ? vanHolders.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('') : '<option value="">No vans set up</option>')+
+    '</select></div>'+
+    '<div class="vs-field"><label>Item</label><select id="rs-item"></select></div>'+
+    '<div class="vs-field"><label>Quantity</label><input id="rs-qty" type="number" min="1" value="1"></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doRestockStores()">Restock</button></div>';
+  openModal(html);
+  populateRestockItems('van', vanHolders.length ? vanHolders[0].id : null);
+}
+
+function openTransfer(engId){
+  var eng = engById(engId);
+  var eligible = state.catalog.items.filter(function(it){ return (it.scope||'both')==='both'; });
+  if(eligible.length===0){
+    toast('No items are set to track in both van and stores');
+    return;
+  }
+  var options = eligible.map(function(it){
+    var whQty = state.stock.warehouse[it.id]||0;
+    return '<option value="'+it.id+'">'+it.name+' (stores: '+whQty+' '+it.unit+')</option>';
+  }).join('');
+  var html = '<h3>Transfer to '+eng.name+'</h3>'+
+    '<div class="vs-field"><label>Item</label><select id="vs-t-item">'+options+'</select></div>'+
+    '<div class="vs-field"><label>Quantity</label><input id="vs-t-qty" type="number" min="1" value="1"></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doTransfer(\''+engId+'\')">Transfer</button></div>';
+  openModal(html);
+}
+
+function doTransfer(engId){
+  var itemId = document.getElementById('vs-t-item').value;
+  var qty = parseInt(document.getElementById('vs-t-qty').value,10);
+  if(!qty || qty<1){ toast('Enter a valid quantity'); return; }
+  var whQty = state.stock.warehouse[itemId]||0;
+  if(qty>whQty){ toast('Only '+whQty+' available in stores'); return; }
+  state.stock.warehouse[itemId] = whQty - qty;
+  if(!state.stock.van[engId]) state.stock.van[engId]={};
+  state.stock.van[engId][itemId] = (state.stock.van[engId][itemId]||0) + qty;
+  saveStock();
+  var eng = engById(engId);
+  addHistory({type:'transfer', itemId:itemId, qty:qty, locationLabel:'Stores \u2192 '+eng.name});
+  closeModal(); render();
+  toast('Transferred to '+eng.name);
+}
+
+function openAddPerson(){
+  var html = '<h3>Add team member</h3>'+
+    '<div class="vs-field"><label>Name</label><input id="vs-ap-name" placeholder="e.g. Sam"></div>'+
+    '<div class="vs-field"><label>Role</label><select id="vs-ap-role">'+
+      '<option value="van">Engineer (has a van)</option>'+
+      '<option value="office">Office / Stores (stores only, no van)</option>'+
+    '</select></div>'+
+    '<div class="vs-field"><label>PIN (for them to log in with)</label><input id="vs-ap-pin" placeholder="e.g. 4821" inputmode="numeric"></div>'+
+    '<div class="vs-field"><label><input type="checkbox" id="vs-ap-admin" style="width:auto;margin-right:6px;">Give this person admin access</label></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doAddPerson()">Add</button></div>';
+  openModal(html);
+}
+
+function doAddPerson(){
+  var name = document.getElementById('vs-ap-name').value.trim();
+  if(!name){ toast('Enter a name'); return; }
+  var role = document.getElementById('vs-ap-role').value;
+  var pin = document.getElementById('vs-ap-pin').value.trim();
+  var admin = document.getElementById('vs-ap-admin').checked;
+  var id = 'p_'+uid();
+  state.catalog.engineers.push({ id:id, name:name, hasVan: role==='van', pin:pin, isAdmin:admin });
+  saveCatalog();
+  closeModal(); render();
+  toast('Added '+name+' to the team');
+}
+
+function openAddItem(){
+  var scopeOptions = SCOPES.map(function(s){return '<option value="'+s.v+'">'+s.label+'</option>';}).join('');
+  var html = '<h3>Add item</h3>'+
+    '<div class="vs-field"><label>Name</label><input id="vs-ai-name" placeholder="e.g. Wireless PIR"></div>'+
+    '<div class="vs-field"><label>Category</label><select id="vs-ai-cat">'+categoryOptions(CATEGORIES[0])+'</select></div>'+
+    '<div class="vs-field"><label>Tracked in</label><select id="vs-ai-scope">'+scopeOptions+'</select></div>'+
+    '<div class="vs-field"><label>Unit</label><input id="vs-ai-unit" value="ea"></div>'+
+    '<div class="vs-field"><label>Van Min</label><input id="vs-ai-vanpar" type="number" min="0" value="1"></div>'+
+    '<div class="vs-field"><label>Stores Min</label><input id="vs-ai-whpar" type="number" min="0" value="5"></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doAddItem()">Add</button></div>';
+  openModal(html);
+}
+
+function doAddItem(){
+  var name = document.getElementById('vs-ai-name').value.trim();
+  if(!name){ toast('Enter an item name'); return; }
+  var id = 'it_'+uid();
+  var item = {
+    id:id, name:name,
+    category:document.getElementById('vs-ai-cat').value,
+    scope:document.getElementById('vs-ai-scope').value,
+    unit:document.getElementById('vs-ai-unit').value.trim()||'ea',
+    vanPar:parseInt(document.getElementById('vs-ai-vanpar').value,10)||0,
+    whPar:parseInt(document.getElementById('vs-ai-whpar').value,10)||0
+  };
+  state.catalog.items.push(item);
+  if(itemAppliesTo(item,'warehouse')) state.stock.warehouse[id]=0;
+  if(itemAppliesTo(item,'van')){
+    state.catalog.engineers.forEach(function(e){ if(!state.stock.van[e.id]) state.stock.van[e.id]={}; state.stock.van[e.id][id]=0; });
+  }
+  saveCatalog(); saveStock();
+  addHistory({type:'item_add', itemId:id, locationLabel:'Catalog:'});
+  closeModal(); render();
+  toast('Item added');
+}
+
+// ---------- Actions exposed globally ----------
+
+var VS = {
+  showHome:showHome,
+  openPlaceholder:openPlaceholder,
+  enterStock:enterStock,
+  enterLeave:enterLeave,
+  enterManuals:enterManuals,
+  openUploadManual:openUploadManual,
+  doUploadManual:function(){
+    if(!fbStorage){ toast('File storage isn\u2019t set up yet'); return; }
+    var fileInput = document.getElementById('man-file');
+    var file = fileInput.files[0];
+    if(!file){ toast('Choose a file first'); return; }
+    var maxSize = 25*1024*1024;
+    if(file.size>maxSize){ toast('File is too large \u2014 25MB max'); return; }
+    var displayName = document.getElementById('man-name').value.trim() || file.name;
+    var isPdf = file.type==='application/pdf' || /\.pdf$/i.test(file.name);
+    var fileType = isPdf ? 'pdf' : 'image';
+    var path = 'manuals/'+uid()+'-'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_');
+    var task = fbStorage.ref().child(path).put(file);
+    document.getElementById('man-progress').style.display = 'block';
+    document.getElementById('man-upload-btn').disabled = true;
+    task.on('state_changed', function(snap){
+      var pct = Math.round((snap.bytesTransferred/snap.totalBytes)*100);
+      var bar = document.getElementById('man-progress-bar');
+      var txt = document.getElementById('man-progress-text');
+      if(bar) bar.style.width = pct+'%';
+      if(txt) txt.textContent = pct+'%';
+    }, function(){
+      toast('Upload failed \u2014 try again');
+      var btn = document.getElementById('man-upload-btn');
+      if(btn) btn.disabled = false;
+    }, function(){
+      task.snapshot.ref.getDownloadURL().then(function(url){
+        var me = currentPerson();
+        state.manuals.push({
+          id:uid(), name:displayName, fileType:fileType, url:url, path:path,
+          size:file.size, uploadedBy: me?me.name:'Unknown', uploadedAt:new Date().toISOString()
+        });
+        saveManuals();
+        closeModal();
+        renderManualsScreen();
+        toast('Uploaded');
+      });
+    });
+  },
+  deleteManual:function(id){
+    var m = (state.manuals||[]).filter(function(x){ return x.id===id; })[0];
+    if(!m) return;
+    if(!confirm('Delete "'+m.name+'"? This can\u2019t be undone.')) return;
+    state.manuals = state.manuals.filter(function(x){ return x.id!==id; });
+    saveManuals();
+    renderManualsScreen();
+    if(fbStorage && m.path){ fbStorage.ref().child(m.path).delete().catch(function(){}); }
+    toast('Deleted');
+  },
+  setLeaveTab:function(t){ state.leaveTab=t; renderLeaveScreen(); },
+  updateLeaveSubmitState:function(){
+    var c1 = document.getElementById('lv-check1'), c2 = document.getElementById('lv-check2');
+    var btn = document.getElementById('lv-submit-btn');
+    if(btn) btn.disabled = !(c1 && c2 && c1.checked && c2.checked);
+  },
+  submitLeaveRequest:function(){
+    var start = document.getElementById('lv-start').value;
+    var end = document.getElementById('lv-end').value;
+    if(!start || !end){ toast('Pick a start and end date'); return; }
+    if(end < start){ toast('End date is before the start date'); return; }
+    if(!document.getElementById('lv-check1').checked || !document.getElementById('lv-check2').checked){
+      toast('Please tick both checks before submitting');
+      return;
+    }
+    var me = currentPerson();
+    state.leaveRequests.push({
+      id:uid(), requesterId:me.id, requesterName:me.name,
+      startDate:start, startHalf:document.getElementById('lv-start-half').value,
+      endDate:end, endHalf:document.getElementById('lv-end-half').value,
+      notes:document.getElementById('lv-notes').value.trim(),
+      status:'pending', adminNote:'', createdAt:new Date().toISOString(), decidedAt:null, decidedBy:null, seenByRequester:true
+    });
+    saveLeaveRequests();
+    toast('Leave request submitted');
+    state.leaveTab = 'mine';
+    renderLeaveScreen();
+  },
+  decideLeave:function(id, status){
+    var r = state.leaveRequests.filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    r.status = status;
+    r.decidedAt = new Date().toISOString();
+    r.decidedBy = currentPerson() ? currentPerson().name : 'Admin';
+    r.seenByRequester = false;
+    saveLeaveRequests();
+    closeModal();
+    renderLeaveScreen();
+    toast('Decision saved');
+  },
+  openLeaveConditions:function(id){
+    var html = '<h3>Approve with conditions</h3>'+
+      '<div class="vs-field"><label>Conditions</label><input id="lv-cond-text" placeholder="e.g. Must be back for the Smith job on the 14th"></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.confirmLeaveConditions(\''+id+'\')">Approve</button></div>';
+    openModal(html);
+  },
+  confirmLeaveConditions:function(id){
+    var text = document.getElementById('lv-cond-text').value.trim();
+    if(!text){ toast('Enter the conditions'); return; }
+    var r = state.leaveRequests.filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    r.adminNote = text;
+    this.decideLeave(id, 'approved_conditions');
+  },
+  openLeaveReject:function(id){
+    var html = '<h3>Reject request</h3>'+
+      '<div class="vs-field"><label>Reason</label><input id="lv-rej-text" placeholder="Reason for rejecting"></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmLeaveReject(\''+id+'\')">Reject</button></div>';
+    openModal(html);
+  },
+  confirmLeaveReject:function(id){
+    var text = document.getElementById('lv-rej-text').value.trim();
+    if(!text){ toast('Enter a reason'); return; }
+    var r = state.leaveRequests.filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    r.adminNote = text;
+    this.decideLeave(id, 'rejected');
+  },
+  rotaMonthShift:function(delta){
+    rotaViewMonth.setMonth(rotaViewMonth.getMonth()+delta);
+    renderLeaveScreen();
+  },
+  openRotaDay:function(dateStr){
+    var current = state.rota.filter(function(r){ return r.date===dateStr; })[0];
+    var options = state.catalog.engineers.map(function(e){
+      return '<option value="'+e.id+'" '+(current && current.engineerId===e.id?'selected':'')+'>'+e.name+'</option>';
+    }).join('');
+    var dateLabel = new Date(dateStr+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+    var html = '<h3>'+dateLabel+'</h3>'+
+      '<div class="vs-field"><label>On call</label><select id="rota-person"><option value="">\u2014 Nobody assigned \u2014</option>'+options+'</select></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.saveRotaDay(\''+dateStr+'\')">Save</button></div>';
+    openModal(html);
+  },
+  saveRotaDay:function(dateStr){
+    var personId = document.getElementById('rota-person').value;
+    state.rota = state.rota.filter(function(r){ return r.date!==dateStr; });
+    if(personId) state.rota.push({id:uid(), engineerId:personId, date:dateStr});
+    saveRota();
+    closeModal();
+    renderLeaveScreen();
+  },
+  viewRotaDay:function(dateStr){
+    var entries = state.rota.filter(function(r){ return r.date===dateStr; });
+    var dateLabel = new Date(dateStr+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+    var html = '<h3>'+dateLabel+'</h3>';
+    if(entries.length===0){ html += '<p style="font-size:13px;color:var(--muted);">Nobody assigned.</p>'; }
+    else { html += entries.map(function(e){ var p=engById(e.engineerId); return '<p style="font-size:14px;margin:4px 0;">'+(p?p.name:'Unknown')+'</p>'; }).join(''); }
+    html += '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+    openModal(html);
+  },
+  bulkImportRota:function(){
+    var text = document.getElementById('rota-bulk').value;
+    var lines = text.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+    var added = 0, errors = [];
+    lines.forEach(function(line){
+      var parts = line.split(',');
+      if(parts.length<2){ errors.push(line); return; }
+      var dateStr = parts[0].trim();
+      var name = parts.slice(1).join(',').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)){ errors.push(line); return; }
+      var person = state.catalog.engineers.filter(function(e){
+        return e.name.toLowerCase()===name.toLowerCase() || (e.code && e.code.toLowerCase()===name.toLowerCase());
+      })[0];
+      if(!person){ errors.push(line+' (no matching person)'); return; }
+      state.rota = state.rota.filter(function(r){ return r.date!==dateStr; });
+      state.rota.push({id:uid(), engineerId:person.id, date:dateStr});
+      added++;
+    });
+    saveRota();
+    renderLeaveScreen();
+    toast(added+' day(s) imported'+(errors.length ? ', '+errors.length+' skipped' : ''));
+  },
+  submitCoverRequest:function(){
+    var checks = document.querySelectorAll('.cover-date-check:checked');
+    var dates = Array.prototype.map.call(checks, function(cb){ return cb.value; });
+    if(dates.length===0){ toast('Select at least one date'); return; }
+    var targetId = document.getElementById('cover-target').value;
+    var target = engById(targetId);
+    if(!target){ toast('Choose who to ask'); return; }
+    var me = currentPerson();
+    state.swapRequests.push({
+      id:uid(), type:'cover', requesterId:me.id, requesterName:me.name, targetId:targetId, targetName:target.name,
+      dates:dates, targetDates:[], status:'pending', createdAt:new Date().toISOString(), decidedAt:null
+    });
+    saveSwapRequests();
+    toast('Cover request sent to '+target.name);
+    renderLeaveScreen();
+  },
+  onSwapTargetChange:function(){
+    var sel = document.getElementById('swapx-target');
+    if(sel) populateSwapTargetDates(sel.value);
+  },
+  submitSwapDates:function(){
+    var myChecks = document.querySelectorAll('.swapx-my-check:checked');
+    var myDates = Array.prototype.map.call(myChecks, function(cb){ return cb.value; });
+    if(myDates.length===0){ toast('Select at least one of your dates'); return; }
+    var targetId = document.getElementById('swapx-target').value;
+    var target = engById(targetId);
+    if(!target){ toast('Choose who to swap with'); return; }
+    var targetChecks = document.querySelectorAll('.swapx-target-check:checked');
+    var targetDates = Array.prototype.map.call(targetChecks, function(cb){ return cb.value; });
+    if(targetDates.length===0){ toast('Select at least one of their dates'); return; }
+    var me = currentPerson();
+    state.swapRequests.push({
+      id:uid(), type:'swap', requesterId:me.id, requesterName:me.name, targetId:targetId, targetName:target.name,
+      dates:myDates, targetDates:targetDates, status:'pending', createdAt:new Date().toISOString(), decidedAt:null
+    });
+    saveSwapRequests();
+    toast('Swap request sent to '+target.name);
+    renderLeaveScreen();
+  },
+  respondSwap:function(id, agreed){
+    var s = state.swapRequests.filter(function(x){ return x.id===id; })[0];
+    if(!s) return;
+    s.status = agreed ? 'agreed' : 'declined';
+    s.decidedAt = new Date().toISOString();
+    if(agreed){
+      s.dates.forEach(function(d){
+        state.rota = state.rota.filter(function(r){ return r.date!==d; });
+        state.rota.push({id:uid(), engineerId:s.targetId, date:d});
+      });
+      if(s.type==='swap' && s.targetDates && s.targetDates.length){
+        s.targetDates.forEach(function(d){
+          state.rota = state.rota.filter(function(r){ return r.date!==d; });
+          state.rota.push({id:uid(), engineerId:s.requesterId, date:d});
+        });
+      }
+      saveRota();
+    }
+    saveSwapRequests();
+    renderLeaveScreen();
+    toast(agreed ? (s.type==='swap' ? 'Swap agreed \u2014 rota updated' : 'Cover agreed \u2014 rota updated') : 'Declined');
+  },
+  setTab:function(t){ state.tab=t; render(); },
+  setStockSearch:function(v){ state.stockFilter.q = v; render(); },
+  setStockCategory:function(v){ state.stockFilter.cat = v; render(); },
+  setVan:function(id){
+    if(!visibleVanHolders().some(function(e){ return e.id===id; })) return;
+    state.activeVan=id; render();
+  },
+  retry:function(){ location.reload(); },
+  adjustVan:function(engId, itemId, delta){
+    if(!state.stock.van[engId]) state.stock.van[engId]={};
+    var cur = state.stock.van[engId][itemId]||0;
+    var next = Math.max(0, cur+delta);
+    if(next===cur) return;
+    state.stock.van[engId][itemId]=next;
+    saveStock();
+    var eng = engById(engId);
+    addHistory({type: delta<0?'use':'found', itemId:itemId, qty:delta, locationLabel:eng.name});
+    render();
+  },
+  adjustWarehouse:function(itemId, delta){
+    var cur = state.stock.warehouse[itemId]||0;
+    var next = Math.max(0, cur+delta);
+    if(next===cur) return;
+    state.stock.warehouse[itemId]=next;
+    saveStock();
+    addHistory({type: delta>0?'received':'use', itemId:itemId, qty:delta, locationLabel:'Stores'});
+    render();
+  },
+  openTransfer:openTransfer,
+  doTransfer:doTransfer,
+  openUseItemChoice:openUseItemChoice,
+  openNoStockList:openNoStockList,
+  goUseVan:function(){ closeModal(); state.tab='van'; render(); },
+  goUseStores:function(){ closeModal(); state.tab='warehouse'; render(); },
+  openGeneralTransfer:openGeneralTransfer,
+  onTransferDestChange:function(){
+    var dest = document.getElementById('vs-tr-dest').value;
+    document.getElementById('vs-tr-van-field').style.display = dest==='van' ? '' : 'none';
+    document.getElementById('vs-tr-job-field').style.display = dest==='job' ? '' : 'none';
+    populateTransferItems(dest);
+  },
+  doGeneralTransfer:function(){
+    var dest = document.getElementById('vs-tr-dest').value;
+    var itemId = document.getElementById('vs-tr-item').value;
+    var qty = parseInt(document.getElementById('vs-tr-qty').value,10);
+    if(!itemId){ toast('No eligible item selected'); return; }
+    if(!qty || qty<1){ toast('Enter a valid quantity'); return; }
+    var whQty = state.stock.warehouse[itemId]||0;
+    if(qty>whQty){ toast('Only '+whQty+' available in stores'); return; }
+    if(dest==='van'){
+      var engId = document.getElementById('vs-tr-van').value;
+      var eng = engById(engId);
+      if(!eng){ toast('Choose a van'); return; }
+      state.stock.warehouse[itemId] = whQty - qty;
+      if(!state.stock.van[engId]) state.stock.van[engId]={};
+      state.stock.van[engId][itemId] = (state.stock.van[engId][itemId]||0) + qty;
+      saveStock();
+      addHistory({type:'transfer', itemId:itemId, qty:qty, locationLabel:'Stores \u2192 '+eng.name});
+      closeModal(); render();
+      toast('Transferred to '+eng.name);
+    } else {
+      var jobRef = document.getElementById('vs-tr-job').value.trim();
+      if(!jobRef){ toast('Enter the ServiceM8 job number'); return; }
+      var jobItem = itemById(itemId);
+      state.stock.warehouse[itemId] = whQty - qty;
+      saveStock();
+      addHistory({type:'job', itemId:itemId, qty:-qty, locationLabel:'Stores', note:'Job '+jobRef});
+      closeModal(); render();
+      toast('Saved \u2014 sending to ServiceM8\u2026');
+      fetch('/.netlify/functions/servicem8-material', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ jobNumber:jobRef, itemName: jobItem?jobItem.name:'Item', quantity:qty })
+      }).then(function(res){ return res.json(); }).then(function(data){
+        if(data.success){ toast('Added to ServiceM8 job '+jobRef); }
+        else { toast('Saved here, but ServiceM8 sync failed: '+(data.error||'unknown error')); }
+      }).catch(function(){ toast('Saved here, but couldn\u2019t reach ServiceM8'); });
+    }
+  },
+  openRestockStores:openRestockStores,
+  onRestockChange:function(){
+    var source = document.getElementById('rs-source').value;
+    document.getElementById('rs-van-field').style.display = source==='van' ? '' : 'none';
+    var vanId = source==='van' ? document.getElementById('rs-van').value : null;
+    populateRestockItems(source, vanId);
+  },
+  doRestockStores:function(){
+    var source = document.getElementById('rs-source').value;
+    var itemId = document.getElementById('rs-item').value;
+    var qty = parseInt(document.getElementById('rs-qty').value,10);
+    if(!itemId){ toast('No eligible item selected'); return; }
+    if(!qty || qty<1){ toast('Enter a valid quantity'); return; }
+    if(source==='van'){
+      var vanId = document.getElementById('rs-van').value;
+      var eng = engById(vanId);
+      if(!eng){ toast('Choose a van'); return; }
+      var vanQty = (state.stock.van[vanId]||{})[itemId]||0;
+      if(qty>vanQty){ toast('Only '+vanQty+' available in that van'); return; }
+      state.stock.van[vanId][itemId] = vanQty - qty;
+      state.stock.warehouse[itemId] = (state.stock.warehouse[itemId]||0) + qty;
+      saveStock();
+      addHistory({type:'transfer', itemId:itemId, qty:qty, locationLabel:eng.name+' \u2192 Stores'});
+      toast('Restocked from '+eng.name);
+    } else {
+      state.stock.warehouse[itemId] = (state.stock.warehouse[itemId]||0) + qty;
+      saveStock();
+      addHistory({type:'received', itemId:itemId, qty:qty, locationLabel:'Stores', note:'From supplier'});
+      toast('Stores restocked');
+    }
+    closeModal(); render();
+  },
+  openAddItem:openAddItem,
+  doAddItem:doAddItem,
+  openAddPerson:openAddPerson,
+  doAddPerson:doAddPerson,
+  closeModal:closeModal,
+  tryPinLogin:tryPinLogin,
+  logout:function(){ logout(false); },
+  setPersonPin:function(id, pin){
+    var e = engById(id); if(!e) return;
+    e.pin = pin.trim();
+    saveCatalog();
+    renderSetupScreen();
+    toast('Saved');
+  },
+  finishSetup:function(){
+    var anyPinSet = state.catalog.engineers.some(function(e){ return e.pin; });
+    if(!anyPinSet){
+      document.getElementById('vs-setup-err').textContent = 'Set at least one PIN before continuing';
+      return;
+    }
+    state.needsSetup = false;
+    refreshAppScreen();
+  },
+  retrySave:function(){
+    saveState.error = false;
+    saveCatalog(); saveStock(); saveHistory();
+  },
+  renameEngineer:function(id, name){
+    var e = engById(id); if(!e) return;
+    e.name = name.trim() || e.name;
+    saveCatalog(); render();
+    toast('Saved');
+  },
+  setPersonRole:function(id, role){
+    var e = engById(id); if(!e) return;
+    e.hasVan = (role==='van');
+    if(e.hasVan && state.activeVan===null){ state.activeVan = id; }
+    if(!e.hasVan && state.activeVan===id){
+      var vh = state.catalog.engineers.filter(personHasVan);
+      state.activeVan = vh.length ? vh[0].id : null;
+    }
+    saveCatalog(); render();
+    toast('Saved');
+  },
+  setPersonPinLive:function(id, pin){
+    var e = engById(id); if(!e) return;
+    e.pin = pin.trim();
+    saveCatalog(); render();
+    toast('Saved');
+  },
+  setPersonCode:function(id, code){
+    var e = engById(id); if(!e) return;
+    e.code = code.trim().toUpperCase();
+    saveCatalog(); render();
+    toast('Saved');
+  },
+  setPersonAdmin:function(id, isAdminChecked){
+    var e = engById(id); if(!e) return;
+    e.isAdmin = !!isAdminChecked;
+    saveCatalog(); render();
+    toast('Saved');
+  },
+  removePerson:function(id){
+    if(!confirm('Remove this person from the team? Their past activity stays in the history log.')) return;
+    state.catalog.engineers = state.catalog.engineers.filter(function(e){ return e.id!==id; });
+    if(state.stock.van[id]) delete state.stock.van[id];
+    if(state.activeVan===id){
+      var vh = state.catalog.engineers.filter(personHasVan);
+      state.activeVan = vh.length ? vh[0].id : null;
+    }
+    saveCatalog(); saveStock(); render();
+    toast('Removed from team');
+  },
+  editItem:function(id, field, value){
+    var it = itemById(id); if(!it) return;
+    if(field==='vanPar' || field==='whPar'){ value = Math.max(0, parseInt(value,10)||0); }
+    it[field]=value;
+    saveCatalog();
+    addHistory({type:'item_edit', itemId:id, locationLabel:'Catalog:', note:field+' updated'});
+    toast('Saved');
+  },
+  removeItem:function(id){
+    if(!confirm('Remove this item from the catalog? Existing stock records for it will be dropped.')) return;
+    state.catalog.items = state.catalog.items.filter(function(i){ return i.id!==id; });
+    delete state.stock.warehouse[id];
+    state.catalog.engineers.forEach(function(e){ if(state.stock.van[e.id]) delete state.stock.van[e.id][id]; });
+    saveCatalog(); saveStock(); render();
+    toast('Item removed');
+  },
+  resetAll:function(){
+    if(!confirm('This clears all stock levels and history for everyone using this app. Continue?')) return;
+    var seeded = seedStock();
+    state.catalog = {items:DEFAULT_ITEMS, engineers:DEFAULT_ENGINEERS};
+    state.stock = seeded;
+    state.history = [];
+    saveCatalog(); saveStock(); saveHistory();
+    render();
+    toast('Data reset');
+  }
+};
+window.VS = VS;
+
+startLiveSync();
+
+})();
+</script>
+</body>
+</html>
