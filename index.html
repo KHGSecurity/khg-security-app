@@ -520,19 +520,42 @@ function refreshAppScreen(){
   }
 }
 
-function renderHomeNotifications(){
-  var el = document.getElementById('vs-home-notifications');
-  if(!el || !state.catalog || !state.stock) return;
+function computeAlertCounts(){
   var me = currentPerson();
   var admin = isAdminPerson(me);
   var lowVan = lowStockList('van');
   var lowWh = lowStockList('warehouse');
   var noStock = noStockList();
   var totalLow = lowVan.length + lowWh.length;
-  var stockAlerts = totalLow>0 || noStock.length>0;
-
   var pendingApprovals = admin ? (state.leaveRequests||[]).filter(function(r){ return r.status==='pending'; }).length : 0;
   var pendingSwaps = me ? (state.swapRequests||[]).filter(function(s){ return s.targetId===me.id && s.status==='pending'; }).length : 0;
+  return {
+    noStock: noStock.length, totalLow: totalLow, pendingApprovals: pendingApprovals, pendingSwaps: pendingSwaps,
+    total: noStock.length + totalLow + pendingApprovals + pendingSwaps
+  };
+}
+
+// Badges the home-screen app icon (iOS/Android "add to home screen" only —
+// does nothing in a plain browser tab, and can't update while the app is
+// fully closed, but persists on the icon once set while it's open).
+function updateAppBadge(count){
+  if(!('setAppBadge' in navigator)) return;
+  try{
+    if(count>0){ navigator.setAppBadge(count).catch(function(){}); }
+    else { navigator.clearAppBadge().catch(function(){}); }
+  }catch(e){}
+}
+
+function renderHomeNotifications(){
+  var el = document.getElementById('vs-home-notifications');
+  if(!el || !state.catalog || !state.stock) return;
+  var counts = computeAlertCounts();
+  var noStock = { length: counts.noStock };
+  var totalLow = counts.totalLow;
+  var stockAlerts = totalLow>0 || noStock.length>0;
+
+  var pendingApprovals = counts.pendingApprovals;
+  var pendingSwaps = counts.pendingSwaps;
   var leaveAlerts = pendingApprovals>0 || pendingSwaps>0;
 
   var parts = [];
@@ -554,6 +577,7 @@ function renderHomeNotifications(){
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" style="stroke:'+iconColor+';"><path d="M12 3a5 5 0 0 0-5 5v3.2c0 .8-.3 1.6-.9 2.2L5 14.8c-.7.7-.2 2 .8 2h12.4c1 0 1.5-1.3.8-2l-1.1-1.4c-.6-.6-.9-1.4-.9-2.2V8a5 5 0 0 0-5-5z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg>'+
     '<div class="vs-home-notif-body">'+body+'</div>'+
   '</button>';
+  updateAppBadge(counts.total);
 }
 
 // ---------- PIN-based login (resolved silently in the background from page load) ----------
@@ -620,6 +644,7 @@ function logout(wasRevoked){
   state.currentUser = null;
   state.currentUserPin = null;
   storageDelete('my-login', false);
+  updateAppBadge(0);
   refreshAppScreen();
   if(wasRevoked) toast('You have been signed out');
 }
@@ -851,6 +876,7 @@ function onSharedUpdate(changedKey){
     if(!state.currentUser){ var w = document.getElementById('vs-setup-wrap'); if(w && w.style.display==='flex') renderSetupScreen(); }
   }
   if(appView==='home' && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
+  else if(state.currentUser && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
   if(appView==='leave' && ['catalog','leave','rota','swaps'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
   var deps = TAB_DEPENDS_ON[state.tab];
