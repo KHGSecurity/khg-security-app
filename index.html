@@ -410,6 +410,20 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <main id="vs-forms-content"></main>
 </div>
 
+<div id="vs-vehicles-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <h1>Vehicles</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+    </div>
+    <div class="vs-who-badge" id="vs-vehicles-who-badge"></div>
+  </div>
+  <main id="vs-vehicles-content"></main>
+</div>
+
 <div id="vs-modal-root"></div>
 
 
@@ -457,7 +471,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -469,6 +483,7 @@ var HOME_TILES = [
   { key:'training', label:'Training', sub:'', onclick:"window.open('https://skillsondemand.co.uk/#/login','_blank')", icon:'<path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/>' },
   { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
+  { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
   { key:'hr', label:'HR', sub:'', onclick:"VS.openPlaceholder('HR')", icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' }
 ];
 
@@ -507,7 +522,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -526,6 +541,7 @@ function enterLeave(){ appView = 'leave'; refreshAppScreen(); }
 function enterManuals(){ appView = 'manuals'; refreshAppScreen(); }
 function enterJobs(){ appView = 'jobs'; refreshAppScreen(); }
 function enterForms(){ appView = 'forms'; refreshAppScreen(); }
+function enterVehicles(){ appView = 'vehicles'; refreshAppScreen(); }
 
 // Decides what's on screen right now: connecting, first-run setup, the PIN
 // gate, or (once logged in) whichever app view is currently active.
@@ -563,6 +579,9 @@ function refreshAppScreen(){
   } else if(appView==='forms'){
     document.getElementById('vs-forms-wrap').style.display = 'block';
     renderFormsScreen();
+  } else if(appView==='vehicles'){
+    document.getElementById('vs-vehicles-wrap').style.display = 'block';
+    renderVehiclesScreen();
   } else if(appView==='placeholder'){
     document.getElementById('vs-placeholder-wrap').style.display = 'flex';
   } else {
@@ -577,15 +596,27 @@ function refreshAppScreen(){
 function computeAlertCounts(){
   var me = currentPerson();
   var admin = isAdminPerson(me);
+  var officeOrAdmin = admin || (me && !personHasVan(me));
   var lowVan = lowStockList('van');
   var lowWh = lowStockList('warehouse');
   var noStock = noStockList();
   var totalLow = lowVan.length + lowWh.length;
   var pendingApprovals = admin ? (state.leaveRequests||[]).filter(function(r){ return r.status==='pending'; }).length : 0;
   var pendingSwaps = me ? (state.swapRequests||[]).filter(function(s){ return s.targetId===me.id && s.status==='pending'; }).length : 0;
+
+  var vehiclesDue = 0, openIssues = 0;
+  if(officeOrAdmin){
+    (state.vehicles||[]).forEach(function(v){ vehiclesDue += vehicleDueSoon(v).length; });
+    openIssues = (state.vehicleIssues||[]).filter(function(i){ return i.status!=='resolved'; }).length;
+  } else if(me){
+    var myVehicle = findVehicleForPerson(me);
+    if(myVehicle) vehiclesDue = vehicleDueSoon(myVehicle).length;
+  }
+
   return {
     noStock: noStock.length, totalLow: totalLow, pendingApprovals: pendingApprovals, pendingSwaps: pendingSwaps,
-    total: noStock.length + totalLow + pendingApprovals + pendingSwaps
+    vehiclesDue: vehiclesDue, openIssues: openIssues,
+    total: noStock.length + totalLow + pendingApprovals + pendingSwaps + vehiclesDue + openIssues
   };
 }
 
@@ -623,15 +654,20 @@ function renderHomeNotifications(){
   var pendingApprovals = counts.pendingApprovals;
   var pendingSwaps = counts.pendingSwaps;
   var leaveAlerts = pendingApprovals>0 || pendingSwaps>0;
+  var vehiclesDue = counts.vehiclesDue;
+  var openIssues = counts.openIssues;
+  var vehicleAlerts = vehiclesDue>0 || openIssues>0;
 
   var parts = [];
   if(noStock.length) parts.push(noStock.length+' item'+(noStock.length===1?'':'s')+' with no stock');
   if(totalLow) parts.push(totalLow+' item'+(totalLow===1?'':'s')+' below minimum');
   if(pendingApprovals) parts.push(pendingApprovals+' leave request'+(pendingApprovals===1?'':'s')+' to approve');
   if(pendingSwaps) parts.push(pendingSwaps+' swap request'+(pendingSwaps===1?'':'s')+' waiting on you');
+  if(vehiclesDue) parts.push(vehiclesDue+' vehicle MOT/service due soon');
+  if(openIssues) parts.push(openIssues+' vehicle issue'+(openIssues===1?'':'s')+' reported');
 
-  var hasAlerts = stockAlerts || leaveAlerts;
-  var target = stockAlerts ? 'VS.enterStock()' : (leaveAlerts ? 'VS.enterLeave()' : 'VS.enterStock()');
+  var hasAlerts = stockAlerts || leaveAlerts || vehicleAlerts;
+  var target = stockAlerts ? 'VS.enterStock()' : (leaveAlerts ? 'VS.enterLeave()' : (vehicleAlerts ? 'VS.enterVehicles()' : 'VS.enterStock()'));
   var iconColor = hasAlerts ? 'var(--amber)' : 'var(--accent)';
   var body;
   if(!hasAlerts){
@@ -735,7 +771,7 @@ function renderWhoBadge(){
     '<div class="vs-welcome-title">Welcome '+p.name+'</div>'+
     '<div class="vs-welcome-sub">Not '+p.name+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -861,7 +897,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false };
 
 function startLiveSync(){
   if(!db){
@@ -910,6 +946,21 @@ function startLiveSync(){
     liveLoaded.forms = true;
     onSharedUpdate('forms');
   });
+  subscribeShared('vehicles', function(value, exists){
+    state.vehicles = exists ? JSON.parse(value) : [];
+    liveLoaded.vehicles = true;
+    onSharedUpdate('vehicles');
+  });
+  subscribeShared('vehicle-issues', function(value, exists){
+    state.vehicleIssues = exists ? JSON.parse(value) : [];
+    liveLoaded.vehicleIssues = true;
+    onSharedUpdate('vehicleIssues');
+  });
+  subscribeShared('vehicle-checks', function(value, exists){
+    state.vehicleChecks = exists ? JSON.parse(value) : [];
+    liveLoaded.vehicleChecks = true;
+    onSharedUpdate('vehicleChecks');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -934,7 +985,7 @@ var TAB_DEPENDS_ON = {
 };
 
 function allCoreLoaded(){
-  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms;
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks;
 }
 
 function onSharedUpdate(changedKey){
@@ -955,6 +1006,8 @@ function onSharedUpdate(changedKey){
   if(appView==='leave' && ['catalog','leave','rota','swaps'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
   if(appView==='forms' && changedKey==='forms'){ renderFormsScreen(); }
+  if(appView==='vehicles' && ['vehicles','vehicleIssues','vehicleChecks','catalog'].indexOf(changedKey)!==-1){ renderVehiclesScreen(); }
+  if(appView==='home' && ['vehicles','vehicleIssues'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
   var deps = TAB_DEPENDS_ON[state.tab];
   if(!deps || deps.indexOf(changedKey)!==-1) render();
 }
@@ -998,6 +1051,21 @@ function saveManuals(){
 function saveFormSubmissions(){
   trackSave(function(){
     return storageSet('form-submissions', JSON.stringify(state.formSubmissions), true);
+  });
+}
+function saveVehicles(){
+  trackSave(function(){
+    return storageSet('vehicles', JSON.stringify(state.vehicles), true);
+  });
+}
+function saveVehicleIssues(){
+  trackSave(function(){
+    return storageSet('vehicle-issues', JSON.stringify(state.vehicleIssues), true);
+  });
+}
+function saveVehicleChecks(){
+  trackSave(function(){
+    return storageSet('vehicle-checks', JSON.stringify(state.vehicleChecks), true);
   });
 }
 
@@ -2117,6 +2185,223 @@ function renderMyFormSubmissions(c){
   c.innerHTML = html;
 }
 
+// ---------- Vehicles ----------
+
+var VEHICLE_CHECKS = {
+  daily: ['Oil level', 'Coolant level', 'Tyres \u2014 condition & pressure', 'Lights \u2014 all working', 'Windscreen & wipers', 'Mirrors', 'Fuel level', 'Walk-around damage check'],
+  weekly: ['Tyre tread depth', 'Brake fluid level', 'Washer fluid level', 'Battery terminals', 'Load security / racking'],
+  monthly: ['Full vehicle walk-around', 'Spare wheel & tools present', 'First aid kit & fire extinguisher', 'Insurance / MOT documents present', 'AdBlue level (if applicable)']
+};
+
+function normalizeReg(s){ return String(s||'').trim().toUpperCase().replace(/\s+/g,' '); }
+
+function findVehicleForPerson(person){
+  if(!person || !person.registration) return null;
+  var reg = normalizeReg(person.registration);
+  return (state.vehicles||[]).filter(function(v){ return normalizeReg(v.registration)===reg; })[0] || null;
+}
+
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  var target = new Date(dateStr+'T00:00:00');
+  var today = new Date(); today.setHours(0,0,0,0);
+  return Math.round((target-today)/(1000*60*60*24));
+}
+
+function vehicleDueSoon(v){
+  var motDays = daysUntil(v.motDate);
+  var serviceDays = daysUntil(v.serviceDate);
+  var items = [];
+  if(motDays!==null && motDays<=30) items.push({ type:'MOT', days:motDays });
+  if(serviceDays!==null && serviceDays<=30) items.push({ type:'Service', days:serviceDays });
+  return items;
+}
+
+function dueBadgeFor(due, type){
+  var found = due.filter(function(d){ return d.type===type; })[0];
+  if(!found) return '';
+  var label = found.days<0 ? 'OVERDUE' : (found.days+'d');
+  var cls = found.days<0 ? 'out' : 'low';
+  return ' <span class="vs-stock-badge '+cls+'">'+label+'</span>';
+}
+
+function renderVehiclesScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-vehicles-content');
+  if(!c || !state.vehicles) return;
+  if(state.vehiclesTab==='mine') return renderMyVehicle(c);
+  if(state.vehiclesTab==='report') return renderReportIssue(c);
+  if(state.vehiclesTab==='checklist') return renderHealthChecklist(c);
+  if(state.vehiclesTab==='help') return renderVehicleHelp(c);
+  if(state.vehiclesTab==='manage') return renderManageVehicles(c);
+  return renderVehiclesMenu(c);
+}
+
+function vehiclesBackLink(){
+  return '<button class="vs-back-link" onclick="VS.setVehiclesTab(\'menu\')" style="margin-bottom:16px;">&larr; Vehicles</button>';
+}
+
+function vehicleMenuTile(tab, label, sub, svgPaths){
+  return '<button class="vs-home-tile" onclick="VS.setVehiclesTab(\''+tab+'\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">'+svgPaths+'</svg>'+
+    '<span class="vs-home-tile-label">'+label+'</span>'+
+    (sub?'<span class="vs-home-tile-sub">'+sub+'</span>':'')+
+  '</button>';
+}
+
+function renderVehiclesMenu(c){
+  var admin = isAdminPerson(currentPerson());
+  var openIssues = (state.vehicleIssues||[]).filter(function(i){ return i.status!=='resolved'; }).length;
+  var html = '<div class="vs-home-grid">';
+  html += vehicleMenuTile('mine', 'My Vehicle', '', '<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>');
+  html += vehicleMenuTile('report', 'Report Issue', 'Fault or damage', '<path d="M12 9v4m0 4h.01"/><path d="M10.3 3.9L2.5 17a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/>');
+  html += vehicleMenuTile('checklist', 'Health Checklist', 'Daily / weekly / monthly', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
+  html += vehicleMenuTile('help', 'Help', 'Preferred repair centre', '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 2-2 3.5"/><path d="M12 17h.01"/>');
+  if(admin){
+    html += vehicleMenuTile('manage', 'Manage Vehicles'+(openIssues?' ('+openIssues+')':''), 'Admin', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>');
+  }
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+function renderMyVehicle(c){
+  var me = currentPerson();
+  var html = vehiclesBackLink();
+  html += sectionHead('My vehicle');
+  html += '<div class="vs-field"><label>Your vehicle registration</label><input id="myveh-reg" value="'+escapeAttr(me&&me.registration?me.registration:'')+'" placeholder="e.g. AB12 CDE"></div>';
+  html += '<button class="vs-btn primary" style="margin-bottom:16px;" onclick="VS.saveMyRegistration()">Save registration</button>';
+
+  if(!me || !me.registration){
+    html += '<div class="vs-empty">Enter your registration above to see your vehicle\u2019s details.</div>';
+    c.innerHTML = html;
+    return;
+  }
+  var vehicle = findVehicleForPerson(me);
+  if(!vehicle){
+    html += '<div class="vs-empty">No vehicle record found for '+escapeAttr(me.registration)+' yet \u2014 ask an admin to add it under Manage Vehicles.</div>';
+    c.innerHTML = html;
+    return;
+  }
+  var due = vehicleDueSoon(vehicle);
+  html += sectionHead('Details');
+  html += '<p style="font-size:14px;color:var(--text);margin:0 0 6px 0;">'+escapeAttr(vehicle.registration)+(vehicle.make||vehicle.model?' \u2014 '+escapeAttr(((vehicle.make||'')+' '+(vehicle.model||'')).trim()):'')+'</p>';
+  html += '<p style="font-size:13px;color:var(--muted);margin:0 0 4px 0;">MOT due: '+(vehicle.motDate?fmtLeaveDate(vehicle.motDate):'not set')+dueBadgeFor(due,'MOT')+'</p>';
+  html += '<p style="font-size:13px;color:var(--muted);margin:0 0 16px 0;">Service due: '+(vehicle.serviceDate?fmtLeaveDate(vehicle.serviceDate):'not set')+dueBadgeFor(due,'Service')+'</p>';
+
+  html += sectionHead('Repairs & servicing');
+  html += '<p style="font-size:14px;color:var(--text);margin:0 0 2px 0;">'+escapeAttr(vehicle.repairName||'JW Motor Services')+'</p>';
+  html += '<p style="font-size:13px;color:var(--muted);margin:0 0 2px 0;">'+escapeAttr(vehicle.repairPhone||'0161 929 0530')+'</p>';
+  html += '<p style="font-size:13px;color:var(--muted);margin:0;">'+escapeAttr(vehicle.repairAddress||'Money Ash Road, Altrincham')+'</p>';
+  c.innerHTML = html;
+}
+
+function renderReportIssue(c){
+  var me = currentPerson();
+  var html = vehiclesBackLink();
+  html += sectionHead('Report an issue');
+  html += '<div class="vs-field"><label>Vehicle registration</label><input id="ri-reg" value="'+escapeAttr(me&&me.registration?me.registration:'')+'" placeholder="e.g. AB12 CDE"></div>';
+  html += '<div class="vs-field"><label>Date occurred</label><input type="date" id="ri-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
+  html += '<div class="vs-field"><label>Describe the issue or damage</label><textarea id="ri-desc" rows="5"></textarea></div>';
+  html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitVehicleIssue()">Submit report</button>';
+  c.innerHTML = html;
+}
+
+function renderHealthChecklist(c){
+  var html = vehiclesBackLink();
+  if(!state.checklistFreq){
+    html += sectionHead('Health checklist');
+    html += '<div class="vs-home-grid">';
+    ['daily','weekly','monthly'].forEach(function(freq){
+      html += '<button class="vs-home-tile" onclick="VS.setChecklistFreq(\''+freq+'\')"><span class="vs-home-tile-label" style="text-transform:capitalize;">'+freq+'</span></button>';
+    });
+    html += '</div>';
+    c.innerHTML = html;
+    return;
+  }
+  var freq = state.checklistFreq;
+  var items = VEHICLE_CHECKS[freq];
+  var me = currentPerson();
+  html += '<button class="vs-back-link" onclick="VS.setChecklistFreq(null)" style="margin-bottom:14px;">&larr; Choose a different checklist</button>';
+  html += sectionHead(freq.charAt(0).toUpperCase()+freq.slice(1)+' checklist');
+  html += '<div class="vs-field"><label>Vehicle registration</label><input id="chk-reg" value="'+escapeAttr(me&&me.registration?me.registration:'')+'"></div>';
+  html += items.map(function(item, i){
+    return '<div class="vs-field"><label>'+escapeAttr(item)+'</label>'+
+      '<select id="chk-item-'+i+'"><option value="">\u2014 select \u2014</option><option value="ok">OK</option><option value="issue">Issue</option></select></div>';
+  }).join('');
+  html += '<div class="vs-field"><label>Notes (optional)</label><textarea id="chk-notes" rows="2"></textarea></div>';
+  html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitVehicleCheck()">Submit checklist</button>';
+  c.innerHTML = html;
+}
+
+function renderVehicleHelp(c){
+  var html = vehiclesBackLink();
+  html += sectionHead('Help \u2014 preferred repair centre');
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;">'+
+    '<div style="font-family:\'Archivo\';font-weight:800;font-size:16px;margin-bottom:8px;">JW Motor Services</div>'+
+    '<p style="font-size:14px;margin:0 0 4px 0;"><a href="tel:01619290530" style="color:var(--accent);text-decoration:none;">0161 929 0530</a></p>'+
+    '<p style="font-size:13px;color:var(--muted);margin:0;">Money Ash Road, Altrincham</p>'+
+  '</div>';
+  c.innerHTML = html;
+}
+
+function vehicleIssueRowHtml(i){
+  var statusClass = i.status==='resolved' ? 'ok' : 'low';
+  var html = '<div class="vs-item-row '+statusClass+'"><div class="vs-item-info">'+
+    '<div class="vs-item-name">'+escapeAttr(i.registration)+' \u2014 '+escapeAttr(i.reportedByName)+'<span class="vs-stock-badge '+statusClass+'">'+(i.status==='resolved'?'RESOLVED':'OPEN')+'</span></div>'+
+    '<div class="vs-item-meta">Occurred '+fmtLeaveDate(i.dateOccurred)+' \u00b7 Reported '+new Date(i.dateReported).toLocaleDateString()+'</div>'+
+    '<div class="vs-item-meta">'+escapeAttr(i.description)+'</div>'+
+  '</div></div>';
+  if(i.status!=='resolved'){
+    html += '<div style="margin:8px 0 16px 0;"><button class="vs-btn small" onclick="VS.resolveVehicleIssue(\''+i.id+'\')">Mark resolved</button></div>';
+  }
+  return html;
+}
+
+function renderManageVehicles(c){
+  var html = vehiclesBackLink();
+  html += sectionHead('Vehicles', '<button class="vs-btn small primary" onclick="VS.openAddVehicle()">+ Add vehicle</button>');
+  var vehicles = state.vehicles||[];
+  if(vehicles.length===0){
+    html += '<div class="vs-empty">No vehicles added yet.</div>';
+  } else {
+    html += vehicles.map(function(v){
+      var due = vehicleDueSoon(v);
+      return '<div class="vs-item-row'+(due.length?' low':'')+'"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+escapeAttr(v.registration)+(due.length?'<span class="vs-stock-badge low">DUE SOON</span>':'')+'</div>'+
+        '<div class="vs-item-meta">'+escapeAttr(((v.make||'')+' '+(v.model||'')).trim())+' \u00b7 MOT: '+(v.motDate||'not set')+' \u00b7 Service: '+(v.serviceDate||'not set')+'</div>'+
+        '</div>'+
+        '<button class="vs-btn small" onclick="VS.openEditVehicle(\''+v.id+'\')">Edit</button>'+
+      '</div>';
+    }).join('');
+  }
+
+  html += sectionHead('Reported issues');
+  var issues = (state.vehicleIssues||[]).slice().reverse();
+  if(issues.length===0){
+    html += '<div class="vs-empty">No issues reported.</div>';
+  } else {
+    html += issues.map(vehicleIssueRowHtml).join('');
+  }
+  c.innerHTML = html;
+}
+
+function vehicleFormHtml(v){
+  return '<h3>'+(v?'Edit vehicle':'Add vehicle')+'</h3>'+
+    '<div class="vs-field"><label>Registration</label><input id="veh-reg" value="'+escapeAttr(v?v.registration:'')+'"></div>'+
+    '<div class="vs-field"><label>Make</label><input id="veh-make" value="'+escapeAttr(v?v.make||'':'')+'"></div>'+
+    '<div class="vs-field"><label>Model</label><input id="veh-model" value="'+escapeAttr(v?v.model||'':'')+'"></div>'+
+    '<div class="vs-field"><label>MOT due date</label><input type="date" id="veh-mot" value="'+(v?v.motDate||'':'')+'"></div>'+
+    '<div class="vs-field"><label>Service due date</label><input type="date" id="veh-service" value="'+(v?v.serviceDate||'':'')+'"></div>'+
+    '<div class="vs-field"><label>Repair contact name (optional \u2014 defaults to JW Motor Services)</label><input id="veh-repairname" value="'+escapeAttr(v?v.repairName||'':'')+'"></div>'+
+    '<div class="vs-field"><label>Repair contact phone</label><input id="veh-repairphone" value="'+escapeAttr(v?v.repairPhone||'':'')+'"></div>'+
+    '<div class="vs-field"><label>Repair contact address</label><input id="veh-repairaddress" value="'+escapeAttr(v?v.repairAddress||'':'')+'"></div>'+
+    '<div class="vs-modal-actions">'+
+      (v?'<button class="vs-btn danger" onclick="VS.removeVehicle(\''+v.id+'\')">Remove</button>':'')+
+      '<button class="vs-btn" onclick="VS.closeModal()">Cancel</button>'+
+      '<button class="vs-btn primary" onclick="VS.saveVehicleForm('+(v?"'"+v.id+"'":'null')+')">Save</button>'+
+    '</div>';
+}
+
 // ---------- Modal ----------
 
 function openModal(html){
@@ -2391,6 +2676,104 @@ var VS = {
   enterManuals:enterManuals,
   enterJobs:enterJobs,
   enterForms:enterForms,
+  enterVehicles:enterVehicles,
+  setVehiclesTab:function(t){ state.vehiclesTab=t; state.checklistFreq=null; renderVehiclesScreen(); },
+  saveMyRegistration:function(){
+    var val = document.getElementById('myveh-reg').value.trim().toUpperCase();
+    var me = currentPerson();
+    if(!me) return;
+    me.registration = val;
+    saveCatalog();
+    toast('Saved');
+    renderVehiclesScreen();
+  },
+  submitVehicleIssue:function(){
+    var reg = document.getElementById('ri-reg').value.trim().toUpperCase();
+    var dateOccurred = document.getElementById('ri-date').value;
+    var desc = document.getElementById('ri-desc').value.trim();
+    if(!reg){ toast('Enter the vehicle registration'); return; }
+    if(!desc){ toast('Describe the issue'); return; }
+    var me = currentPerson();
+    state.vehicleIssues.push({
+      id:uid(), reportedById: me?me.id:null, reportedByName: me?me.name:'Unknown',
+      registration: reg, dateOccurred: dateOccurred, dateReported: new Date().toISOString(),
+      description: desc, status:'open'
+    });
+    saveVehicleIssues();
+    toast('Report sent \u2014 admin and office will see it');
+    state.vehiclesTab = 'menu';
+    renderVehiclesScreen();
+  },
+  setChecklistFreq:function(freq){ state.checklistFreq = freq; renderVehiclesScreen(); },
+  submitVehicleCheck:function(){
+    var freq = state.checklistFreq;
+    var items = VEHICLE_CHECKS[freq];
+    var reg = document.getElementById('chk-reg').value.trim().toUpperCase();
+    if(!reg){ toast('Enter the vehicle registration'); return; }
+    var answers = items.map(function(item, i){
+      var el = document.getElementById('chk-item-'+i);
+      return { item:item, answer: el?el.value:'' };
+    });
+    if(answers.some(function(a){ return !a.answer; })){ toast('Answer every item before submitting'); return; }
+    var me = currentPerson();
+    var notes = document.getElementById('chk-notes').value.trim();
+    state.vehicleChecks.push({
+      id:uid(), driverId: me?me.id:null, driverName: me?me.name:'Unknown',
+      registration: reg, frequency: freq, date: new Date().toISOString().slice(0,10),
+      answers: answers, notes: notes, submittedAt: new Date().toISOString()
+    });
+    saveVehicleChecks();
+    var hasIssue = answers.some(function(a){ return a.answer==='issue'; });
+    toast(hasIssue ? 'Checklist submitted \u2014 issue flagged' : 'Checklist submitted');
+    state.checklistFreq = null;
+    state.vehiclesTab = 'menu';
+    renderVehiclesScreen();
+  },
+  resolveVehicleIssue:function(id){
+    var i = (state.vehicleIssues||[]).filter(function(x){ return x.id===id; })[0];
+    if(!i) return;
+    i.status = 'resolved';
+    saveVehicleIssues();
+    renderVehiclesScreen();
+    toast('Marked resolved');
+  },
+  openAddVehicle:function(){ openModal(vehicleFormHtml(null)); },
+  openEditVehicle:function(id){
+    var v = (state.vehicles||[]).filter(function(x){ return x.id===id; })[0];
+    if(!v) return;
+    openModal(vehicleFormHtml(v));
+  },
+  saveVehicleForm:function(id){
+    var reg = document.getElementById('veh-reg').value.trim().toUpperCase();
+    if(!reg){ toast('Enter a registration'); return; }
+    var make = document.getElementById('veh-make').value.trim();
+    var model = document.getElementById('veh-model').value.trim();
+    var motDate = document.getElementById('veh-mot').value;
+    var serviceDate = document.getElementById('veh-service').value;
+    var repairName = document.getElementById('veh-repairname').value.trim();
+    var repairPhone = document.getElementById('veh-repairphone').value.trim();
+    var repairAddress = document.getElementById('veh-repairaddress').value.trim();
+    if(id){
+      var v = (state.vehicles||[]).filter(function(x){ return x.id===id; })[0];
+      if(!v) return;
+      v.registration=reg; v.make=make; v.model=model; v.motDate=motDate; v.serviceDate=serviceDate;
+      v.repairName=repairName; v.repairPhone=repairPhone; v.repairAddress=repairAddress;
+    } else {
+      state.vehicles.push({ id:uid(), registration:reg, make:make, model:model, motDate:motDate, serviceDate:serviceDate, repairName:repairName, repairPhone:repairPhone, repairAddress:repairAddress });
+    }
+    saveVehicles();
+    closeModal();
+    renderVehiclesScreen();
+    toast('Saved');
+  },
+  removeVehicle:function(id){
+    if(!confirm('Remove this vehicle record?')) return;
+    state.vehicles = (state.vehicles||[]).filter(function(v){ return v.id!==id; });
+    saveVehicles();
+    closeModal();
+    renderVehiclesScreen();
+    toast('Removed');
+  },
   setFormsTab:function(t){ state.formsTab=t; renderFormsScreen(); },
   submitServiceReport:function(){
     var jobNumber = document.getElementById('sr-jobnumber').value.trim();
