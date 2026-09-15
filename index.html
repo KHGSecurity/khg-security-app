@@ -165,10 +165,11 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
 .vs-modal h3{ font-size:16px; margin:0 0 14px 0; font-weight:800; }
 .vs-field{ margin-bottom:12px; }
 .vs-field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600; }
-.vs-field input, .vs-field select{
+.vs-field input, .vs-field select, .vs-field textarea{
   width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:9px 10px; font-size:14px; font-family:'Inter';
 }
-.vs-field input:focus, .vs-field select:focus{ outline:none; border-color:var(--accent); }
+.vs-field textarea{ resize:vertical; min-height:60px; }
+.vs-field input:focus, .vs-field select:focus, .vs-field textarea:focus{ outline:none; border-color:var(--accent); }
 .vs-modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
 .vs-toast{
   position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--panel-2); border:1px solid var(--accent);
@@ -318,7 +319,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
         <span class="vs-home-tile-label">Manuals</span>
       </button>
-      <button class="vs-home-tile" onclick="VS.openPlaceholder('Forms')">
+      <button class="vs-home-tile" onclick="VS.enterForms()">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/></svg>
         <span class="vs-home-tile-label">Forms</span>
       </button>
@@ -422,6 +423,20 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <main id="vs-jobs-content"></main>
 </div>
 
+<div id="vs-forms-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <h1>Forms</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+    </div>
+    <div class="vs-who-badge" id="vs-forms-who-badge"></div>
+  </div>
+  <main id="vs-forms-content"></main>
+</div>
+
 <div id="vs-modal-root"></div>
 
 
@@ -469,7 +484,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', formSubmissions:null, formsTab:'menu' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -487,7 +502,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -505,6 +520,7 @@ function enterStock(){ appView = 'stock'; refreshAppScreen(); }
 function enterLeave(){ appView = 'leave'; refreshAppScreen(); }
 function enterManuals(){ appView = 'manuals'; refreshAppScreen(); }
 function enterJobs(){ appView = 'jobs'; refreshAppScreen(); }
+function enterForms(){ appView = 'forms'; refreshAppScreen(); }
 
 // Decides what's on screen right now: connecting, first-run setup, the PIN
 // gate, or (once logged in) whichever app view is currently active.
@@ -539,6 +555,9 @@ function refreshAppScreen(){
   } else if(appView==='jobs'){
     document.getElementById('vs-jobs-wrap').style.display = 'block';
     renderJobsScreen();
+  } else if(appView==='forms'){
+    document.getElementById('vs-forms-wrap').style.display = 'block';
+    renderFormsScreen();
   } else if(appView==='placeholder'){
     document.getElementById('vs-placeholder-wrap').style.display = 'flex';
   } else {
@@ -684,6 +703,7 @@ function tryPinLogin(){
 function logout(wasRevoked){
   state.currentUser = null;
   state.currentUserPin = null;
+  state.jobsCache = null;
   storageDelete('my-login', false);
   updateAppBadge(0);
   refreshAppScreen();
@@ -707,7 +727,7 @@ function renderWhoBadge(){
     '<div class="vs-welcome-title">Welcome '+p.name+'</div>'+
     '<div class="vs-welcome-sub">Not '+p.name+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -833,7 +853,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false };
 
 function startLiveSync(){
   if(!db){
@@ -877,6 +897,11 @@ function startLiveSync(){
     liveLoaded.manuals = true;
     onSharedUpdate('manuals');
   });
+  subscribeShared('form-submissions', function(value, exists){
+    state.formSubmissions = exists ? JSON.parse(value) : [];
+    liveLoaded.forms = true;
+    onSharedUpdate('forms');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -901,7 +926,7 @@ var TAB_DEPENDS_ON = {
 };
 
 function allCoreLoaded(){
-  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals;
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms;
 }
 
 function onSharedUpdate(changedKey){
@@ -920,6 +945,7 @@ function onSharedUpdate(changedKey){
   else if(state.currentUser && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
   if(appView==='leave' && ['catalog','leave','rota','swaps'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
+  if(appView==='forms' && changedKey==='forms'){ renderFormsScreen(); }
   var deps = TAB_DEPENDS_ON[state.tab];
   if(!deps || deps.indexOf(changedKey)!==-1) render();
 }
@@ -958,6 +984,11 @@ function saveSwapRequests(){
 function saveManuals(){
   trackSave(function(){
     return storageSet('manuals', JSON.stringify(state.manuals), true);
+  });
+}
+function saveFormSubmissions(){
+  trackSave(function(){
+    return storageSet('form-submissions', JSON.stringify(state.formSubmissions), true);
   });
 }
 
@@ -1304,6 +1335,7 @@ function renderItems(c){
         '</select>'+
         '<input value="'+escapeAttr(e.pin||'')+'" placeholder="PIN" style="width:60px;flex:none;" onchange="VS.setPersonPinLive(\''+e.id+'\',this.value)">'+
         '<input value="'+escapeAttr(e.code||'')+'" placeholder="Code" title="Short code for the callout rota (e.g. RR)" style="width:60px;flex:none;" onchange="VS.setPersonCode(\''+e.id+'\',this.value)">'+
+        '<input value="'+escapeAttr(e.servicem8Name||'')+'" placeholder="ServiceM8 name" title="Their exact full name as it appears in ServiceM8" style="width:150px;flex:none;" onchange="VS.setPersonServiceM8Name(\''+e.id+'\',this.value)">'+
         '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;"><input type="checkbox" '+(isAdminPerson(e)?'checked':'')+' onchange="VS.setPersonAdmin(\''+e.id+'\',this.checked)" style="width:auto;">Admin</label>'+
         '<button class="vs-btn small danger" onclick="VS.removePerson(\''+e.id+'\')">Remove</button>'+
       '</div>';
@@ -1722,7 +1754,17 @@ function renderJobsScreen(){
 function fetchJobs(){
   state.jobsLoading = true;
   state.jobsError = null;
-  fetch('/.netlify/functions/servicem8-jobs')
+  var me = currentPerson();
+  var admin = isAdminPerson(me);
+  if(!admin && me && !me.servicem8Name){
+    state.jobsLoading = false;
+    state.jobsError = 'Your ServiceM8 name hasn\u2019t been set up yet \u2014 ask an admin to add it in Items \u2192 Team.';
+    renderJobsScreen();
+    return;
+  }
+  var staffName = me ? (me.servicem8Name || me.name) : '';
+  var qs = 'admin='+(admin?'1':'0')+(admin?'':'&staffName='+encodeURIComponent(staffName));
+  fetch('/.netlify/functions/servicem8-jobs?'+qs)
     .then(function(res){ return res.json(); })
     .then(function(data){
       state.jobsLoading = false;
@@ -1735,6 +1777,140 @@ function fetchJobs(){
       state.jobsError = 'Could not reach the server to load jobs.';
       renderJobsScreen();
     });
+}
+
+// ---------- Forms (submit into ServiceM8 as a Job Note) ----------
+
+var BS9263_CHECKS = [
+  "Check the installation meets the 'As Fitted' document",
+  "Check the satisfactory operation of all detection devices and PA's, ensuring all tampers are secure",
+  "Inspect all flexible connections",
+  "Inspect condition of movement detector lenses and clean if necessary",
+  "Check stand-by power supplies for correct charging rates and battery capacities",
+  "Check age and condition of batteries, including SABs, and replace if required",
+  "Check control panel for correct operation, including date/time",
+  "Check alarm system is fully functional and note any areas for future attention",
+  "Check remote signalling, including all codes to ARC",
+  "Check that keyholder information is up to date; record changes on this docket"
+];
+
+function renderFormsScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-forms-content');
+  if(!c || !state.formSubmissions) return;
+  if(state.formsTab==='service_report') return renderServiceReportForm(c);
+  if(state.formsTab==='mine') return renderMyFormSubmissions(c);
+  return renderFormsMenu(c);
+}
+
+function renderFormsMenu(c){
+  var me = currentPerson();
+  var myCount = state.formSubmissions.filter(function(s){ return s.submittedBy===(me?me.name:''); }).length;
+  var html = '<div class="vs-home-grid">';
+  html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'service_report\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/></svg>'+
+    '<span class="vs-home-tile-label">Service Report</span>'+
+    '<span class="vs-home-tile-sub">BS 9263 intruder alarm service</span>'+
+  '</button>';
+  html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'mine\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'+
+    '<span class="vs-home-tile-label">My Submitted Reports</span>'+
+    '<span class="vs-home-tile-sub">'+myCount+' submitted</span>'+
+  '</button>';
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+function formsBackLink(){
+  return '<button class="vs-back-link" onclick="VS.setFormsTab(\'menu\')" style="margin-bottom:16px;">&larr; Forms</button>';
+}
+
+function renderServiceReportForm(c){
+  var me = currentPerson();
+  var html = formsBackLink();
+  html += sectionHead('Service Report (BS 9263)');
+  html += '<div class="vs-field"><label>ServiceM8 job number</label><input id="sr-jobnumber" placeholder="e.g. 4521"><p style="font-size:11px;color:var(--muted-2);margin:4px 0 0 0;">Must match the job number in ServiceM8 exactly.</p></div>';
+
+  html += sectionHead('1. System &amp; monitoring details');
+  html += '<div class="vs-field"><label>Type of system?</label><input id="sr-systype"></div>';
+  html += '<div class="vs-field"><label>Type of monitoring?</label><input id="sr-monitoring"></div>';
+  html += '<div class="vs-field"><label>System make and model?</label><input id="sr-makemodel"></div>';
+  html += '<div class="vs-field"><label>Backup battery total?</label><input id="sr-backupbatt"></div>';
+  html += '<div class="vs-field"><label>Wireless battery total?</label><input id="sr-wirelessbatt"></div>';
+
+  html += sectionHead('2. Service summary');
+  html += '<div class="vs-field"><label>Action taken?</label><textarea id="sr-actiontaken" rows="3"></textarea></div>';
+  html += '<div class="vs-field"><label>Further action required? (leave blank if none)</label><textarea id="sr-furtheraction" rows="2"></textarea></div>';
+
+  html += sectionHead('3. Checks completed \u2014 BS 9263:2016');
+  html += BS9263_CHECKS.map(function(check, i){
+    return '<div class="vs-field"><label style="font-size:12.5px;">'+escapeAttr(check)+'</label>'+
+      '<select id="sr-check-'+i+'"><option value="">\u2014 select \u2014</option><option value="Yes">Yes</option><option value="No">No</option><option value="N/A">N/A</option></select></div>';
+  }).join('');
+
+  html += sectionHead('4. Materials &amp; equipment');
+  html += '<div class="vs-field"><label>Disconnected equipment (please list)</label><textarea id="sr-disconnected" rows="2"></textarea></div>';
+  html += '<div class="vs-field"><label>Materials used (list all items, incl. batteries)</label><textarea id="sr-materials" rows="3"></textarea></div>';
+
+  html += sectionHead('5. Sign-off');
+  html += '<div class="vs-field"><label>Engineer</label><input id="sr-engineer" value="'+escapeAttr(me?me.name:'')+'"></div>';
+  html += '<div class="vs-field"><label>Customer name</label><input id="sr-customer"></div>';
+  html += '<div class="vs-field"><label>Date</label><input type="date" id="sr-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
+  html += '<div class="vs-field"><label>Time of arrival</label><input type="time" id="sr-arrival"></div>';
+  html += '<div class="vs-field"><label>Time of departure</label><input type="time" id="sr-departure"></div>';
+  html += '<div class="vs-field"><label>Customer signature</label><input id="sr-signature" placeholder="Customer types their name on your phone to confirm"><p style="font-size:11px;color:var(--muted-2);margin:4px 0 0 0;">Typed confirmation, not a drawn signature.</p></div>';
+
+  html += '<button class="vs-btn primary" style="margin-top:10px;width:100%;" onclick="VS.submitServiceReport()">Submit report</button>';
+  c.innerHTML = html;
+}
+
+function buildServiceReportNote(f){
+  var lines = [];
+  lines.push('SERVICE REPORT \u2014 BS 9263:2016');
+  lines.push('Engineer: '+f.engineer+'  |  Date: '+f.date+'  |  Arrival: '+f.arrival+'  |  Departure: '+f.departure);
+  lines.push('');
+  lines.push('System: '+(f.systemType||'-')+'  |  Monitoring: '+(f.monitoringType||'-'));
+  lines.push('Make/Model: '+(f.makeModel||'-'));
+  lines.push('Backup battery: '+(f.backupBattery||'-')+'  |  Wireless battery: '+(f.wirelessBattery||'-'));
+  lines.push('');
+  lines.push('Action taken: '+(f.actionTaken||'-'));
+  if(f.furtherAction) lines.push('Further action required: '+f.furtherAction);
+  lines.push('');
+  lines.push('BS 9263 checks:');
+  f.checks.forEach(function(ch){ lines.push('- '+ch.item+': '+(ch.answer||'-')); });
+  lines.push('');
+  if(f.disconnected) lines.push('Disconnected equipment: '+f.disconnected);
+  if(f.materials) lines.push('Materials used: '+f.materials);
+  lines.push('');
+  lines.push('Customer: '+(f.customer||'-')+'  |  Signed: '+(f.signature||'-'));
+  return lines.join('\n');
+}
+
+function formSubmissionRowHtml(s){
+  var statusClass = s.syncStatus==='synced' ? 'ok' : (s.syncStatus==='failed' ? 'out' : 'low');
+  var statusLabel = s.syncStatus==='synced' ? 'SYNCED' : (s.syncStatus==='failed' ? 'SYNC FAILED' : 'PENDING');
+  var dt = new Date(s.submittedAt).toLocaleDateString(undefined,{day:'numeric',month:'short'});
+  var html = '<div class="vs-item-row '+statusClass+'"><div class="vs-item-info">'+
+    '<div class="vs-item-name">Job #'+escapeAttr(s.jobNumber)+' \u2014 '+dt+'<span class="vs-stock-badge '+statusClass+'">'+statusLabel+'</span></div>';
+  if(s.syncStatus==='failed' && s.syncError) html += '<div class="vs-item-meta">'+escapeAttr(s.syncError)+'</div>';
+  html += '</div></div>';
+  if(s.syncStatus==='failed'){
+    html += '<div style="margin:8px 0 16px 0;"><button class="vs-btn small" onclick="VS.retryFormSync(\''+s.id+'\')">Retry sync</button></div>';
+  }
+  return html;
+}
+
+function renderMyFormSubmissions(c){
+  var me = currentPerson();
+  var mine = state.formSubmissions.filter(function(s){ return s.submittedBy===(me?me.name:''); }).slice().reverse();
+  var html = formsBackLink();
+  html += sectionHead('My submitted reports');
+  if(mine.length===0){
+    html += '<div class="vs-empty">You haven\u2019t submitted any reports yet.</div>';
+  } else {
+    html += '<div class="vs-cards">' + mine.map(formSubmissionRowHtml).join('') + '</div>';
+  }
+  c.innerHTML = html;
 }
 
 // ---------- Modal ----------
@@ -1950,6 +2126,73 @@ var VS = {
   enterLeave:enterLeave,
   enterManuals:enterManuals,
   enterJobs:enterJobs,
+  enterForms:enterForms,
+  setFormsTab:function(t){ state.formsTab=t; renderFormsScreen(); },
+  submitServiceReport:function(){
+    var jobNumber = document.getElementById('sr-jobnumber').value.trim();
+    if(!jobNumber){ toast('Enter the ServiceM8 job number'); return; }
+    var me = currentPerson();
+    var fields = {
+      jobNumber: jobNumber,
+      systemType: document.getElementById('sr-systype').value.trim(),
+      monitoringType: document.getElementById('sr-monitoring').value.trim(),
+      makeModel: document.getElementById('sr-makemodel').value.trim(),
+      backupBattery: document.getElementById('sr-backupbatt').value.trim(),
+      wirelessBattery: document.getElementById('sr-wirelessbatt').value.trim(),
+      actionTaken: document.getElementById('sr-actiontaken').value.trim(),
+      furtherAction: document.getElementById('sr-furtheraction').value.trim(),
+      checks: BS9263_CHECKS.map(function(check, i){
+        var el = document.getElementById('sr-check-'+i);
+        return { item: check, answer: el ? el.value : '' };
+      }),
+      disconnected: document.getElementById('sr-disconnected').value.trim(),
+      materials: document.getElementById('sr-materials').value.trim(),
+      engineer: document.getElementById('sr-engineer').value.trim(),
+      customer: document.getElementById('sr-customer').value.trim(),
+      date: document.getElementById('sr-date').value,
+      arrival: document.getElementById('sr-arrival').value,
+      departure: document.getElementById('sr-departure').value,
+      signature: document.getElementById('sr-signature').value.trim()
+    };
+    var submission = {
+      id: uid(), formType:'service_report', jobNumber: jobNumber,
+      submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
+      fields: fields, syncStatus:'pending', syncError:null
+    };
+    state.formSubmissions.push(submission);
+    saveFormSubmissions();
+    toast('Saved \u2014 sending to ServiceM8\u2026');
+    state.formsTab = 'mine';
+    renderFormsScreen();
+    this.syncFormSubmission(submission.id);
+  },
+  syncFormSubmission:function(id){
+    var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
+    if(!sub) return;
+    var noteText = buildServiceReportNote(sub.fields);
+    fetch('/.netlify/functions/servicem8-note', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ jobNumber: sub.jobNumber, note: noteText })
+    }).then(function(res){ return res.json(); }).then(function(data){
+      var s = (state.formSubmissions||[]).filter(function(x){ return x.id===id; })[0];
+      if(!s) return;
+      s.syncStatus = data.success ? 'synced' : 'failed';
+      s.syncError = data.success ? null : (data.error||'Unknown error')+(data.detail?' \u2014 '+String(data.detail).slice(0,200):'');
+      saveFormSubmissions();
+      if(data.success){ toast('Report added to ServiceM8 job '+sub.jobNumber); }
+      else { toast('ServiceM8 sync failed: '+s.syncError); }
+      if(state.formsTab==='mine') renderFormsScreen();
+    }).catch(function(){
+      var s = (state.formSubmissions||[]).filter(function(x){ return x.id===id; })[0];
+      if(s){ s.syncStatus='failed'; s.syncError='Could not reach the server'; saveFormSubmissions(); }
+      toast('Saved here, but couldn\u2019t reach ServiceM8');
+      if(state.formsTab==='mine') renderFormsScreen();
+    });
+  },
+  retryFormSync:function(id){
+    toast('Retrying\u2026');
+    this.syncFormSubmission(id);
+  },
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
   reloadJobs:function(){ state.jobsCache = null; state.jobsError = null; renderJobsScreen(); },
   viewJob:function(uuid){
@@ -2398,6 +2641,12 @@ var VS = {
   setPersonCode:function(id, code){
     var e = engById(id); if(!e) return;
     e.code = code.trim().toUpperCase();
+    saveCatalog(); render();
+    toast('Saved');
+  },
+  setPersonServiceM8Name:function(id, name){
+    var e = engById(id); if(!e) return;
+    e.servicem8Name = name.trim();
     saveCatalog(); render();
     toast('Saved');
   },
