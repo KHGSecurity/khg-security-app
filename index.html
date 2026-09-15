@@ -305,6 +305,11 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
         <span class="vs-home-tile-label">Leave &amp; Rota</span>
       </button>
+      <button class="vs-home-tile" onclick="VS.enterJobs()">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/><path d="M7 13h4M7 16h7"/></svg>
+        <span class="vs-home-tile-label">Jobs</span>
+        <span class="vs-home-tile-sub">Live from ServiceM8</span>
+      </button>
       <button class="vs-home-tile" onclick="window.open('https://skillsondemand.co.uk/#/login','_blank')">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
         <span class="vs-home-tile-label">Training</span>
@@ -402,6 +407,21 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <main id="vs-manuals-content"></main>
 </div>
 
+<div id="vs-jobs-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <h1>Jobs</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+      <div class="vs-shared-note">Live from ServiceM8 &mdash; not stored in this app</div>
+    </div>
+    <div class="vs-who-badge" id="vs-jobs-who-badge"></div>
+  </div>
+  <main id="vs-jobs-content"></main>
+</div>
+
 <div id="vs-modal-root"></div>
 
 
@@ -449,7 +469,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' } };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -467,7 +487,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -484,6 +504,7 @@ function openPlaceholder(name){
 function enterStock(){ appView = 'stock'; refreshAppScreen(); }
 function enterLeave(){ appView = 'leave'; refreshAppScreen(); }
 function enterManuals(){ appView = 'manuals'; refreshAppScreen(); }
+function enterJobs(){ appView = 'jobs'; refreshAppScreen(); }
 
 // Decides what's on screen right now: connecting, first-run setup, the PIN
 // gate, or (once logged in) whichever app view is currently active.
@@ -515,6 +536,9 @@ function refreshAppScreen(){
   } else if(appView==='manuals'){
     document.getElementById('vs-manuals-wrap').style.display = 'block';
     renderManualsScreen();
+  } else if(appView==='jobs'){
+    document.getElementById('vs-jobs-wrap').style.display = 'block';
+    renderJobsScreen();
   } else if(appView==='placeholder'){
     document.getElementById('vs-placeholder-wrap').style.display = 'flex';
   } else {
@@ -683,7 +707,7 @@ function renderWhoBadge(){
     '<div class="vs-welcome-title">Welcome '+p.name+'</div>'+
     '<div class="vs-welcome-sub">Not '+p.name+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -1648,6 +1672,71 @@ function openUploadManual(){
   openModal(html);
 }
 
+// ---------- Jobs (live from ServiceM8) ----------
+
+function renderJobsScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-jobs-content');
+  if(!c) return;
+
+  if(state.jobsCache===null && !state.jobsLoading){
+    fetchJobs();
+  }
+
+  if(state.jobsLoading){
+    c.innerHTML = '<div class="vs-loading">Loading jobs from ServiceM8\u2026</div>';
+    return;
+  }
+  if(state.jobsError){
+    c.innerHTML = '<div class="vs-error">'+escapeAttr(state.jobsError)+'<div><button class="vs-btn primary" onclick="VS.reloadJobs()">Retry</button></div></div>';
+    return;
+  }
+
+  var html = '<div style="display:flex;gap:8px;margin-bottom:14px;">'+
+    '<input id="jobs-search" value="'+escapeAttr(state.jobsSearch)+'" placeholder="Search jobs\u2026" oninput="VS.setJobsSearch(this.value)" style="flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-family:\'Inter\';">'+
+    '<button class="vs-btn small" onclick="VS.reloadJobs()">Refresh</button>'+
+  '</div>';
+
+  var q = state.jobsSearch.toLowerCase();
+  var list = (state.jobsCache||[]).filter(function(j){
+    if(!q) return true;
+    return (j.jobNumber||'').toLowerCase().indexOf(q)!==-1 ||
+      (j.description||'').toLowerCase().indexOf(q)!==-1 ||
+      (j.address||'').toLowerCase().indexOf(q)!==-1;
+  });
+
+  if(list.length===0){
+    html += '<div class="vs-empty">No jobs match.</div>';
+  } else {
+    html += '<div class="vs-cards">' + list.map(function(j){
+      return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.viewJob(\''+j.uuid+'\')">'+
+        '<div class="vs-item-info"><div class="vs-item-name">'+(j.jobNumber?'#'+escapeAttr(j.jobNumber)+' \u2014 ':'')+escapeAttr(j.description||'(no description)')+'</div>'+
+        '<div class="vs-item-meta">'+escapeAttr(j.address||'')+(j.status?' \u00b7 '+escapeAttr(j.status):'')+'</div></div></div>';
+    }).join('') + '</div>';
+  }
+  c.innerHTML = html;
+  var sInput = document.getElementById('jobs-search');
+  if(sInput){ sInput.focus(); sInput.setSelectionRange(sInput.value.length, sInput.value.length); }
+}
+
+function fetchJobs(){
+  state.jobsLoading = true;
+  state.jobsError = null;
+  fetch('/.netlify/functions/servicem8-jobs')
+    .then(function(res){ return res.json(); })
+    .then(function(data){
+      state.jobsLoading = false;
+      if(data.success){ state.jobsCache = data.jobs; }
+      else { state.jobsError = (data.error||'Could not load jobs')+(data.detail?' \u2014 '+String(data.detail).slice(0,200):''); }
+      renderJobsScreen();
+    })
+    .catch(function(){
+      state.jobsLoading = false;
+      state.jobsError = 'Could not reach the server to load jobs.';
+      renderJobsScreen();
+    });
+}
+
 // ---------- Modal ----------
 
 function openModal(html){
@@ -1860,6 +1949,19 @@ var VS = {
   enterStock:enterStock,
   enterLeave:enterLeave,
   enterManuals:enterManuals,
+  enterJobs:enterJobs,
+  setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
+  reloadJobs:function(){ state.jobsCache = null; state.jobsError = null; renderJobsScreen(); },
+  viewJob:function(uuid){
+    var j = (state.jobsCache||[]).filter(function(x){ return x.uuid===uuid; })[0];
+    if(!j) return;
+    var html = '<h3>'+(j.jobNumber?'Job #'+escapeAttr(j.jobNumber):'Job')+'</h3>'+
+      '<p style="font-size:14px;color:var(--text);margin:0 0 8px 0;">'+escapeAttr(j.description||'(no description)')+'</p>'+
+      '<p style="font-size:13px;color:var(--muted);margin:0 0 8px 0;">'+escapeAttr(j.address||'No address on file')+'</p>'+
+      (j.status ? '<p style="font-size:12px;color:var(--muted-2);margin:0;">Status: '+escapeAttr(j.status)+'</p>' : '')+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+    openModal(html);
+  },
   enableNotifications:function(){
     if(!('Notification' in window)){ toast('Not supported on this device'); return; }
     Notification.requestPermission().then(function(perm){
