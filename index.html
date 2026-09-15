@@ -13,6 +13,8 @@
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
 
@@ -455,7 +457,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', formSubmissions:null, formsTab:'menu', prefillJobNumber:'' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -708,6 +710,8 @@ function logout(wasRevoked){
   state.currentUser = null;
   state.currentUserPin = null;
   state.jobsCache = null;
+  state.jobsCachedAt = null;
+  state.jobsBootstrapping = false;
   storageDelete('my-login', false);
   updateAppBadge(0);
   refreshAppScreen();
@@ -1238,6 +1242,7 @@ function renderVan(c){
   var canReset = canEditPars(currentPerson());
   var html = sectionHead(eng.name + '\u2019s van', '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
     '<button class="vs-btn small" onclick="VS.openTransfer(\''+eng.id+'\')">Transfer from stores</button>'+
+    '<button class="vs-btn small" onclick="VS.openBarcodeScanner({type:\'van\',engId:\''+eng.id+'\'})">Scan to Restock</button>'+
     (canReset ? '<button class="vs-btn small danger" onclick="VS.openResetVanConfirm(\''+eng.id+'\')">Reset to Min Levels</button>' : '')+
   '</div>');
   html += renderStockFilterBar();
@@ -1268,6 +1273,7 @@ function renderWarehouse(c){
   var canReset = canEditPars(currentPerson());
   var html = sectionHead('Stores stock', '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
     '<button class="vs-btn small" onclick="VS.openRestockStores()">Restock Stores</button>'+
+    '<button class="vs-btn small" onclick="VS.openBarcodeScanner({type:\'warehouse\'})">Scan to Restock</button>'+
     (canReset ? '<button class="vs-btn small danger" onclick="VS.openResetStoresConfirm()">Reset to Min Levels</button>' : '')+
   '</div>');
   html += renderStockFilterBar();
@@ -1738,6 +1744,17 @@ jobsCalMonth.setDate(1);
 
 function dateOnly(s){ return String(s||'').slice(0,10); }
 
+function timeAgo(ts){
+  var secs = Math.round((Date.now()-ts)/1000);
+  if(secs<60) return 'just now';
+  var mins = Math.round(secs/60);
+  if(mins<60) return mins+' min'+(mins===1?'':'s')+' ago';
+  var hrs = Math.round(mins/60);
+  if(hrs<24) return hrs+' hour'+(hrs===1?'':'s')+' ago';
+  var days = Math.round(hrs/24);
+  return days+' day'+(days===1?'':'s')+' ago';
+}
+
 function jobsForDate(dateStr){
   return (state.jobsCache||[]).filter(function(j){
     return (j.schedule||[]).some(function(sch){ return dateOnly(sch.start)===dateStr; });
@@ -1759,16 +1776,21 @@ function renderJobsScreen(){
   var c = document.getElementById('vs-jobs-content');
   if(!c) return;
 
-  if(state.jobsCache===null && !state.jobsLoading){
-    fetchJobs();
+  if(state.jobsCache===null && !state.jobsLoading && !state.jobsBootstrapping){
+    state.jobsBootstrapping = true;
+    loadJobsFromLocalCache();
   }
 
-  if(state.jobsLoading){
+  if(state.jobsLoading && state.jobsCache===null){
     c.innerHTML = '<div class="vs-loading">Loading jobs from ServiceM8\u2026</div>';
     return;
   }
-  if(state.jobsError){
+  if(state.jobsError && state.jobsCache===null){
     c.innerHTML = '<div class="vs-error">'+escapeAttr(state.jobsError)+'<div><button class="vs-btn primary" onclick="VS.reloadJobs()">Retry</button></div></div>';
+    return;
+  }
+  if(state.jobsCache===null){
+    c.innerHTML = '<div class="vs-loading">Loading jobs from ServiceM8\u2026</div>';
     return;
   }
 
@@ -1777,9 +1799,12 @@ function renderJobsScreen(){
 
   var year = jobsCalMonth.getFullYear(), month = jobsCalMonth.getMonth();
   var monthLabel = jobsCalMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
-  var html = '<div style="display:flex;gap:8px;margin-bottom:10px;">'+
+  var html = '<div style="display:flex;gap:8px;margin-bottom:6px;">'+
     '<input id="jobs-search" value="'+escapeAttr(state.jobsSearch)+'" placeholder="Search jobs\u2026" oninput="VS.setJobsSearch(this.value)" style="flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-family:\'Inter\';">'+
     '<button class="vs-btn small" onclick="VS.reloadJobs()">Refresh</button>'+
+  '</div>';
+  html += '<div style="font-size:11px;color:var(--muted-2);margin-bottom:10px;">'+
+    (state.jobsLoading ? 'Updating\u2026' : (state.jobsCachedAt ? 'Updated '+timeAgo(state.jobsCachedAt) : ''))+
   '</div>';
 
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'+
@@ -1832,8 +1857,27 @@ function renderJobsScreen(){
   setContentPreservingFocus(c, html, 'jobs-search');
 }
 
+function jobsCacheKey(){
+  var me = currentPerson();
+  return 'jobs-cache-'+(me ? me.id : 'anon');
+}
+
+function loadJobsFromLocalCache(){
+  storageGet(jobsCacheKey(), false).then(function(res){
+    if(res && res.value){
+      try{
+        var cached = JSON.parse(res.value);
+        state.jobsCache = cached.jobs;
+        state.jobsCachedAt = cached.cachedAt;
+      }catch(e){}
+    }
+    fetchJobs();
+  }).catch(function(){ fetchJobs(); });
+}
+
 function fetchJobs(){
-  state.jobsLoading = true;
+  var hadCache = state.jobsCache !== null;
+  if(!hadCache){ state.jobsLoading = true; }
   state.jobsError = null;
   var me = currentPerson();
   var admin = isAdminPerson(me);
@@ -1845,17 +1889,26 @@ function fetchJobs(){
   }
   var staffName = me ? (me.servicem8Name || me.name) : '';
   var qs = 'admin='+(admin?'1':'0')+(admin?'':'&staffName='+encodeURIComponent(staffName));
+  if(hadCache) renderJobsScreen();
   fetch('/.netlify/functions/servicem8-jobs?'+qs)
     .then(function(res){ return res.json(); })
     .then(function(data){
       state.jobsLoading = false;
-      if(data.success){ state.jobsCache = data.jobs; }
-      else { state.jobsError = (data.error||'Could not load jobs')+(data.detail?' \u2014 '+String(data.detail).slice(0,200):''); }
+      if(data.success){
+        state.jobsCache = data.jobs;
+        state.jobsCachedAt = Date.now();
+        storageSet(jobsCacheKey(), JSON.stringify({ jobs:data.jobs, cachedAt:state.jobsCachedAt }), false);
+      } else if(!hadCache){
+        state.jobsError = (data.error||'Could not load jobs')+(data.detail?' \u2014 '+String(data.detail).slice(0,200):'');
+      } else {
+        toast('Could not refresh jobs \u2014 showing the saved copy from earlier');
+      }
       renderJobsScreen();
     })
     .catch(function(){
       state.jobsLoading = false;
-      state.jobsError = 'Could not reach the server to load jobs.';
+      if(!hadCache){ state.jobsError = 'Could not reach the server to load jobs.'; }
+      else { toast('Could not refresh jobs \u2014 showing the saved copy from earlier'); }
       renderJobsScreen();
     });
 }
@@ -1976,10 +2029,79 @@ function formSubmissionRowHtml(s){
     '<div class="vs-item-name">Job #'+escapeAttr(s.jobNumber)+' \u2014 '+dt+'<span class="vs-stock-badge '+statusClass+'">'+statusLabel+'</span></div>';
   if(s.syncStatus==='failed' && s.syncError) html += '<div class="vs-item-meta">'+escapeAttr(s.syncError)+'</div>';
   html += '</div></div>';
+  html += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;">';
+  html += '<button class="vs-btn small primary" onclick="VS.downloadReportPDF(\''+s.id+'\')">Download PDF</button>';
   if(s.syncStatus==='failed'){
-    html += '<div style="margin:8px 0 16px 0;"><button class="vs-btn small" onclick="VS.retryFormSync(\''+s.id+'\')">Retry sync</button></div>';
+    html += '<button class="vs-btn small" onclick="VS.retryFormSync(\''+s.id+'\')">Retry sync</button>';
   }
+  html += '</div>';
   return html;
+}
+
+function generateServiceReportPDF(sub){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
+  var f = sub.fields;
+  var doc = new window.jspdf.jsPDF();
+  var margin = 15;
+  var y = margin;
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var lineHeight = 6;
+
+  function ensureSpace(needed){
+    if(y + needed > pageHeight - margin){ doc.addPage(); y = margin; }
+  }
+  function heading(text){
+    ensureSpace(10);
+    doc.setFont(undefined, 'bold'); doc.setFontSize(12);
+    doc.text(text, margin, y);
+    y += 8;
+    doc.setFont(undefined, 'normal'); doc.setFontSize(10);
+  }
+  function line(label, value){
+    var text = label ? (label+': '+(value||'-')) : (value||'-');
+    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
+    ensureSpace(wrapped.length*lineHeight);
+    doc.text(wrapped, margin, y);
+    y += wrapped.length*lineHeight;
+  }
+
+  doc.setFont(undefined,'bold'); doc.setFontSize(16);
+  doc.text('Service Report \u2014 BS 9263:2016', margin, y); y += 10;
+  doc.setFont(undefined,'normal'); doc.setFontSize(10);
+  line(null, 'Job #'+sub.jobNumber+'   |   Engineer: '+f.engineer+'   |   Date: '+f.date);
+  line(null, 'Arrival: '+(f.arrival||'-')+'   |   Departure: '+(f.departure||'-'));
+  y += 4;
+
+  heading('1. System & Monitoring Details');
+  line('Type of system', f.systemType);
+  line('Type of monitoring', f.monitoringType);
+  line('Make/Model', f.makeModel);
+  line('Backup battery total', f.backupBattery);
+  line('Wireless battery total', f.wirelessBattery);
+  y += 4;
+
+  heading('2. Service Summary');
+  line('Action taken', f.actionTaken);
+  if(f.furtherAction) line('Further action required', f.furtherAction);
+  y += 4;
+
+  heading('3. Checks Completed \u2014 BS 9263:2016');
+  f.checks.forEach(function(ch){
+    line(null, '\u2022 '+ch.item+': '+(ch.answer||'-'));
+  });
+  y += 4;
+
+  heading('4. Materials & Equipment');
+  if(f.disconnected) line('Disconnected equipment', f.disconnected);
+  line('Materials used', f.materials);
+  y += 4;
+
+  heading('5. Sign-off');
+  line('Customer', f.customer);
+  line('Signed', f.signature);
+
+  doc.save('Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf');
 }
 
 function renderMyFormSubmissions(c){
@@ -2000,7 +2122,15 @@ function renderMyFormSubmissions(c){
 function openModal(html){
   document.getElementById('vs-modal-root').innerHTML = '<div class="vs-modal-backdrop" onclick="if(event.target===this) VS.closeModal()"><div class="vs-modal">'+html+'</div></div>';
 }
-function closeModal(){ document.getElementById('vs-modal-root').innerHTML=''; }
+function closeModal(){
+  if(scannerInstance){
+    scannerInstance.stop().then(function(){ scannerInstance.clear(); }).catch(function(){});
+    scannerInstance = null;
+    scannerContext = null;
+    pendingScanCode = null;
+  }
+  document.getElementById('vs-modal-root').innerHTML='';
+}
 
 function openUseItemChoice(){
   var html = '<h3>Use item</h3>'+
@@ -2101,6 +2231,58 @@ function openRestockStores(){
     '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doRestockStores()">Restock</button></div>';
   openModal(html);
   populateRestockItems('van', vanHolders.length ? vanHolders[0].id : null);
+}
+
+// ---------- Barcode scanning (restock by camera scan) ----------
+
+var scannerInstance = null;
+var scannerContext = null;
+var pendingScanCode = null;
+
+function openBarcodeScanner(context){
+  scannerContext = context;
+  var html = '<h3>Scan to restock</h3>'+
+    '<div id="qr-reader" style="width:100%;border-radius:8px;overflow:hidden;background:var(--panel-2);"></div>'+
+    '<div id="qr-result" style="margin-top:12px;"></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeBarcodeScanner()">Done</button></div>';
+  openModal(html);
+  startScanner();
+}
+
+function startScanner(){
+  if(typeof Html5Qrcode==='undefined'){
+    document.getElementById('qr-result').innerHTML = '<p style="color:var(--red);font-size:13px;">Barcode scanner failed to load \u2014 check your connection and try again.</p>';
+    return;
+  }
+  scannerInstance = new Html5Qrcode('qr-reader');
+  scannerInstance.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 260, height: 160 } },
+    function(decodedText){ handleScanResult(decodedText); },
+    function(){ /* fires constantly while no code is in view — ignore */ }
+  ).catch(function(err){
+    document.getElementById('qr-result').innerHTML = '<p style="color:var(--red);font-size:13px;">Could not start the camera: '+escapeAttr(String(err))+'</p>';
+  });
+}
+
+function handleScanResult(code){
+  pendingScanCode = code;
+  if(scannerInstance){ scannerInstance.pause(true); }
+  var item = state.catalog.items.filter(function(it){ return it.barcode && it.barcode===code; })[0];
+  var resultEl = document.getElementById('qr-result');
+  if(!resultEl) return;
+  if(item){
+    resultEl.innerHTML = '<div class="vs-field"><label>'+escapeAttr(item.name)+'</label>'+
+      '<input type="number" id="scan-qty" min="1" value="1"></div>'+
+      '<button class="vs-btn primary" style="width:100%;" onclick="VS.confirmScanAdd(\''+item.id+'\')">Add to stock</button>'+
+      '<button class="vs-btn small" style="width:100%;margin-top:6px;" onclick="VS.resumeScanner()">Skip / scan next</button>';
+  } else {
+    var opts = state.catalog.items.map(function(it){ return '<option value="'+it.id+'">'+escapeAttr(it.name)+'</option>'; }).join('');
+    resultEl.innerHTML = '<p style="font-size:13px;color:var(--muted);">Unrecognized barcode: '+escapeAttr(code)+'</p>'+
+      '<div class="vs-field"><label>Which item is this?</label><select id="scan-assign-item"><option value="">\u2014 choose \u2014</option>'+opts+'</select></div>'+
+      '<button class="vs-btn small" style="width:100%;margin-bottom:6px;" onclick="VS.assignScannedBarcode()">Link this barcode</button>'+
+      '<button class="vs-btn small" style="width:100%;" onclick="VS.resumeScanner()">Skip / scan next</button>';
+  }
 }
 
 function openTransfer(engId){
@@ -2275,10 +2457,15 @@ var VS = {
     toast('Retrying\u2026');
     this.syncFormSubmission(id);
   },
+  downloadReportPDF:function(id){
+    var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
+    if(!sub){ toast('Report not found'); return; }
+    generateServiceReportPDF(sub);
+  },
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
   setJobsViewDate:function(dateStr){ state.jobsViewDate = dateStr; renderJobsScreen(); },
   jobsCalShift:function(delta){ jobsCalMonth.setMonth(jobsCalMonth.getMonth()+delta); renderJobsScreen(); },
-  reloadJobs:function(){ state.jobsCache = null; state.jobsError = null; renderJobsScreen(); },
+  reloadJobs:function(){ state.jobsError = null; fetchJobs(); },
   viewJob:function(uuid){
     var j = (state.jobsCache||[]).filter(function(x){ return x.uuid===uuid; })[0];
     if(!j) return;
@@ -2628,6 +2815,46 @@ var VS = {
     }
   },
   openRestockStores:openRestockStores,
+  openBarcodeScanner:openBarcodeScanner,
+  confirmScanAdd:function(itemId){
+    var qtyInput = document.getElementById('scan-qty');
+    var qty = qtyInput ? parseInt(qtyInput.value,10) : 0;
+    if(!qty || qty<1){ toast('Enter a valid quantity'); return; }
+    var it = itemById(itemId);
+    if(!it || !scannerContext) return;
+    if(scannerContext.type==='van'){
+      var engId = scannerContext.engId;
+      if(!state.stock.van[engId]) state.stock.van[engId] = {};
+      state.stock.van[engId][itemId] = (state.stock.van[engId][itemId]||0) + qty;
+      saveStock();
+      var eng = engById(engId);
+      addHistory({type:'found', itemId:itemId, qty:qty, locationLabel:(eng?eng.name:'Van'), note:'Scanned in'});
+    } else {
+      state.stock.warehouse[itemId] = (state.stock.warehouse[itemId]||0) + qty;
+      saveStock();
+      addHistory({type:'received', itemId:itemId, qty:qty, locationLabel:'Stores', note:'Scanned in'});
+    }
+    toast('Added '+qty+' \u00d7 '+it.name);
+    this.resumeScanner();
+  },
+  assignScannedBarcode:function(){
+    var sel = document.getElementById('scan-assign-item');
+    var itemId = sel ? sel.value : '';
+    if(!itemId){ toast('Choose an item'); return; }
+    var it = itemById(itemId);
+    if(!it || !pendingScanCode) return;
+    it.barcode = pendingScanCode;
+    saveCatalog();
+    toast('Linked to '+it.name);
+    handleScanResult(pendingScanCode);
+  },
+  resumeScanner:function(){
+    pendingScanCode = null;
+    var resultEl = document.getElementById('qr-result');
+    if(resultEl) resultEl.innerHTML = '';
+    if(scannerInstance){ scannerInstance.resume(); }
+  },
+  closeBarcodeScanner:function(){ closeModal(); },
   openResetVanConfirm:openResetVanConfirm,
   confirmResetVan:function(engId){
     var eng = engById(engId); if(!eng) return;
