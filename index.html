@@ -291,6 +291,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
       <div class="vs-who-badge" id="vs-home-who-badge"></div>
     </div>
     <div id="vs-home-notifications" style="margin-bottom:12px;"></div>
+    <div id="vs-notif-permission" style="margin-bottom:12px;"></div>
     <div class="vs-home-grid">
       <button class="vs-home-tile" onclick="VS.enterStock()">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
@@ -517,6 +518,7 @@ function refreshAppScreen(){
     document.getElementById('vs-home-wrap').style.display = 'flex';
     renderWhoBadge();
     renderHomeNotifications();
+    renderNotificationPermissionPrompt();
   }
 }
 
@@ -544,6 +546,18 @@ function updateAppBadge(count){
     if(count>0){ navigator.setAppBadge(count).catch(function(){}); }
     else { navigator.clearAppBadge().catch(function(){}); }
   }catch(e){}
+}
+
+function renderNotificationPermissionPrompt(){
+  var el = document.getElementById('vs-notif-permission');
+  if(!el) return;
+  if(!('Notification' in window) || !('setAppBadge' in navigator)){ el.innerHTML = ''; return; }
+  if(Notification.permission==='granted'){ el.innerHTML = ''; return; }
+  if(Notification.permission==='denied'){
+    el.innerHTML = '<p style="font-size:11.5px;color:var(--muted-2);margin:0 0 12px 0;">Notifications are turned off for this app in your phone\u2019s settings \u2014 turn them on there to see the icon badge.</p>';
+    return;
+  }
+  el.innerHTML = '<button class="vs-btn small" onclick="VS.enableNotifications()">Turn on notification badge</button>';
 }
 
 function renderHomeNotifications(){
@@ -1819,6 +1833,18 @@ var VS = {
   enterStock:enterStock,
   enterLeave:enterLeave,
   enterManuals:enterManuals,
+  enableNotifications:function(){
+    if(!('Notification' in window)){ toast('Not supported on this device'); return; }
+    Notification.requestPermission().then(function(perm){
+      if(perm==='granted'){
+        toast('Notifications turned on');
+        updateAppBadge(computeAlertCounts().total);
+      } else {
+        toast('Permission not granted');
+      }
+      renderNotificationPermissionPrompt();
+    });
+  },
   openUploadManual:openUploadManual,
   doUploadManual:function(){
     if(!fbStorage){ toast('File storage isn\u2019t set up yet'); return; }
