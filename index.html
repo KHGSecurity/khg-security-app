@@ -35,6 +35,9 @@
   font-family:'Inter',sans-serif;
 }
 *{box-sizing:border-box;}
+select{ color:var(--text); background:var(--panel-2); }
+select option{ color:var(--text); background:var(--panel-2); }
+input, select, textarea{ font-size:16px !important; }
 html, body{ margin:0; padding:0; background:var(--bg); }
 .vs-app-bg{
   position:fixed; inset:0; z-index:-1;
@@ -1153,7 +1156,7 @@ function historyRowHtml(h){
   var itName = it ? it.name : (h.itemId ? '(deleted item)' : '');
   var d = new Date(h.ts);
   var timeStr = d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  var verb = {use:'used',found:'added',received:'received',transfer:'transferred',adjust:'set',item_add:'added item',item_edit:'edited item',job:'sent to job'}[h.type]||h.type;
+  var verb = {use:'used',found:'added',received:'received',transfer:'transferred',adjust:'set',item_add:'added item',item_edit:'edited item',job:'sent to job',bulk_reset:'reset to minimum levels'}[h.type]||h.type;
   var qtyPart = (h.qty!==undefined) ? ' <b>'+ (h.qty>0 && h.type!=='adjust' ? '+' : '') + h.qty+'</b> ' : ' ';
   var actorName = h.actor || 'Unknown';
   return '<div class="vs-hist-row"><span class="vs-hist-actor" title="'+escapeAttr(actorName)+'">'+initials(actorName)+'</span>'+
@@ -1172,7 +1175,11 @@ function renderVan(c){
     }
     return;
   }
-  var html = sectionHead(eng.name + '\u2019s van', '<button class="vs-btn small" onclick="VS.openTransfer(\''+eng.id+'\')">Transfer from stores</button>');
+  var canReset = canEditPars(currentPerson());
+  var html = sectionHead(eng.name + '\u2019s van', '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+    '<button class="vs-btn small" onclick="VS.openTransfer(\''+eng.id+'\')">Transfer from stores</button>'+
+    (canReset ? '<button class="vs-btn small danger" onclick="VS.openResetVanConfirm(\''+eng.id+'\')">Reset to Min Levels</button>' : '')+
+  '</div>');
   html += renderStockFilterBar();
   html += '<div class="vs-cards">';
   var shown = 0;
@@ -1200,7 +1207,11 @@ function renderVan(c){
 }
 
 function renderWarehouse(c){
-  var html = sectionHead('Stores stock', '<button class="vs-btn small" onclick="VS.openRestockStores()">Restock Stores</button>');
+  var canReset = canEditPars(currentPerson());
+  var html = sectionHead('Stores stock', '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+    '<button class="vs-btn small" onclick="VS.openRestockStores()">Restock Stores</button>'+
+    (canReset ? '<button class="vs-btn small danger" onclick="VS.openResetStoresConfirm()">Reset to Min Levels</button>' : '')+
+  '</div>');
   html += renderStockFilterBar();
   html += '<div class="vs-cards">';
   var shown = 0;
@@ -1712,6 +1723,22 @@ function populateRestockItems(source, vanId){
   }).join('');
 }
 
+function openResetVanConfirm(engId){
+  var eng = engById(engId);
+  if(!eng) return;
+  var html = '<h3>Reset '+eng.name+'\u2019s van?</h3>'+
+    '<p style="font-size:13px;color:var(--muted);margin:0 0 16px 0;">This sets every item in this van back to its minimum level, clearing any low-stock alerts for it. This can\u2019t be undone.</p>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmResetVan(\''+engId+'\')">Reset to min levels</button></div>';
+  openModal(html);
+}
+
+function openResetStoresConfirm(){
+  var html = '<h3>Reset stores stock?</h3>'+
+    '<p style="font-size:13px;color:var(--muted);margin:0 0 16px 0;">This sets every item in stores back to its minimum level, clearing any low-stock alerts for it. This can\u2019t be undone.</p>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmResetStores()">Reset to min levels</button></div>';
+  openModal(html);
+}
+
 function openRestockStores(){
   var vanHolders = state.catalog.engineers.filter(personHasVan);
   var html = '<h3>Restock stores</h3>'+
@@ -2157,6 +2184,34 @@ var VS = {
     }
   },
   openRestockStores:openRestockStores,
+  openResetVanConfirm:openResetVanConfirm,
+  confirmResetVan:function(engId){
+    var eng = engById(engId); if(!eng) return;
+    if(!state.stock.van[engId]) state.stock.van[engId] = {};
+    var count = 0;
+    state.catalog.items.forEach(function(it){
+      if(!itemAppliesTo(it,'van')) return;
+      state.stock.van[engId][it.id] = it.vanPar;
+      count++;
+    });
+    saveStock();
+    addHistory({type:'bulk_reset', itemId:null, locationLabel:eng.name, note:count+' item(s) reset'});
+    closeModal(); render();
+    toast('Reset to minimum levels');
+  },
+  openResetStoresConfirm:openResetStoresConfirm,
+  confirmResetStores:function(){
+    var count = 0;
+    state.catalog.items.forEach(function(it){
+      if(!itemAppliesTo(it,'warehouse')) return;
+      state.stock.warehouse[it.id] = it.whPar;
+      count++;
+    });
+    saveStock();
+    addHistory({type:'bulk_reset', itemId:null, locationLabel:'Stores', note:count+' item(s) reset'});
+    closeModal(); render();
+    toast('Reset to minimum levels');
+  },
   onRestockChange:function(){
     var source = document.getElementById('rs-source').value;
     document.getElementById('rs-van-field').style.display = source==='van' ? '' : 'none';
