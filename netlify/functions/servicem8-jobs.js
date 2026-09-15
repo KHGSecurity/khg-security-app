@@ -1,6 +1,8 @@
-// Fetches jobs from ServiceM8 for display in the app's Jobs section.
-// Admins see every active job. Everyone else only sees jobs they're actually
-// scheduled against, found via ServiceM8's Job Activity (booking) records.
+// Fetches jobs from ServiceM8 for display in the app's Jobs section, along
+// with their scheduled dates (from Job Activity/booking records) so the app
+// can show them on a calendar. Admins see every active job's schedule.
+// Everyone else only sees jobs they're actually scheduled against, found via
+// ServiceM8's Job Activity records for their matching staff member.
 // The ServiceM8 API key lives only here, as a Netlify environment variable
 // (SERVICEM8_API_KEY) — it never reaches the browser.
 
@@ -24,22 +26,21 @@ exports.handler = async function (event) {
   const staffName = String(params.staffName || '').trim().toLowerCase();
 
   try {
-    // Always need the active jobs list — either to return directly (admin) or to filter against (non-admin)
     const jobsRes = await fetch(`https://api.servicem8.com/api_1.0/job.json?%24filter=${encodeURIComponent('active eq 1')}`, { headers });
     if (!jobsRes.ok) {
       const detail = await jobsRes.text();
       return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch jobs from ServiceM8.', detail }) };
     }
     const allJobs = await jobsRes.json();
-
     let jobs = Array.isArray(allJobs) ? allJobs : [];
 
-    if (!isAdmin) {
+    var activitiesUrl;
+    if (isAdmin) {
+      activitiesUrl = 'https://api.servicem8.com/api_1.0/jobactivity.json';
+    } else {
       if (!staffName) {
         return { statusCode: 400, body: JSON.stringify({ success: false, error: 'Missing staff name to look up.' }) };
       }
-
-      // 1. Find this person's ServiceM8 staff record by name
       const staffRes = await fetch('https://api.servicem8.com/api_1.0/staff.json', { headers });
       if (!staffRes.ok) {
         const detail = await staffRes.text();
@@ -53,19 +54,28 @@ exports.handler = async function (event) {
       if (!staffMember) {
         return { statusCode: 404, body: JSON.stringify({ success: false, error: `No ServiceM8 staff member found matching the name "${params.staffName}". Names must match exactly.` }) };
       }
-
-      // 2. Find job activities (bookings) assigned to that staff member
       const actFilter = encodeURIComponent(`staff_uuid eq '${staffMember.uuid}'`);
-      const actRes = await fetch(`https://api.servicem8.com/api_1.0/jobactivity.json?%24filter=${actFilter}`, { headers });
-      if (!actRes.ok) {
-        const detail = await actRes.text();
-        return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch job activities from ServiceM8.', detail }) };
-      }
-      const activities = await actRes.json();
-      const myJobUuids = new Set((Array.isArray(activities) ? activities : [])
-        .filter(function (a) { return a.active !== 0 && a.active !== '0'; })
-        .map(function (a) { return a.job_uuid; }));
+      activitiesUrl = `https://api.servicem8.com/api_1.0/jobactivity.json?%24filter=${actFilter}`;
+    }
 
+    const actRes = await fetch(activitiesUrl, { headers });
+    if (!actRes.ok) {
+      const detail = await actRes.text();
+      return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch job activities from ServiceM8.', detail }) };
+    }
+    const activities = await actRes.json();
+    const activeActivities = (Array.isArray(activities) ? activities : [])
+      .filter(function (a) { return a.active !== 0 && a.active !== '0'; });
+
+    const scheduleMap = {};
+    activeActivities.forEach(function (a) {
+      if (!a.job_uuid) return;
+      if (!scheduleMap[a.job_uuid]) scheduleMap[a.job_uuid] = [];
+      scheduleMap[a.job_uuid].push({ start: a.start_date || '', end: a.end_date || '' });
+    });
+
+    if (!isAdmin) {
+      const myJobUuids = new Set(Object.keys(scheduleMap));
       jobs = jobs.filter(function (j) { return myJobUuids.has(j.uuid); });
     }
 
@@ -75,7 +85,8 @@ exports.handler = async function (event) {
         jobNumber: j.generated_job_id || '',
         description: j.job_description || '',
         address: j.job_address || '',
-        status: j.status || ''
+        status: j.status || '',
+        schedule: scheduleMap[j.uuid] || []
       };
     });
 
