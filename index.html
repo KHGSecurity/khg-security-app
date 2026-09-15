@@ -202,6 +202,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
 .vs-rota-day .daynum{ font-size:11px; color:var(--muted-2); }
 .vs-rota-day .who{ font-family:'Archivo'; font-weight:800; font-size:10.5px; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 .vs-rota-day.today{ border-color:var(--accent); }
+.vs-rota-day.selected{ background:var(--accent-dim); }
 .vs-lock-wrap{
   min-height:100vh; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px;
   font-family:'Inter',sans-serif; color:var(--text);
@@ -296,37 +297,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
     </div>
     <div id="vs-home-notifications" style="margin-bottom:12px;"></div>
     <div id="vs-notif-permission" style="margin-bottom:12px;"></div>
-    <div class="vs-home-grid">
-      <button class="vs-home-tile" onclick="VS.enterStock()">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-        <span class="vs-home-tile-label">Stock</span>
-        <span class="vs-home-tile-sub">Van &amp; stores stock</span>
-      </button>
-      <button class="vs-home-tile" onclick="VS.enterLeave()">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
-        <span class="vs-home-tile-label">Leave &amp; Rota</span>
-      </button>
-      <button class="vs-home-tile" onclick="VS.enterJobs()">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/><path d="M7 13h4M7 16h7"/></svg>
-        <span class="vs-home-tile-label">Jobs</span>
-        <span class="vs-home-tile-sub">Live from ServiceM8</span>
-      </button>
-      <button class="vs-home-tile" onclick="window.open('https://skillsondemand.co.uk/#/login','_blank')">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/></svg>
-        <span class="vs-home-tile-label">Training</span>
-      </button>
-      <button class="vs-home-tile" onclick="VS.openPlaceholder('Manuals')">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        <span class="vs-home-tile-label">Manuals</span>
-      </button>
-      <button class="vs-home-tile" onclick="VS.enterForms()">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/></svg>
-        <span class="vs-home-tile-label">Forms</span>
-      </button>
-      <button class="vs-home-tile" onclick="VS.openPlaceholder('HR')">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/></svg>
-        <span class="vs-home-tile-label">HR</span>
-      </button>
+    <div class="vs-home-grid" id="vs-home-tiles"></div>
     </div>
   </div>
 </div>
@@ -484,10 +455,42 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', formSubmissions:null, formsTab:'menu' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', formSubmissions:null, formsTab:'menu', prefillJobNumber:'' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
+
+var HOME_TILES = [
+  { key:'stock', label:'Stock', sub:'Van &amp; stores stock', onclick:'VS.enterStock()', icon:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>' },
+  { key:'leave', label:'Leave &amp; Rota', sub:'', onclick:'VS.enterLeave()', icon:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>' },
+  { key:'jobs', label:'Jobs', sub:'Live from ServiceM8', onclick:'VS.enterJobs()', icon:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/><path d="M7 13h4M7 16h7"/>' },
+  { key:'training', label:'Training', sub:'', onclick:"window.open('https://skillsondemand.co.uk/#/login','_blank')", icon:'<path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/>' },
+  { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
+  { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
+  { key:'hr', label:'HR', sub:'', onclick:"VS.openPlaceholder('HR')", icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' }
+];
+
+// Admins always see every section. Everyone else defaults to seeing everything
+// too, unless an admin has explicitly turned a section off for them.
+function personCanSeeSection(person, key){
+  if(!person) return false;
+  if(isAdminPerson(person)) return true;
+  if(!person.sectionAccess) return true;
+  return person.sectionAccess[key] !== false;
+}
+
+function renderHomeTiles(){
+  var el = document.getElementById('vs-home-tiles');
+  if(!el) return;
+  var me = currentPerson();
+  el.innerHTML = HOME_TILES.filter(function(t){ return personCanSeeSection(me, t.key); }).map(function(t){
+    return '<button class="vs-home-tile" onclick="'+t.onclick+'">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">'+t.icon+'</svg>'+
+      '<span class="vs-home-tile-label">'+t.label+'</span>'+
+      (t.sub ? '<span class="vs-home-tile-sub">'+t.sub+'</span>' : '')+
+    '</button>';
+  }).join('');
+}
 function canEditPars(person){ return isAdminPerson(person) || (person && !personHasVan(person)); }
 function currentPerson(){ return state.currentUser ? engById(state.currentUser) : null; }
 
@@ -563,6 +566,7 @@ function refreshAppScreen(){
   } else {
     document.getElementById('vs-home-wrap').style.display = 'flex';
     renderWhoBadge();
+    renderHomeTiles();
     renderHomeNotifications();
     renderNotificationPermissionPrompt();
   }
@@ -941,6 +945,7 @@ function onSharedUpdate(changedKey){
     if(state.authResolved && state.currentUser){ checkStillAuthorized(); }
     if(!state.currentUser){ var w = document.getElementById('vs-setup-wrap'); if(w && w.style.display==='flex') renderSetupScreen(); }
   }
+  if(appView==='home' && changedKey==='catalog'){ renderHomeTiles(); }
   if(appView==='home' && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
   else if(state.currentUser && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
   if(appView==='leave' && ['catalog','leave','rota','swaps'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
@@ -1341,6 +1346,19 @@ function renderItems(c){
       '</div>';
     });
     html += '</div>';
+
+    html += sectionHead('Section Access', '');
+    html += '<p style="font-size:12px;color:var(--muted);margin:0 0 10px 0;">Choose which Home screen sections each person can see. Admins always see everything, regardless of these settings.</p>';
+    state.catalog.engineers.filter(function(e){ return !isAdminPerson(e); }).forEach(function(e){
+      html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px;">'+
+        '<div style="font-family:\'Archivo\';font-weight:800;font-size:13.5px;margin-bottom:8px;">'+escapeAttr(e.name)+'</div>'+
+        '<div style="display:flex;flex-wrap:wrap;gap:12px;">'+
+        HOME_TILES.map(function(t){
+          var checked = personCanSeeSection(e, t.key);
+          return '<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text);white-space:nowrap;"><input type="checkbox" '+(checked?'checked':'')+' onchange="VS.toggleSectionAccess(\''+e.id+'\',\''+t.key+'\',this.checked)" style="width:auto;">'+t.label+'</label>';
+        }).join('')+
+        '</div></div>';
+    });
   }
 
   html += sectionHead('Item catalog', '<button class="vs-btn small primary" onclick="VS.openAddItem()">+ Add item</button>');
@@ -1706,6 +1724,27 @@ function openUploadManual(){
 
 // ---------- Jobs (live from ServiceM8) ----------
 
+var jobsCalMonth = new Date();
+jobsCalMonth.setDate(1);
+
+function dateOnly(s){ return String(s||'').slice(0,10); }
+
+function jobsForDate(dateStr){
+  return (state.jobsCache||[]).filter(function(j){
+    return (j.schedule||[]).some(function(sch){ return dateOnly(sch.start)===dateStr; });
+  });
+}
+
+function unscheduledJobs(){
+  return (state.jobsCache||[]).filter(function(j){ return !(j.schedule||[]).length; });
+}
+
+function jobRowHtml(j){
+  return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.viewJob(\''+j.uuid+'\')">'+
+    '<div class="vs-item-info"><div class="vs-item-name">'+(j.jobNumber?'#'+escapeAttr(j.jobNumber)+' \u2014 ':'')+escapeAttr(j.description||'(no description)')+'</div>'+
+    '<div class="vs-item-meta">'+escapeAttr(j.address||'')+(j.status?' \u00b7 '+escapeAttr(j.status):'')+'</div></div></div>';
+}
+
 function renderJobsScreen(){
   renderWhoBadge();
   var c = document.getElementById('vs-jobs-content');
@@ -1724,28 +1763,63 @@ function renderJobsScreen(){
     return;
   }
 
-  var html = '<div style="display:flex;gap:8px;margin-bottom:14px;">'+
+  if(!state.jobsViewDate){ state.jobsViewDate = new Date().toISOString().slice(0,10); }
+  var todayStr = new Date().toISOString().slice(0,10);
+
+  var year = jobsCalMonth.getFullYear(), month = jobsCalMonth.getMonth();
+  var monthLabel = jobsCalMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  var html = '<div style="display:flex;gap:8px;margin-bottom:10px;">'+
     '<input id="jobs-search" value="'+escapeAttr(state.jobsSearch)+'" placeholder="Search jobs\u2026" oninput="VS.setJobsSearch(this.value)" style="flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-family:\'Inter\';">'+
     '<button class="vs-btn small" onclick="VS.reloadJobs()">Refresh</button>'+
   '</div>';
 
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">'+
+    '<button class="vs-btn small" onclick="VS.jobsCalShift(-1)">\u2039</button>'+
+    '<span style="font-family:\'Archivo\';font-weight:800;font-size:14px;color:var(--text);">'+monthLabel+'</span>'+
+    '<button class="vs-btn small" onclick="VS.jobsCalShift(1)">\u203a</button>'+
+  '</div>';
+
+  var firstDay = new Date(year, month, 1);
+  var startWeekday = firstDay.getDay();
+  var daysInMonth = new Date(year, month+1, 0).getDate();
+
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--muted-2);text-align:center;margin-bottom:4px;">'+
+    ['S','M','T','W','T','F','S'].map(function(d){ return '<div>'+d+'</div>'; }).join('') + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:16px;">';
+  for(var i=0;i<startWeekday;i++) html += '<div></div>';
+  for(var d=1; d<=daysInMonth; d++){
+    var dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var count = jobsForDate(dateStr).length;
+    var cls = 'vs-rota-day'+(dateStr===todayStr?' today':'')+(dateStr===state.jobsViewDate?' selected':'');
+    html += '<button class="'+cls+'" onclick="VS.setJobsViewDate(\''+dateStr+'\')">'+
+      '<span class="daynum">'+d+'</span>'+(count ? '<span class="who">'+count+'</span>' : '')+
+    '</button>';
+  }
+  html += '</div>';
+
   var q = state.jobsSearch.toLowerCase();
-  var list = (state.jobsCache||[]).filter(function(j){
+  function matches(j){
     if(!q) return true;
     return (j.jobNumber||'').toLowerCase().indexOf(q)!==-1 ||
       (j.description||'').toLowerCase().indexOf(q)!==-1 ||
       (j.address||'').toLowerCase().indexOf(q)!==-1;
-  });
-
-  if(list.length===0){
-    html += '<div class="vs-empty">No jobs match.</div>';
-  } else {
-    html += '<div class="vs-cards">' + list.map(function(j){
-      return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.viewJob(\''+j.uuid+'\')">'+
-        '<div class="vs-item-info"><div class="vs-item-name">'+(j.jobNumber?'#'+escapeAttr(j.jobNumber)+' \u2014 ':'')+escapeAttr(j.description||'(no description)')+'</div>'+
-        '<div class="vs-item-meta">'+escapeAttr(j.address||'')+(j.status?' \u00b7 '+escapeAttr(j.status):'')+'</div></div></div>';
-    }).join('') + '</div>';
   }
+
+  var dayLabel = new Date(state.jobsViewDate+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+  html += sectionHead(state.jobsViewDate===todayStr ? 'Today \u2014 '+dayLabel : dayLabel);
+  var dayJobs = jobsForDate(state.jobsViewDate).filter(matches);
+  if(dayJobs.length===0){
+    html += '<div class="vs-empty">No jobs scheduled this day.</div>';
+  } else {
+    html += '<div class="vs-cards">' + dayJobs.map(jobRowHtml).join('') + '</div>';
+  }
+
+  var unsch = unscheduledJobs().filter(matches);
+  if(unsch.length){
+    html += sectionHead('Unscheduled ('+unsch.length+')');
+    html += '<div class="vs-cards">' + unsch.map(jobRowHtml).join('') + '</div>';
+  }
+
   c.innerHTML = html;
   var sInput = document.getElementById('jobs-search');
   if(sInput){ sInput.focus(); sInput.setSelectionRange(sInput.value.length, sInput.value.length); }
@@ -1829,7 +1903,8 @@ function renderServiceReportForm(c){
   var me = currentPerson();
   var html = formsBackLink();
   html += sectionHead('Service Report (BS 9263)');
-  html += '<div class="vs-field"><label>ServiceM8 job number</label><input id="sr-jobnumber" placeholder="e.g. 4521"><p style="font-size:11px;color:var(--muted-2);margin:4px 0 0 0;">Must match the job number in ServiceM8 exactly.</p></div>';
+  html += '<div class="vs-field"><label>ServiceM8 job number</label><input id="sr-jobnumber" value="'+escapeAttr(state.prefillJobNumber||'')+'" placeholder="e.g. 4521"><p style="font-size:11px;color:var(--muted-2);margin:4px 0 0 0;">Must match the job number in ServiceM8 exactly.</p></div>';
+  state.prefillJobNumber = '';
 
   html += sectionHead('1. System &amp; monitoring details');
   html += '<div class="vs-field"><label>Type of system?</label><input id="sr-systype"></div>';
@@ -2194,6 +2269,8 @@ var VS = {
     this.syncFormSubmission(id);
   },
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
+  setJobsViewDate:function(dateStr){ state.jobsViewDate = dateStr; renderJobsScreen(); },
+  jobsCalShift:function(delta){ jobsCalMonth.setMonth(jobsCalMonth.getMonth()+delta); renderJobsScreen(); },
   reloadJobs:function(){ state.jobsCache = null; state.jobsError = null; renderJobsScreen(); },
   viewJob:function(uuid){
     var j = (state.jobsCache||[]).filter(function(x){ return x.uuid===uuid; })[0];
@@ -2201,9 +2278,24 @@ var VS = {
     var html = '<h3>'+(j.jobNumber?'Job #'+escapeAttr(j.jobNumber):'Job')+'</h3>'+
       '<p style="font-size:14px;color:var(--text);margin:0 0 8px 0;">'+escapeAttr(j.description||'(no description)')+'</p>'+
       '<p style="font-size:13px;color:var(--muted);margin:0 0 8px 0;">'+escapeAttr(j.address||'No address on file')+'</p>'+
-      (j.status ? '<p style="font-size:12px;color:var(--muted-2);margin:0;">Status: '+escapeAttr(j.status)+'</p>' : '')+
+      (j.status ? '<p style="font-size:12px;color:var(--muted-2);margin:0 0 12px 0;">Status: '+escapeAttr(j.status)+'</p>' : '')+
+      (j.jobNumber ? '<button class="vs-btn primary" style="width:100%;margin-bottom:10px;" onclick="VS.chooseFormForJob(\''+escapeAttr(j.jobNumber)+'\')">Fill out a form for this job</button>' : '')+
       '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
     openModal(html);
+  },
+  chooseFormForJob:function(jobNumber){
+    var html = '<h3>Choose a form</h3>'+
+      '<p style="font-size:13px;color:var(--muted);margin:0 0 14px 0;">For job #'+escapeAttr(jobNumber)+'</p>'+
+      '<button class="vs-btn primary" style="width:100%;margin-bottom:10px;" onclick="VS.startFormForJob(\''+escapeAttr(jobNumber)+'\',\'service_report\')">Service Report (BS 9263)</button>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button></div>';
+    openModal(html);
+  },
+  startFormForJob:function(jobNumber, formType){
+    state.prefillJobNumber = jobNumber;
+    closeModal();
+    enterForms();
+    state.formsTab = formType;
+    renderFormsScreen();
   },
   enableNotifications:function(){
     if(!('Notification' in window)){ toast('Not supported on this device'); return; }
@@ -2647,6 +2739,13 @@ var VS = {
   setPersonServiceM8Name:function(id, name){
     var e = engById(id); if(!e) return;
     e.servicem8Name = name.trim();
+    saveCatalog(); render();
+    toast('Saved');
+  },
+  toggleSectionAccess:function(id, key, checked){
+    var e = engById(id); if(!e) return;
+    if(!e.sectionAccess) e.sectionAccess = {};
+    e.sectionAccess[key] = checked;
     saveCatalog(); render();
     toast('Saved');
   },
