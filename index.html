@@ -1261,9 +1261,7 @@ function renderVan(c){
   });
   html += '</div>';
   if(shown===0) html += '<div class="vs-empty">No items match your search.</div>';
-  c.innerHTML = html;
-  var sInput = document.getElementById('stock-search');
-  if(sInput){ sInput.focus(); sInput.setSelectionRange(sInput.value.length, sInput.value.length); }
+  setContentPreservingFocus(c, html, 'stock-search');
 }
 
 function renderWarehouse(c){
@@ -1293,9 +1291,7 @@ function renderWarehouse(c){
   });
   html += '</div>';
   if(shown===0) html += '<div class="vs-empty">No items match your search.</div>';
-  c.innerHTML = html;
-  var sInput = document.getElementById('stock-search');
-  if(sInput){ sInput.focus(); sInput.setSelectionRange(sInput.value.length, sInput.value.length); }
+  setContentPreservingFocus(c, html, 'stock-search');
 }
 
 function renderHistory(c){
@@ -1410,6 +1406,19 @@ function initItemsSortable(admin){
 }
 
 function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+// Re-renders a container's content, only restoring focus/cursor to a given
+// input if it was already focused beforehand — so a live-search box keeps
+// working while typing, without stealing the keyboard on first load.
+function setContentPreservingFocus(c, html, inputId){
+  var wasFocused = document.activeElement && document.activeElement.id === inputId;
+  var caret = wasFocused ? document.activeElement.selectionStart : null;
+  c.innerHTML = html;
+  if(wasFocused){
+    var el = document.getElementById(inputId);
+    if(el){ el.focus(); if(caret!==null) el.setSelectionRange(caret, caret); }
+  }
+}
 
 // ---------- Leave, Callout Rota, and Swap requests ----------
 
@@ -1820,9 +1829,7 @@ function renderJobsScreen(){
     html += '<div class="vs-cards">' + unsch.map(jobRowHtml).join('') + '</div>';
   }
 
-  c.innerHTML = html;
-  var sInput = document.getElementById('jobs-search');
-  if(sInput){ sInput.focus(); sInput.setSelectionRange(sInput.value.length, sInput.value.length); }
+  setContentPreservingFocus(c, html, 'jobs-search');
 }
 
 function fetchJobs(){
