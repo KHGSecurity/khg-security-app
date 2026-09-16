@@ -275,11 +275,23 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
 .vs-home-tile-wide.has-alerts{ border-color:var(--amber); }
 .vs-home-tile-wide svg{ flex-shrink:0; }
 .vs-back-link{
-  background:none; border:none; color:var(--muted); font-family:'Inter'; font-weight:600; font-size:13px;
-  cursor:pointer; padding:0; display:inline-flex; align-items:center; gap:4px;
+  background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-family:'Inter'; font-weight:700; font-size:13.5px;
+  cursor:pointer; padding:9px 14px; border-radius:8px; display:inline-flex; align-items:center; gap:6px;
 }
-.vs-back-link:hover{ color:var(--accent); }
+.vs-back-link:hover{ border-color:var(--accent); color:var(--accent); }
+.vs-home-btn{
+  background:var(--accent-dim); border:1.5px solid var(--accent); color:var(--accent); font-family:'Archivo'; font-weight:800; font-size:13.5px;
+  cursor:pointer; padding:9px 16px; border-radius:8px; display:inline-flex; align-items:center; gap:7px;
+}
+.vs-home-btn:hover{ background:var(--accent); color:var(--bg); }
+.vs-home-btn svg{ width:17px; height:17px; stroke:currentColor; flex-shrink:0; }
 .vs-placeholder-inner{ text-align:center; }
+.vs-check-btn{
+  flex:1; padding:11px; border-radius:6px; border:1px solid var(--line); background:var(--panel-2); color:var(--muted);
+  font-family:'Inter'; font-weight:700; font-size:13.5px; cursor:pointer;
+}
+.vs-check-btn.selected-ok{ background:var(--green-dim); border-color:var(--green); color:var(--green); }
+.vs-check-btn.selected-issue{ background:var(--red-dim); border-color:var(--red); color:var(--red); }
 .vs-placeholder-inner h1{ font-family:'Archivo'; font-size:22px; font-weight:800; margin:20px 0 6px 0; }
 .vs-placeholder-inner p{ font-size:13.5px; color:var(--muted); }
 .vs-placeholder-icon{ width:48px; height:48px; stroke:var(--muted-2); margin:0 auto; display:block; }
@@ -339,7 +351,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <div class="vs-header">
     <div class="vs-header-top">
       <div class="vs-title">
-        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
         <h1>Stock</h1>
         <span class="vs-tag">KHG</span>
       </div>
@@ -357,7 +369,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <div class="vs-header">
     <div class="vs-header-top">
       <div class="vs-title">
-        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
         <h1>Leave &amp; Rota</h1>
         <span class="vs-tag">KHG</span>
       </div>
@@ -371,7 +383,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <div class="vs-header">
     <div class="vs-header-top">
       <div class="vs-title">
-        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
         <h1>Manuals</h1>
         <span class="vs-tag">KHG</span>
       </div>
@@ -385,7 +397,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <div class="vs-header">
     <div class="vs-header-top">
       <div class="vs-title">
-        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
         <h1>Jobs</h1>
         <span class="vs-tag">KHG</span>
       </div>
@@ -400,7 +412,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <div class="vs-header">
     <div class="vs-header-top">
       <div class="vs-title">
-        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
         <h1>Forms</h1>
         <span class="vs-tag">KHG</span>
       </div>
@@ -414,7 +426,7 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <div class="vs-header">
     <div class="vs-header-top">
       <div class="vs-title">
-        <button class="vs-back-link" onclick="VS.showHome()" style="margin-right:4px;">&larr;</button>
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
         <h1>Vehicles</h1>
         <span class="vs-tag">KHG</span>
       </div>
@@ -471,7 +483,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -2321,14 +2333,25 @@ function renderHealthChecklist(c){
   var freq = state.checklistFreq;
   var items = VEHICLE_CHECKS[freq];
   var me = currentPerson();
+
+  var regInput = document.getElementById('chk-reg');
+  var notesInput = document.getElementById('chk-notes');
+  if(regInput) state.checklistRegDraft = regInput.value;
+  if(notesInput) state.checklistNotesDraft = notesInput.value;
+  var regVal = state.checklistRegDraft!=null ? state.checklistRegDraft : (me&&me.registration?me.registration:'');
+
   html += '<button class="vs-back-link" onclick="VS.setChecklistFreq(null)" style="margin-bottom:14px;">&larr; Choose a different checklist</button>';
-  html += sectionHead(freq.charAt(0).toUpperCase()+freq.slice(1)+' checklist');
-  html += '<div class="vs-field"><label>Vehicle registration</label><input id="chk-reg" value="'+escapeAttr(me&&me.registration?me.registration:'')+'"></div>';
+  html += sectionHead(freq.charAt(0).toUpperCase()+freq.slice(1)+' checklist', '<button class="vs-btn small primary" onclick="VS.setAllChecklistOk()">All OK</button>');
+  html += '<div class="vs-field"><label>Vehicle registration</label><input id="chk-reg" value="'+escapeAttr(regVal)+'" oninput="state.checklistRegDraft=this.value"></div>';
   html += items.map(function(item, i){
+    var ans = state.checklistAnswers[i];
     return '<div class="vs-field"><label>'+escapeAttr(item)+'</label>'+
-      '<select id="chk-item-'+i+'"><option value="">\u2014 select \u2014</option><option value="ok">OK</option><option value="issue">Issue</option></select></div>';
+      '<div style="display:flex;gap:8px;">'+
+        '<button type="button" class="vs-check-btn'+(ans==='ok'?' selected-ok':'')+'" onclick="VS.setChecklistAnswer('+i+',\'ok\')">OK</button>'+
+        '<button type="button" class="vs-check-btn'+(ans==='issue'?' selected-issue':'')+'" onclick="VS.setChecklistAnswer('+i+',\'issue\')">Issue</button>'+
+      '</div></div>';
   }).join('');
-  html += '<div class="vs-field"><label>Notes (optional)</label><textarea id="chk-notes" rows="2"></textarea></div>';
+  html += '<div class="vs-field"><label>Notes (optional)</label><textarea id="chk-notes" rows="2" oninput="state.checklistNotesDraft=this.value">'+escapeAttr(state.checklistNotesDraft||'')+'</textarea></div>';
   html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitVehicleCheck()">Submit checklist</button>';
   c.innerHTML = html;
 }
@@ -2677,7 +2700,11 @@ var VS = {
   enterJobs:enterJobs,
   enterForms:enterForms,
   enterVehicles:enterVehicles,
-  setVehiclesTab:function(t){ state.vehiclesTab=t; state.checklistFreq=null; renderVehiclesScreen(); },
+  setVehiclesTab:function(t){
+    state.vehiclesTab=t; state.checklistFreq=null; state.checklistAnswers={};
+    state.checklistRegDraft=null; state.checklistNotesDraft='';
+    renderVehiclesScreen();
+  },
   saveMyRegistration:function(){
     var val = document.getElementById('myveh-reg').value.trim().toUpperCase();
     var me = currentPerson();
@@ -2704,15 +2731,30 @@ var VS = {
     state.vehiclesTab = 'menu';
     renderVehiclesScreen();
   },
-  setChecklistFreq:function(freq){ state.checklistFreq = freq; renderVehiclesScreen(); },
+  setChecklistFreq:function(freq){
+    state.checklistFreq = freq;
+    state.checklistAnswers = {};
+    state.checklistRegDraft = null;
+    state.checklistNotesDraft = '';
+    renderVehiclesScreen();
+  },
+  setChecklistAnswer:function(i, val){
+    state.checklistAnswers[i] = val;
+    renderVehiclesScreen();
+  },
+  setAllChecklistOk:function(){
+    var items = VEHICLE_CHECKS[state.checklistFreq] || [];
+    items.forEach(function(item, i){ state.checklistAnswers[i] = 'ok'; });
+    renderVehiclesScreen();
+    toast('All marked OK');
+  },
   submitVehicleCheck:function(){
     var freq = state.checklistFreq;
     var items = VEHICLE_CHECKS[freq];
     var reg = document.getElementById('chk-reg').value.trim().toUpperCase();
     if(!reg){ toast('Enter the vehicle registration'); return; }
     var answers = items.map(function(item, i){
-      var el = document.getElementById('chk-item-'+i);
-      return { item:item, answer: el?el.value:'' };
+      return { item:item, answer: state.checklistAnswers[i] || '' };
     });
     if(answers.some(function(a){ return !a.answer; })){ toast('Answer every item before submitting'); return; }
     var me = currentPerson();
@@ -2726,6 +2768,9 @@ var VS = {
     var hasIssue = answers.some(function(a){ return a.answer==='issue'; });
     toast(hasIssue ? 'Checklist submitted \u2014 issue flagged' : 'Checklist submitted');
     state.checklistFreq = null;
+    state.checklistAnswers = {};
+    state.checklistRegDraft = null;
+    state.checklistNotesDraft = '';
     state.vehiclesTab = 'menu';
     renderVehiclesScreen();
   },
