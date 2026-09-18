@@ -2389,6 +2389,31 @@ function formSubmissionRowHtml(s){
   return html;
 }
 
+// Shares or downloads a finished PDF. iOS Safari's blob: URLs only resolve
+// inside the exact tab that created them, so they go dead the instant
+// they're shared or copied out — this uses the real Share Sheet with the
+// actual file attached instead, falling back to a normal download.
+function sharePdf(doc, filename){
+  var blob;
+  try{ blob = doc.output('blob'); }catch(e){ doc.save(filename); return; }
+  try{
+    var file = new File([blob], filename, { type:'application/pdf' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      navigator.share({ files:[file], title:filename }).catch(function(){});
+      return;
+    }
+  }catch(e){}
+  try{
+    var blobUrl = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = blobUrl; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 30000);
+  }catch(e){ doc.save(filename); }
+}
+
 function generateServiceReportPDF(sub){
   if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
   var f = sub.fields;
@@ -2452,7 +2477,7 @@ function generateServiceReportPDF(sub){
   line('Customer', f.customer);
   line('Signed', f.signature);
 
-  doc.save('Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf');
+  sharePdf(doc, 'Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf');
 }
 
 function generateRiskAssessmentPDF(sub){
@@ -2569,7 +2594,7 @@ function generateRiskAssessmentPDF(sub){
 
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  doc.save('RAMS-'+fileSafe+'.pdf');
+  sharePdf(doc, 'RAMS-'+fileSafe+'.pdf');
 }
 
 function pdfHeader(doc, margin, pageWidth, navy, titleText){
@@ -2649,7 +2674,7 @@ function generateCommissioningPDF(sub){
 
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  doc.save('Commissioning-'+fileSafe+'.pdf');
+  sharePdf(doc, 'Commissioning-'+fileSafe+'.pdf');
 }
 
 function generateHandoverPDF(sub){
@@ -2726,7 +2751,7 @@ function generateHandoverPDF(sub){
 
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  doc.save('Handover-'+fileSafe+'.pdf');
+  sharePdf(doc, 'Handover-'+fileSafe+'.pdf');
 }
 
 function generateTermsPDF(){
@@ -2797,7 +2822,7 @@ function generateTermsPDF(){
   para(TERMS_DISCLAIMER);
 
   drawFooter();
-  doc.save('KHG-SmartSecure-Pod-Terms-and-Conditions.pdf');
+  sharePdf(doc, 'KHG-SmartSecure-Pod-Terms-and-Conditions.pdf');
 }
 
 function renderMyFormSubmissions(c){
