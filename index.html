@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>KHG Security</title>
 <link rel="icon" href="icon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KHG Security">
@@ -95,7 +96,7 @@ html, body{ margin:0; padding:0; background:var(--bg); }
 }
 .vs-chip.active{ background:var(--accent); border-color:var(--accent); color:var(--bg); }
 .vs-chip .dot{ display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; position:relative; top:-1px; }
-main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
+main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width:920px; margin:0 auto; }
 .vs-loading, .vs-error{ text-align:center; padding:60px 20px; color:var(--muted); }
 .vs-error button{ margin-top:12px; }
 .vs-section-head{
@@ -498,7 +499,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -511,8 +512,8 @@ var HOME_TILES = [
   { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
   { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
-  { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>' },
-  { key:'hr', label:'HR', sub:'', onclick:"VS.openPlaceholder('HR')", icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' }
+  { key:'hr', label:'HR', sub:'', onclick:"VS.openPlaceholder('HR')", icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' },
+  { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', fullWidth:true }
 ];
 
 // Admins always see every section. Everyone else defaults to seeing everything
@@ -529,7 +530,7 @@ function renderHomeTiles(){
   if(!el) return;
   var me = currentPerson();
   el.innerHTML = HOME_TILES.filter(function(t){ return personCanSeeSection(me, t.key); }).map(function(t){
-    return '<button class="vs-home-tile" onclick="'+t.onclick+'">'+
+    return '<button class="vs-home-tile" onclick="'+t.onclick+'"'+(t.fullWidth?' style="grid-column:1 / -1;"':'')+'>'+
       '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">'+t.icon+'</svg>'+
       '<span class="vs-home-tile-label">'+t.label+'</span>'+
       (t.sub ? '<span class="vs-home-tile-sub">'+t.sub+'</span>' : '')+
@@ -659,6 +660,52 @@ function computeAlertCounts(){
 // Badges the home-screen app icon (iOS/Android "add to home screen" only —
 // does nothing in a plain browser tab, and can't update while the app is
 // fully closed, but persists on the icon once set while it's open).
+function urlBase64ToUint8Array(base64String){
+  var padding = '='.repeat((4 - base64String.length % 4) % 4);
+  var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  var rawData = window.atob(base64);
+  var outputArray = new Uint8Array(rawData.length);
+  for(var i=0;i<rawData.length;i++){ outputArray[i] = rawData.charCodeAt(i); }
+  return outputArray;
+}
+
+function subscribeToPush(){
+  var me = currentPerson();
+  if(!me || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  navigator.serviceWorker.ready.then(function(reg){
+    return reg.pushManager.getSubscription().then(function(existing){
+      if(existing) return existing;
+      return reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    });
+  }).then(function(sub){
+    if(!sub) return;
+    var subJson = sub.toJSON();
+    if(!state.pushSubscriptions) state.pushSubscriptions = {};
+    var existingForMe = state.pushSubscriptions[me.id] || [];
+    var already = existingForMe.some(function(s){ return s.endpoint===subJson.endpoint; });
+    if(!already){
+      existingForMe.push(subJson);
+      state.pushSubscriptions[me.id] = existingForMe;
+      savePushSubscriptions();
+    }
+  }).catch(function(){ /* silent — badge/in-app notifications still work regardless */ });
+}
+
+function officeAndAdminIds(){
+  return (state.catalog.engineers||[]).filter(function(e){ return isAdminPerson(e) || !personHasVan(e); }).map(function(e){ return e.id; });
+}
+
+function sendPushNotification(personIds, title, body){
+  if(!personIds || !personIds.length) return;
+  fetch('/.netlify/functions/send-push', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ toPersonIds: personIds, title: title, body: body, url: '/' })
+  }).catch(function(){});
+}
+
 function updateAppBadge(count){
   if(!('setAppBadge' in navigator)) return;
   try{
@@ -671,12 +718,12 @@ function renderNotificationPermissionPrompt(){
   var el = document.getElementById('vs-notif-permission');
   if(!el) return;
   if(!('Notification' in window) || !('setAppBadge' in navigator)){ el.innerHTML = ''; return; }
-  if(Notification.permission==='granted'){ el.innerHTML = ''; return; }
+  if(Notification.permission==='granted'){ el.innerHTML = ''; subscribeToPush(); return; }
   if(Notification.permission==='denied'){
     el.innerHTML = '<p style="font-size:11.5px;color:var(--muted-2);margin:0 0 12px 0;">Notifications are turned off for this app in your phone\u2019s settings \u2014 turn them on there to see the icon badge.</p>';
     return;
   }
-  el.innerHTML = '<button class="vs-btn small" onclick="VS.enableNotifications()">Turn on notification badge</button>';
+  el.innerHTML = '<button class="vs-btn small" onclick="VS.enableNotifications()">Turn on notifications</button>';
 }
 
 function renderHomeNotifications(){
@@ -883,6 +930,16 @@ var firebaseConfig = {
   appId: "1:291666109283:web:74be20751e968482fb2956"
 };
 
+// VAPID public key — this half of the key pair is meant to be public,
+// unlike the private key which lives only in Netlify's environment variables.
+var VAPID_PUBLIC_KEY = 'BCM0HYSFfCF50QzADtSR3gCEbqNNM95KaoicIeNWXVQZzlHfiAyhybYQXCskty1-XgKPS6zdgwViaErmZyAWu5c';
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
+}
+
 var db = null;
 var fbStorage = null;
 try{
@@ -936,7 +993,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false };
 
 function startLiveSync(){
   if(!db){
@@ -1005,6 +1062,11 @@ function startLiveSync(){
     liveLoaded.followUps = true;
     onSharedUpdate('followUps');
   });
+  subscribeShared('push-subscriptions', function(value, exists){
+    state.pushSubscriptions = exists ? JSON.parse(value) : {};
+    liveLoaded.pushSubs = true;
+    onSharedUpdate('pushSubs');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -1029,7 +1091,7 @@ var TAB_DEPENDS_ON = {
 };
 
 function allCoreLoaded(){
-  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps;
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps && liveLoaded.pushSubs;
 }
 
 function onSharedUpdate(changedKey){
@@ -1118,6 +1180,9 @@ function saveFollowUps(){
   trackSave(function(){
     return storageSet('follow-ups', JSON.stringify(state.followUps), true);
   });
+}
+function savePushSubscriptions(){
+  return storageSet('push-subscriptions', JSON.stringify(state.pushSubscriptions), true);
 }
 
 var saveState = { pending:0, lastSaved:null, error:false };
@@ -3535,15 +3600,12 @@ function followUpRowHtml(f){
   var isOpen = f.status!=='resolved';
   var cls = !isOpen ? 'ok' : (overdue ? 'out' : (urgent ? 'low' : ''));
   var statusLabel = !isOpen ? 'RESOLVED' : (overdue ? 'OVERDUE' : (daysLeft+'d left'));
-  var html = '<div class="vs-item-row '+cls+'"><div class="vs-item-info">'+
+  var html = '<div class="vs-item-row '+cls+'" style="cursor:pointer;" onclick="VS.viewFollowUp(\''+f.id+'\')"><div class="vs-item-info">'+
     '<div class="vs-item-name">'+escapeAttr(f.customerName)+(isOpen?'<span class="vs-stock-badge '+(overdue||urgent?'low':'ok')+'">'+statusLabel+'</span>':'<span class="vs-stock-badge ok">RESOLVED</span>')+'</div>'+
     '<div class="vs-item-meta">'+escapeAttr(f.customerAddress)+'</div>'+
     '<div class="vs-item-meta">'+escapeAttr(f.description)+'</div>'+
     '<div class="vs-item-meta">Repair by '+fmtLeaveDate(f.repairBy)+' \u00b7 Reported by '+escapeAttr(f.createdByName)+'</div>'+
   '</div></div>';
-  if(isOpen){
-    html += '<div style="margin:8px 0 16px 0;"><button class="vs-btn small" onclick="VS.resolveFollowUp(\''+f.id+'\')">Mark resolved</button></div>';
-  }
   return html;
 }
 
@@ -3882,6 +3944,7 @@ var VS = {
       description: desc, status:'open'
     });
     saveVehicleIssues();
+    sendPushNotification(officeAndAdminIds(), 'Vehicle issue reported', reg+': '+desc);
     toast('Report sent \u2014 admin and office will see it');
     state.vehiclesTab = 'menu';
     renderVehiclesScreen();
@@ -3975,6 +4038,36 @@ var VS = {
     toast('Removed');
   },
   enterFollowUps:enterFollowUps,
+  viewFollowUp:function(id){
+    var f = (state.followUps||[]).filter(function(x){ return x.id===id; })[0];
+    if(!f) return;
+    var today = new Date(); today.setHours(0,0,0,0);
+    var daysLeft = Math.round((new Date(f.repairBy+'T00:00:00')-today)/(1000*60*60*24));
+    var overdue = daysLeft < 0;
+    var isOpen = f.status!=='resolved';
+    var hasForm = !!f.formSubmissionId && (state.formSubmissions||[]).some(function(s){ return s.id===f.formSubmissionId; });
+
+    var html = '<h3>'+escapeAttr(f.customerName)+'</h3>';
+    if(isOpen){
+      html += '<p style="font-size:13px;color:'+(overdue?'var(--red)':'var(--text)')+';font-weight:700;margin:0 0 10px 0;">'+(overdue?'OVERDUE by '+Math.abs(daysLeft)+' day(s)':daysLeft+' day(s) left to repair')+'</p>';
+    } else {
+      html += '<p style="font-size:13px;color:var(--green);font-weight:700;margin:0 0 10px 0;">RESOLVED</p>';
+    }
+    html += '<p style="font-size:13px;color:var(--muted);margin:0 0 10px 0;">'+escapeAttr(f.customerAddress)+'</p>';
+    html += '<p style="font-size:13.5px;color:var(--text);margin:0 0 10px 0;">'+escapeAttr(f.description)+'</p>';
+    html += '<p style="font-size:12px;color:var(--muted-2);margin:0 0 4px 0;">Repair by: '+fmtLeaveDate(f.repairBy)+' ('+f.repairBy+')</p>';
+    html += '<p style="font-size:12px;color:var(--muted-2);margin:0 0 4px 0;">Reported by: '+escapeAttr(f.createdByName)+'</p>';
+    html += '<p style="font-size:12px;color:var(--muted-2);margin:0 0 16px 0;">Reported: '+new Date(f.createdAt).toLocaleString()+'</p>';
+
+    if(hasForm){
+      html += '<button class="vs-btn primary" style="width:100%;margin-bottom:10px;" onclick="VS.downloadReportPDF(\''+f.formSubmissionId+'\')">Download signed disconnection form</button>';
+    }
+    if(isOpen){
+      html += '<button class="vs-btn" style="width:100%;margin-bottom:10px;" onclick="VS.resolveFollowUp(\''+f.id+'\');VS.closeModal();">Mark resolved</button>';
+    }
+    html += '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+    openModal(html);
+  },
   resolveFollowUp:function(id){
     var f = (state.followUps||[]).filter(function(x){ return x.id===id; })[0];
     if(!f) return;
@@ -4173,8 +4266,9 @@ var VS = {
       engineer: document.getElementById('dc-engineer').value.trim(),
       engineerSignature: getSignatureDataUrl('dc-eng-sig')
     };
+    var formSubmissionId = uid();
     state.formSubmissions.push({
-      id: uid(), formType:'disconnection', jobNumber: customerName,
+      id: formSubmissionId, formType:'disconnection', jobNumber: customerName,
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields
     });
@@ -4185,9 +4279,11 @@ var VS = {
       customerName: customerName, customerAddress: customerAddress,
       description: description, repairBy: repairBy,
       createdById: me?me.id:null, createdByName: me?me.name:'Unknown',
-      createdAt: new Date().toISOString(), status:'open'
+      createdAt: new Date().toISOString(), status:'open',
+      formSubmissionId: formSubmissionId
     });
     saveFollowUps();
+    sendPushNotification(officeAndAdminIds(), 'Follow-up created', customerName+': repair due by '+repairBy);
 
     toast('Disconnection form saved \u2014 follow-up reminder created');
     state.formsTab = 'mine';
@@ -4360,6 +4456,7 @@ var VS = {
       if(perm==='granted'){
         toast('Notifications turned on');
         updateAppBadge(computeAlertCounts().total);
+        subscribeToPush();
       } else {
         toast('Permission not granted');
       }
@@ -4439,6 +4536,8 @@ var VS = {
       status:'pending', adminNote:'', createdAt:new Date().toISOString(), decidedAt:null, decidedBy:null, seenByRequester:true
     });
     saveLeaveRequests();
+    var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
+    sendPushNotification(adminIds, 'Leave request', me.name+' has requested leave from '+start+' to '+end);
     toast('Leave request submitted');
     state.leaveTab = 'mine';
     renderLeaveScreen();
@@ -4550,6 +4649,7 @@ var VS = {
       dates:dates, targetDates:[], status:'pending', createdAt:new Date().toISOString(), decidedAt:null
     });
     saveSwapRequests();
+    sendPushNotification([targetId], 'Cover request', me.name+' has asked you to cover '+dates.length+' date(s)');
     toast('Cover request sent to '+target.name);
     renderLeaveScreen();
   },
@@ -4573,6 +4673,7 @@ var VS = {
       dates:myDates, targetDates:targetDates, status:'pending', createdAt:new Date().toISOString(), decidedAt:null
     });
     saveSwapRequests();
+    sendPushNotification([targetId], 'Swap request', me.name+' has proposed a date swap with you');
     toast('Swap request sent to '+target.name);
     renderLeaveScreen();
   },

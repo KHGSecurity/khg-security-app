@@ -1,3 +1,7 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+
+[[functions.schedule]]
+  name = "check-reminders"
+  schedule = "0 7 * * *"
