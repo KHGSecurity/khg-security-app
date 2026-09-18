@@ -437,6 +437,20 @@ main#vs-content{ padding:18px 20px 60px 20px; max-width:920px; margin:0 auto; }
   <main id="vs-vehicles-content"></main>
 </div>
 
+<div id="vs-followups-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
+        <h1>Follow Up</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+    </div>
+    <div class="vs-who-badge" id="vs-followups-who-badge"></div>
+  </div>
+  <main id="vs-followups-content"></main>
+</div>
+
 <div id="vs-modal-root"></div>
 
 
@@ -484,7 +498,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -497,6 +511,7 @@ var HOME_TILES = [
   { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
   { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
+  { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>' },
   { key:'hr', label:'HR', sub:'', onclick:"VS.openPlaceholder('HR')", icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' }
 ];
 
@@ -535,7 +550,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -555,6 +570,7 @@ function enterManuals(){ appView = 'manuals'; refreshAppScreen(); }
 function enterJobs(){ appView = 'jobs'; refreshAppScreen(); }
 function enterForms(){ appView = 'forms'; refreshAppScreen(); }
 function enterVehicles(){ appView = 'vehicles'; refreshAppScreen(); }
+function enterFollowUps(){ appView = 'followups'; refreshAppScreen(); }
 
 // Decides what's on screen right now: connecting, first-run setup, the PIN
 // gate, or (once logged in) whichever app view is currently active.
@@ -595,6 +611,9 @@ function refreshAppScreen(){
   } else if(appView==='vehicles'){
     document.getElementById('vs-vehicles-wrap').style.display = 'block';
     renderVehiclesScreen();
+  } else if(appView==='followups'){
+    document.getElementById('vs-followups-wrap').style.display = 'block';
+    renderFollowUpsScreen();
   } else if(appView==='placeholder'){
     document.getElementById('vs-placeholder-wrap').style.display = 'flex';
   } else {
@@ -626,10 +645,14 @@ function computeAlertCounts(){
     if(myVehicle) vehiclesDue = vehicleDueSoon(myVehicle).length;
   }
 
+  var openFollowUps = (state.followUps||[]).filter(function(f){
+    return f.status!=='resolved' && (officeOrAdmin || (me && f.createdById===me.id));
+  }).length;
+
   return {
     noStock: noStock.length, totalLow: totalLow, pendingApprovals: pendingApprovals, pendingSwaps: pendingSwaps,
-    vehiclesDue: vehiclesDue, openIssues: openIssues,
-    total: noStock.length + totalLow + pendingApprovals + pendingSwaps + vehiclesDue + openIssues
+    vehiclesDue: vehiclesDue, openIssues: openIssues, openFollowUps: openFollowUps,
+    total: noStock.length + totalLow + pendingApprovals + pendingSwaps + vehiclesDue + openIssues + openFollowUps
   };
 }
 
@@ -670,6 +693,8 @@ function renderHomeNotifications(){
   var vehiclesDue = counts.vehiclesDue;
   var openIssues = counts.openIssues;
   var vehicleAlerts = vehiclesDue>0 || openIssues>0;
+  var openFollowUps = counts.openFollowUps;
+  var followUpAlerts = openFollowUps>0;
 
   var parts = [];
   if(noStock.length) parts.push(noStock.length+' item'+(noStock.length===1?'':'s')+' with no stock');
@@ -678,9 +703,10 @@ function renderHomeNotifications(){
   if(pendingSwaps) parts.push(pendingSwaps+' swap request'+(pendingSwaps===1?'':'s')+' waiting on you');
   if(vehiclesDue) parts.push(vehiclesDue+' vehicle MOT/service due soon');
   if(openIssues) parts.push(openIssues+' vehicle issue'+(openIssues===1?'':'s')+' reported');
+  if(openFollowUps) parts.push(openFollowUps+' follow-up'+(openFollowUps===1?'':'s')+' outstanding');
 
-  var hasAlerts = stockAlerts || leaveAlerts || vehicleAlerts;
-  var target = stockAlerts ? 'VS.enterStock()' : (leaveAlerts ? 'VS.enterLeave()' : (vehicleAlerts ? 'VS.enterVehicles()' : 'VS.enterStock()'));
+  var hasAlerts = stockAlerts || leaveAlerts || vehicleAlerts || followUpAlerts;
+  var target = stockAlerts ? 'VS.enterStock()' : (leaveAlerts ? 'VS.enterLeave()' : (vehicleAlerts ? 'VS.enterVehicles()' : (followUpAlerts ? 'VS.enterFollowUps()' : 'VS.enterStock()')));
   var iconColor = hasAlerts ? 'var(--amber)' : 'var(--accent)';
   var body;
   if(!hasAlerts){
@@ -784,7 +810,7 @@ function renderWhoBadge(){
     '<div class="vs-welcome-title">Welcome '+p.name+'</div>'+
     '<div class="vs-welcome-sub">Not '+p.name+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -910,7 +936,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false };
 
 function startLiveSync(){
   if(!db){
@@ -974,6 +1000,11 @@ function startLiveSync(){
     liveLoaded.vehicleChecks = true;
     onSharedUpdate('vehicleChecks');
   });
+  subscribeShared('follow-ups', function(value, exists){
+    state.followUps = exists ? JSON.parse(value) : [];
+    liveLoaded.followUps = true;
+    onSharedUpdate('followUps');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -998,7 +1029,7 @@ var TAB_DEPENDS_ON = {
 };
 
 function allCoreLoaded(){
-  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks;
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps;
 }
 
 function onSharedUpdate(changedKey){
@@ -1020,6 +1051,8 @@ function onSharedUpdate(changedKey){
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
   if(appView==='forms' && changedKey==='forms'){ renderFormsScreen(); }
   if(appView==='vehicles' && ['vehicles','vehicleIssues','vehicleChecks','catalog'].indexOf(changedKey)!==-1){ renderVehiclesScreen(); }
+  if(appView==='followups' && changedKey==='followUps'){ renderFollowUpsScreen(); }
+  if(appView==='home' && changedKey==='followUps'){ renderHomeNotifications(); }
   if(appView==='home' && ['vehicles','vehicleIssues'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
   var deps = TAB_DEPENDS_ON[state.tab];
   if(!deps || deps.indexOf(changedKey)!==-1) render();
@@ -1079,6 +1112,11 @@ function saveVehicleIssues(){
 function saveVehicleChecks(){
   trackSave(function(){
     return storageSet('vehicle-checks', JSON.stringify(state.vehicleChecks), true);
+  });
+}
+function saveFollowUps(){
+  trackSave(function(){
+    return storageSet('follow-ups', JSON.stringify(state.followUps), true);
   });
 }
 
@@ -2020,6 +2058,8 @@ function renderFormsScreen(){
   if(state.formsTab==='terms') return renderTermsScreen(c);
   if(state.formsTab==='general_terms') return renderGeneralTermsScreen(c);
   if(state.formsTab==='terms_acceptance') return renderTermsAcceptanceForm(c);
+  if(state.formsTab==='variation') return renderVariationForm(c);
+  if(state.formsTab==='disconnection') return renderDisconnectionForm(c);
   if(state.formsTab==='mine') return renderMyFormSubmissions(c);
   return renderFormsMenu(c);
 }
@@ -2062,6 +2102,16 @@ function renderFormsMenu(c){
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M9 14l2 2 4-4"/></svg>'+
     '<span class="vs-home-tile-label">Accept Terms &amp; Conditions</span>'+
     '<span class="vs-home-tile-sub">Client sign-off</span>'+
+  '</button>';
+  html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'variation\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'+
+    '<span class="vs-home-tile-label">Additional Works</span>'+
+    '<span class="vs-home-tile-sub">Sign off changes or extras</span>'+
+  '</button>';
+  html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'disconnection\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>'+
+    '<span class="vs-home-tile-label">Disconnection Authorisation</span>'+
+    '<span class="vs-home-tile-sub">Creates a Follow Up reminder</span>'+
   '</button>';
   html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'mine\')">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'+
@@ -2353,6 +2403,74 @@ function renderTermsAcceptanceForm(c){
   initSignaturePad('ta-rep-sig');
 }
 
+function renderVariationForm(c){
+  var me = currentPerson();
+  var html = formsBackLink();
+  html += sectionHead('Additional Works / Variation');
+  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">Use this to get sign-off on any extra work or changes agreed on site, before carrying it out. Covers both domestic and commercial jobs.</p>';
+
+  html += '<div class="vs-field"><label>Site name / address</label><input id="va-site"></div>';
+  html += '<div class="vs-field"><label>Property type</label><select id="va-proptype"><option value="Domestic">Domestic</option><option value="Commercial">Commercial</option></select></div>';
+
+  html += sectionHead('Authorisation');
+  html += '<div class="vs-field"><label>Name of person authorising this work</label><input id="va-signatoryname"></div>';
+  html += '<div class="vs-field"><label>Position / relationship to property (e.g. Homeowner, Site Manager, Facilities Manager)</label><input id="va-signatoryposition"></div>';
+  html += '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);margin:6px 0 16px 0;"><input type="checkbox" id="va-authority" style="width:auto;margin-top:3px;flex-shrink:0;">I confirm that I am authorised to approve additional works and associated costs at this property/on behalf of this business, and to commit to payment for the works described below.</label>';
+
+  html += sectionHead('Additional works');
+  html += '<div class="vs-field"><label>Description of additional work / changes</label><textarea id="va-description" rows="4" placeholder="What\u2019s being added or changed, and why"></textarea></div>';
+  html += '<div class="vs-field"><label>Cost of additional work</label><input id="va-cost" placeholder="e.g. \u00a3450 + VAT"></div>';
+  html += '<div class="vs-field"><label>Additional notes (optional)</label><textarea id="va-notes" rows="2"></textarea></div>';
+  html += '<div class="vs-field"><label>Date</label><input type="date" id="va-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
+
+  html += '<p style="font-size:12px;color:var(--muted);margin:0 0 16px 0;">This variation is agreed subject to KHG Security Ltd\u2019s <a href="#" onclick="VS.viewGeneralTermsModal();return false;" style="color:var(--accent);">Terms and Conditions</a>.</p>';
+
+  html += sectionHead('Client sign-off');
+  html += signaturePadHtml('va-client-sig', 'Client / authorising signature');
+
+  html += sectionHead('Engineer');
+  html += '<div class="vs-field"><label>Engineer name</label><input id="va-engineer" value="'+escapeAttr(me?me.name:'')+'"></div>';
+  html += signaturePadHtml('va-eng-sig', 'Engineer signature');
+
+  html += '<button class="vs-btn primary" style="width:100%;margin-top:6px;" onclick="VS.submitVariation()">Generate report</button>';
+  c.innerHTML = html;
+  initSignaturePad('va-client-sig');
+  initSignaturePad('va-eng-sig');
+}
+
+function renderDisconnectionForm(c){
+  var me = currentPerson();
+  var defaultRepairBy = new Date();
+  defaultRepairBy.setDate(defaultRepairBy.getDate()+14);
+  var defaultRepairByStr = defaultRepairBy.toISOString().slice(0,10);
+
+  var html = formsBackLink();
+  html += sectionHead('Disconnection Authorisation');
+  html += '<div style="background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:12px 14px;margin-bottom:16px;">'+
+    '<p style="font-size:13px;color:var(--text);margin:0;font-weight:700;">This disconnection may reduce or compromise the security system\u2019s ability to detect or signal an event at this property.</p>'+
+    '<p style="font-size:12.5px;color:var(--text);margin:8px 0 0 0;">KHG Security Ltd will aim to complete any necessary repair within <strong>14 days</strong> of this disconnection, unless another timescale is agreed in writing.</p>'+
+  '</div>';
+
+  html += '<div class="vs-field"><label>Customer name</label><input id="dc-customername"></div>';
+  html += '<div class="vs-field"><label>Customer address</label><textarea id="dc-customeraddress" rows="2"></textarea></div>';
+  html += '<div class="vs-field"><label>What\u2019s being disconnected, and why?</label><textarea id="dc-description" rows="4"></textarea></div>';
+  html += '<div class="vs-field"><label>Date</label><input type="date" id="dc-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
+  html += '<div class="vs-field"><label>Repair by</label><input type="date" id="dc-repairby" value="'+defaultRepairByStr+'" onchange="VS.checkDisconnectionRepairDate()"></div>';
+  html += '<div id="dc-extended-wrap" style="display:none;margin-bottom:12px;"><label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);"><input type="checkbox" id="dc-extended" style="width:auto;margin-top:3px;flex-shrink:0;">An extended timescale beyond 14 days has been agreed with the customer in writing.</label></div>';
+
+  html += sectionHead('Customer sign-off');
+  html += signaturePadHtml('dc-customer-sig', 'Customer signature');
+
+  html += sectionHead('Engineer');
+  html += '<div class="vs-field"><label>Engineer name</label><input id="dc-engineer" value="'+escapeAttr(me?me.name:'')+'"></div>';
+  html += signaturePadHtml('dc-eng-sig', 'Engineer signature');
+
+  html += '<button class="vs-btn primary" style="width:100%;margin-top:6px;" onclick="VS.submitDisconnection()">Generate report</button>';
+  c.innerHTML = html;
+  initSignaturePad('dc-customer-sig');
+  initSignaturePad('dc-eng-sig');
+}
+
 function renderServiceReportForm(c){
   var me = currentPerson();
   var html = formsBackLink();
@@ -2417,7 +2535,7 @@ function buildServiceReportNote(f){
 
 function formSubmissionRowHtml(s){
   var dt = new Date(s.submittedAt).toLocaleDateString(undefined,{day:'numeric',month:'short'});
-  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED' };
+  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED', variation:'VARIATION', disconnection:'DISCONNECTION' };
   var noSyncType = badgeByType[s.formType];
   var titleText = noSyncType ? escapeAttr(s.jobNumber) : 'Job #'+escapeAttr(s.jobNumber);
   var html;
@@ -3008,6 +3126,161 @@ function generateTermsAcceptancePDF(sub){
   sharePdf(doc, 'KHG-Terms-Accepted-'+fileSafe+'.pdf');
 }
 
+function generateVariationPDF(sub){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
+  var f = sub.fields;
+  var doc = new window.jspdf.jsPDF();
+  var margin = 15;
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var navy = [23, 34, 66];
+  var y;
+
+  function drawFooter(){
+    var page = doc.internal.getNumberOfPages();
+    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text('KHG Security Ltd \u2014 Additional Works / Variation', margin, pageHeight-10);
+    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
+    doc.setTextColor(30,30,30);
+  }
+  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; } }
+  function heading(text){
+    ensureSpace(14); y += 3;
+    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
+    doc.text(text, margin, y); y += 2;
+    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
+    doc.line(margin, y, pageWidth-margin, y); y += 6;
+    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+  }
+  function line(label, value){
+    var text = label ? (label+': '+(value||'-')) : (value||'-');
+    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
+    ensureSpace(wrapped.length*5.5+2);
+    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+  }
+
+  y = pdfHeader(doc, margin, pageWidth, navy, 'ADDITIONAL WORKS / VARIATION');
+  line('Site', f.site);
+  line('Property type', f.propertyType);
+  line('Date', f.date);
+
+  heading('Authorisation');
+  line('Authorised by', f.signatoryName);
+  line('Position', f.signatoryPosition);
+  line(null, 'The above confirms they are authorised to approve additional works and associated costs at this property/on behalf of this business, and to commit to payment.');
+
+  heading('Additional Works');
+  line(null, f.description);
+  line('Cost', f.cost);
+  if(f.notes) line('Notes', f.notes);
+
+  ensureSpace(12);
+  doc.setFont(undefined,'italic'); doc.setFontSize(9); doc.setTextColor(100,100,100);
+  var termsLine = doc.splitTextToSize('This variation is agreed subject to KHG Security Ltd\u2019s Terms and Conditions.', pageWidth-margin*2);
+  doc.text(termsLine, margin, y); y += termsLine.length*5+6;
+  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+
+  heading('Client Sign-off');
+  line('Name', f.signatoryName);
+  line('Date', f.date);
+  if(f.clientSignature){
+    ensureSpace(30);
+    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
+    try{ doc.addImage(f.clientSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
+    doc.setFont(undefined,'normal');
+  }
+
+  heading('Engineer');
+  line('Name', f.engineer);
+  if(f.engineerSignature){
+    ensureSpace(30);
+    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
+    try{ doc.addImage(f.engineerSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
+    doc.setFont(undefined,'normal');
+  }
+
+  drawFooter();
+  var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  sharePdf(doc, 'Variation-'+fileSafe+'.pdf');
+}
+
+function generateDisconnectionPDF(sub){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
+  var f = sub.fields;
+  var doc = new window.jspdf.jsPDF();
+  var margin = 15;
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var navy = [23, 34, 66];
+  var y;
+
+  function drawFooter(){
+    var page = doc.internal.getNumberOfPages();
+    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text('KHG Security Ltd \u2014 Disconnection Authorisation', margin, pageHeight-10);
+    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
+    doc.setTextColor(30,30,30);
+  }
+  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; } }
+  function heading(text){
+    ensureSpace(14); y += 3;
+    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
+    doc.text(text, margin, y); y += 2;
+    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
+    doc.line(margin, y, pageWidth-margin, y); y += 6;
+    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+  }
+  function line(label, value){
+    var text = label ? (label+': '+(value||'-')) : (value||'-');
+    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
+    ensureSpace(wrapped.length*5.5+2);
+    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+  }
+
+  y = pdfHeader(doc, margin, pageWidth, navy, 'DISCONNECTION AUTHORISATION');
+  line('Customer', f.customerName);
+  line('Address', f.customerAddress);
+  line('Date', f.date);
+
+  ensureSpace(24);
+  doc.setFillColor(253, 235, 235);
+  doc.setDrawColor(200, 60, 60);
+  var warnLines = doc.splitTextToSize('This disconnection may reduce or compromise the security system\u2019s ability to detect or signal an event at this property. KHG Security Ltd will aim to complete any necessary repair within 14 days of this disconnection, unless another timescale is agreed in writing.', pageWidth-margin*2-8);
+  var boxHeight = warnLines.length*5+8;
+  doc.roundedRect(margin, y, pageWidth-margin*2, boxHeight, 2, 2, 'FD');
+  doc.setTextColor(150,30,30); doc.setFont(undefined,'bold'); doc.setFontSize(9.5);
+  doc.text(warnLines, margin+4, y+7);
+  y += boxHeight+8;
+  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+
+  heading('Details');
+  line(null, f.description);
+  line('Repair by', f.repairBy+(f.extendedAgreed?' (extended timescale agreed with customer)':''));
+
+  heading('Customer Sign-off');
+  line('Name', f.customerName);
+  line('Date', f.date);
+  if(f.customerSignature){
+    ensureSpace(30);
+    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
+    try{ doc.addImage(f.customerSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
+    doc.setFont(undefined,'normal');
+  }
+
+  heading('Engineer');
+  line('Name', f.engineer);
+  if(f.engineerSignature){
+    ensureSpace(30);
+    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
+    try{ doc.addImage(f.engineerSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
+    doc.setFont(undefined,'normal');
+  }
+
+  drawFooter();
+  var fileSafe = (f.customerName||'customer').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  sharePdf(doc, 'Disconnection-'+fileSafe+'.pdf');
+}
+
 function renderMyFormSubmissions(c){
   var me = currentPerson();
   var mine = state.formSubmissions.filter(function(s){ return s.submittedBy===(me?me.name:''); }).slice().reverse();
@@ -3249,6 +3522,55 @@ function vehicleFormHtml(v){
       '<button class="vs-btn" onclick="VS.closeModal()">Cancel</button>'+
       '<button class="vs-btn primary" onclick="VS.saveVehicleForm('+(v?"'"+v.id+"'":'null')+')">Save</button>'+
     '</div>';
+}
+
+// ---------- Follow Up ----------
+
+function followUpRowHtml(f){
+  var today = new Date(); today.setHours(0,0,0,0);
+  var repairDate = new Date(f.repairBy+'T00:00:00');
+  var daysLeft = Math.round((repairDate-today)/(1000*60*60*24));
+  var overdue = daysLeft < 0;
+  var urgent = daysLeft>=0 && daysLeft<=3;
+  var isOpen = f.status!=='resolved';
+  var cls = !isOpen ? 'ok' : (overdue ? 'out' : (urgent ? 'low' : ''));
+  var statusLabel = !isOpen ? 'RESOLVED' : (overdue ? 'OVERDUE' : (daysLeft+'d left'));
+  var html = '<div class="vs-item-row '+cls+'"><div class="vs-item-info">'+
+    '<div class="vs-item-name">'+escapeAttr(f.customerName)+(isOpen?'<span class="vs-stock-badge '+(overdue||urgent?'low':'ok')+'">'+statusLabel+'</span>':'<span class="vs-stock-badge ok">RESOLVED</span>')+'</div>'+
+    '<div class="vs-item-meta">'+escapeAttr(f.customerAddress)+'</div>'+
+    '<div class="vs-item-meta">'+escapeAttr(f.description)+'</div>'+
+    '<div class="vs-item-meta">Repair by '+fmtLeaveDate(f.repairBy)+' \u00b7 Reported by '+escapeAttr(f.createdByName)+'</div>'+
+  '</div></div>';
+  if(isOpen){
+    html += '<div style="margin:8px 0 16px 0;"><button class="vs-btn small" onclick="VS.resolveFollowUp(\''+f.id+'\')">Mark resolved</button></div>';
+  }
+  return html;
+}
+
+function renderFollowUpsScreen(c){
+  renderWhoBadge();
+  var c2 = document.getElementById('vs-followups-content');
+  if(!c2 || !state.followUps) return;
+  var me = currentPerson();
+  var officeOrAdmin = isAdminPerson(me) || (me && !personHasVan(me));
+  var mine = (state.followUps||[]).filter(function(f){
+    return officeOrAdmin || (me && f.createdById===me.id);
+  }).slice().reverse();
+  var open = mine.filter(function(f){ return f.status!=='resolved'; });
+  var resolved = mine.filter(function(f){ return f.status==='resolved'; });
+
+  var html = sectionHead('Outstanding follow-ups');
+  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">Repairs and reconnections still owed to customers after a disconnection.</p>';
+  if(open.length===0){
+    html += '<div class="vs-empty">Nothing outstanding.</div>';
+  } else {
+    html += '<div class="vs-cards">'+open.map(followUpRowHtml).join('')+'</div>';
+  }
+  if(resolved.length){
+    html += sectionHead('Recently resolved');
+    html += '<div class="vs-cards">'+resolved.slice(0,10).map(followUpRowHtml).join('')+'</div>';
+  }
+  c2.innerHTML = html;
 }
 
 // ---------- Modal ----------
@@ -3652,6 +3974,15 @@ var VS = {
     renderVehiclesScreen();
     toast('Removed');
   },
+  enterFollowUps:enterFollowUps,
+  resolveFollowUp:function(id){
+    var f = (state.followUps||[]).filter(function(x){ return x.id===id; })[0];
+    if(!f) return;
+    f.status = 'resolved';
+    saveFollowUps();
+    renderFollowUpsScreen();
+    toast('Marked resolved');
+  },
   setFormsTab:function(t){ state.formsTab=t; renderFormsScreen(); },
   submitCommissioning:function(){
     var site = document.getElementById('cc-site').value.trim();
@@ -3770,6 +4101,95 @@ var VS = {
     });
     saveFormSubmissions();
     toast('Terms acceptance saved');
+    state.formsTab = 'mine';
+    renderFormsScreen();
+  },
+  submitVariation:function(){
+    var site = document.getElementById('va-site').value.trim();
+    if(!site){ toast('Enter the site name/address'); return; }
+    var signatoryName = document.getElementById('va-signatoryname').value.trim();
+    if(!signatoryName){ toast('Enter the name of the person authorising this work'); return; }
+    if(!document.getElementById('va-authority').checked){ toast('The authorisation box must be ticked'); return; }
+    var description = document.getElementById('va-description').value.trim();
+    if(!description){ toast('Describe the additional work'); return; }
+    if(signatureIsBlank('va-client-sig')){ toast('Client signature is required'); return; }
+    if(signatureIsBlank('va-eng-sig')){ toast('Engineer signature is required'); return; }
+    var me = currentPerson();
+    var fields = {
+      site: site,
+      propertyType: document.getElementById('va-proptype').value,
+      signatoryName: signatoryName,
+      signatoryPosition: document.getElementById('va-signatoryposition').value.trim(),
+      description: description,
+      cost: document.getElementById('va-cost').value.trim(),
+      notes: document.getElementById('va-notes').value.trim(),
+      date: document.getElementById('va-date').value,
+      clientSignature: getSignatureDataUrl('va-client-sig'),
+      engineer: document.getElementById('va-engineer').value.trim(),
+      engineerSignature: getSignatureDataUrl('va-eng-sig')
+    };
+    state.formSubmissions.push({
+      id: uid(), formType:'variation', jobNumber: site,
+      submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
+      fields: fields
+    });
+    saveFormSubmissions();
+    toast('Variation saved');
+    state.formsTab = 'mine';
+    renderFormsScreen();
+  },
+  checkDisconnectionRepairDate:function(){
+    var val = document.getElementById('dc-repairby').value;
+    var max = new Date(); max.setDate(max.getDate()+14);
+    var maxStr = max.toISOString().slice(0,10);
+    var wrap = document.getElementById('dc-extended-wrap');
+    if(val > maxStr){ wrap.style.display = 'block'; }
+    else { wrap.style.display = 'none'; document.getElementById('dc-extended').checked = false; }
+  },
+  submitDisconnection:function(){
+    var customerName = document.getElementById('dc-customername').value.trim();
+    if(!customerName){ toast('Enter the customer name'); return; }
+    var customerAddress = document.getElementById('dc-customeraddress').value.trim();
+    if(!customerAddress){ toast('Enter the customer address'); return; }
+    var description = document.getElementById('dc-description').value.trim();
+    if(!description){ toast('Describe what\u2019s being disconnected'); return; }
+    var repairBy = document.getElementById('dc-repairby').value;
+    var max = new Date(); max.setDate(max.getDate()+14);
+    var maxStr = max.toISOString().slice(0,10);
+    var extended = document.getElementById('dc-extended').checked;
+    if(repairBy > maxStr && !extended){ toast('Repair date is beyond 14 days \u2014 tick the extended timescale box or shorten the date'); return; }
+    if(signatureIsBlank('dc-customer-sig')){ toast('Customer signature is required'); return; }
+    if(signatureIsBlank('dc-eng-sig')){ toast('Engineer signature is required'); return; }
+    var me = currentPerson();
+    var date = document.getElementById('dc-date').value;
+    var fields = {
+      customerName: customerName,
+      customerAddress: customerAddress,
+      description: description,
+      date: date,
+      repairBy: repairBy,
+      extendedAgreed: !!extended,
+      customerSignature: getSignatureDataUrl('dc-customer-sig'),
+      engineer: document.getElementById('dc-engineer').value.trim(),
+      engineerSignature: getSignatureDataUrl('dc-eng-sig')
+    };
+    state.formSubmissions.push({
+      id: uid(), formType:'disconnection', jobNumber: customerName,
+      submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
+      fields: fields
+    });
+    saveFormSubmissions();
+
+    state.followUps.push({
+      id: uid(), type:'disconnection_repair',
+      customerName: customerName, customerAddress: customerAddress,
+      description: description, repairBy: repairBy,
+      createdById: me?me.id:null, createdByName: me?me.name:'Unknown',
+      createdAt: new Date().toISOString(), status:'open'
+    });
+    saveFollowUps();
+
+    toast('Disconnection form saved \u2014 follow-up reminder created');
     state.formsTab = 'mine';
     renderFormsScreen();
   },
@@ -3901,6 +4321,8 @@ var VS = {
     else if(sub.formType==='commissioning'){ generateCommissioningPDF(sub); }
     else if(sub.formType==='handover'){ generateHandoverPDF(sub); }
     else if(sub.formType==='terms_acceptance'){ generateTermsAcceptancePDF(sub); }
+    else if(sub.formType==='variation'){ generateVariationPDF(sub); }
+    else if(sub.formType==='disconnection'){ generateDisconnectionPDF(sub); }
     else { generateServiceReportPDF(sub); }
   },
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
