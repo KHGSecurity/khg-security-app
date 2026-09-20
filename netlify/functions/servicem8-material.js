@@ -3,6 +3,9 @@
 // (SERVICEM8_API_KEY) — it never reaches the browser.
 
 exports.handler = async function (event) {
+  if ((event.headers['x-app-secret'] || event.headers['X-App-Secret']) !== process.env.APP_SHARED_SECRET) {
+    return { statusCode: 401, body: JSON.stringify({ success: false, error: 'Unauthorized' }) };
+  }
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: JSON.stringify({ success: false, error: 'Method not allowed' }) };
   }
