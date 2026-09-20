@@ -202,7 +202,7 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   aspect-ratio:1; background:var(--panel); border:1px solid var(--line); border-radius:6px; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:2px; cursor:pointer; color:var(--text); font-family:'Inter'; padding:2px; min-width:0;
 }
-.vs-rota-day .daynum{ font-size:11px; color:var(--muted-2); }
+.vs-rota-day .daynum{ font-size:11px; color:var(--text); }
 .vs-rota-day .who{ font-family:'Archivo'; font-weight:800; font-size:10.5px; color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
 .vs-rota-day.today{ border-color:var(--accent); }
 .vs-rota-day.selected{ background:var(--accent-dim); }
@@ -701,7 +701,7 @@ function officeAndAdminIds(){
 function sendPushNotification(personIds, title, body){
   if(!personIds || !personIds.length) return;
   fetch('/.netlify/functions/send-push', {
-    method:'POST', headers:{'Content-Type':'application/json'},
+    method:'POST', headers:{'Content-Type':'application/json','X-App-Secret':APP_SHARED_SECRET},
     body: JSON.stringify({ toPersonIds: personIds, title: title, body: body, url: '/' })
   }).catch(function(){});
 }
@@ -807,22 +807,49 @@ function checkStillAuthorized(){
   }
 }
 
+function getPinLockoutState(){
+  try{
+    var raw = window.localStorage.getItem('vs-pin-lockout');
+    return raw ? JSON.parse(raw) : { fails:0, lockedUntil:0 };
+  }catch(e){ return { fails:0, lockedUntil:0 }; }
+}
+function setPinLockoutState(s){
+  try{ window.localStorage.setItem('vs-pin-lockout', JSON.stringify(s)); }catch(e){}
+}
+
 function tryPinLogin(){
   var input = document.getElementById('vs-lock-input');
+  var errEl = document.getElementById('vs-lock-err');
+  var lockout = getPinLockoutState();
+  var now = Date.now();
+  if(lockout.lockedUntil && now < lockout.lockedUntil){
+    var secsLeft = Math.ceil((lockout.lockedUntil-now)/1000);
+    errEl.textContent = 'Too many incorrect attempts \u2014 try again in '+secsLeft+'s';
+    return;
+  }
   if(!state.catalog){
-    document.getElementById('vs-lock-err').textContent = 'Still connecting — try again in a moment';
+    errEl.textContent = 'Still connecting — try again in a moment';
     return;
   }
   var pin = input.value.trim();
   var person = pin ? state.catalog.engineers.filter(function(e){ return e.pin && e.pin===pin; })[0] : null;
   if(person){
+    setPinLockoutState({ fails:0, lockedUntil:0 });
     state.currentUser = person.id;
     state.currentUserPin = person.pin;
     appView = 'home';
     storageSet('my-login', JSON.stringify({id:person.id, pin:person.pin}), false);
     refreshAppScreen();
   } else {
-    document.getElementById('vs-lock-err').textContent = 'Incorrect PIN';
+    lockout.fails = (lockout.fails||0) + 1;
+    if(lockout.fails % 5 === 0){
+      var lockoutSeconds = Math.min(30 * Math.pow(2, Math.floor(lockout.fails/5)-1), 900);
+      lockout.lockedUntil = now + lockoutSeconds*1000;
+      errEl.textContent = 'Too many incorrect attempts \u2014 try again in '+lockoutSeconds+'s';
+    } else {
+      errEl.textContent = 'Incorrect PIN';
+    }
+    setPinLockoutState(lockout);
     input.value = '';
     input.focus();
   }
@@ -854,8 +881,8 @@ function renderSetupScreen(){
 function renderWhoBadge(){
   var p = currentPerson();
   var html = p ? (
-    '<div class="vs-welcome-title">Welcome '+p.name+'</div>'+
-    '<div class="vs-welcome-sub">Not '+p.name+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
+    '<div class="vs-welcome-title">Welcome '+escapeAttr(p.name)+'</div>'+
+    '<div class="vs-welcome-sub">Not '+escapeAttr(p.name)+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
   ) : '';
   ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
@@ -933,6 +960,12 @@ var firebaseConfig = {
 // VAPID public key — this half of the key pair is meant to be public,
 // unlike the private key which lives only in Netlify's environment variables.
 var VAPID_PUBLIC_KEY = 'BCM0HYSFfCF50QzADtSR3gCEbqNNM95KaoicIeNWXVQZzlHfiAyhybYQXCskty1-XgKPS6zdgwViaErmZyAWu5c';
+
+// A shared secret the app sends with every server-function call, so a random
+// script hitting the function URL directly (without ever loading this app)
+// gets rejected. This does NOT hide the secret from someone who reads this
+// file's source — it stops casual/automated abuse, not a determined reader.
+var APP_SHARED_SECRET = 'qOlM484jqWCF5r9iUXMB3mDj1ZPnqX0d7RsNLWudEog';
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', function(){
@@ -1311,7 +1344,7 @@ function renderSubnav(){
     });
     var dotColor = low>0 ? 'var(--amber)' : 'var(--green)';
     return '<button class="vs-chip '+(state.activeVan===e.id?'active':'')+'" onclick="VS.setVan(\''+e.id+'\')">'+
-      '<span class="dot" style="background:'+dotColor+'"></span>'+e.name+(low>0?' · '+low:'')+'</button>';
+      '<span class="dot" style="background:'+dotColor+'"></span>'+escapeAttr(e.name)+(low>0?' · '+low:'')+'</button>';
   }).join('') + '</div>';
   el.innerHTML = html;
 }
@@ -1336,7 +1369,7 @@ function renderDashboard(c){
     html += '<div class="vs-cards">';
     lowWh.concat(lowVan).slice(0,8).forEach(function(row){
       html += '<div class="vs-item-row '+row.status+'"><div class="vs-item-info">'+
-        '<div class="vs-item-name">'+row.item.name+'<span class="vs-stock-badge '+row.status+'">'+row.status.toUpperCase()+'</span></div>'+
+        '<div class="vs-item-name">'+escapeAttr(row.item.name)+'<span class="vs-stock-badge '+row.status+'">'+row.status.toUpperCase()+'</span></div>'+
         '<div class="vs-item-meta">'+row.location+' · '+row.qty+' '+row.item.unit+' in stock</div></div></div>';
     });
     html += '</div>';
@@ -1388,7 +1421,7 @@ function openNoStockList(){
   } else {
     html += '<div style="max-height:340px;overflow-y:auto;">' + list.map(function(row){
       return '<div class="vs-item-row out" style="margin-bottom:8px;"><div class="vs-item-info">'+
-        '<div class="vs-item-name">'+row.item.name+'</div><div class="vs-item-meta">'+row.location+'</div></div></div>';
+        '<div class="vs-item-name">'+escapeAttr(row.item.name)+'</div><div class="vs-item-meta">'+row.location+'</div></div></div>';
     }).join('') + '</div>';
   }
   html += '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
@@ -1439,7 +1472,7 @@ function renderVan(c){
     var qty = (state.stock.van[eng.id]||{})[it.id]||0;
     var status = statusFor(qty, it.vanPar);
     html += '<div class="vs-item-row '+status+'">'+
-      '<div class="vs-item-info"><div class="vs-item-name">'+it.name+
+      '<div class="vs-item-info"><div class="vs-item-name">'+escapeAttr(it.name)+
         (status!=='ok' ? '<span class="vs-stock-badge '+status+'">'+status.toUpperCase()+'</span>' : '')+
       '</div></div>'+
       '<div class="vs-stepper">'+
@@ -1470,7 +1503,7 @@ function renderWarehouse(c){
     var qty = state.stock.warehouse[it.id]||0;
     var status = statusFor(qty, it.whPar);
     html += '<div class="vs-item-row '+status+'">'+
-      '<div class="vs-item-info"><div class="vs-item-name">'+it.name+
+      '<div class="vs-item-info"><div class="vs-item-name">'+escapeAttr(it.name)+
         (status!=='ok' ? '<span class="vs-stock-badge '+status+'">'+status.toUpperCase()+'</span>' : '')+
       '</div></div>'+
       '<div class="vs-stepper">'+
@@ -1747,12 +1780,12 @@ function renderCalloutRota(c){
   html += '<div style="text-align:center;font-family:\'Archivo\';font-weight:800;font-size:15px;margin-bottom:10px;color:var(--text);">'+monthLabel+'</div>';
 
   var firstDay = new Date(year, month, 1);
-  var startWeekday = firstDay.getDay();
+  var startWeekday = (firstDay.getDay() + 6) % 7;
   var daysInMonth = new Date(year, month+1, 0).getDate();
   var todayStr = new Date().toISOString().slice(0,10);
 
-  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--muted-2);text-align:center;margin-bottom:4px;">'+
-    ['S','M','T','W','T','F','S'].map(function(d){ return '<div>'+d+'</div>'; }).join('') + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--text);text-align:center;margin-bottom:4px;">'+
+    ['M','T','W','T','F','S','S'].map(function(d){ return '<div>'+d+'</div>'; }).join('') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
   for(var i=0;i<startWeekday;i++) html += '<div></div>';
   for(var d=1; d<=daysInMonth; d++){
@@ -1790,7 +1823,7 @@ function renderRequestSwap(c){
       myDates.map(function(r){
         return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="cover-date-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
       }).join('') + '</div>';
-    html += '<div class="vs-field"><label>Ask</label><select id="cover-target">'+others.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Ask</label><select id="cover-target">'+others.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+'</select></div>';
     html += '<button class="vs-btn primary" onclick="VS.submitCoverRequest()">Send request</button>';
   }
 
@@ -1802,7 +1835,7 @@ function renderRequestSwap(c){
       myDates.map(function(r){
         return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="swapx-my-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
       }).join('') + '</div>';
-    html += '<div class="vs-field"><label>Swap with</label><select id="swapx-target" onchange="VS.onSwapTargetChange()">'+others.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Swap with</label><select id="swapx-target" onchange="VS.onSwapTargetChange()">'+others.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+'</select></div>';
     html += '<div class="vs-field"><label>For which of their date(s)?</label><div id="swapx-target-dates"></div></div>';
     html += '<button class="vs-btn primary" onclick="VS.submitSwapDates()">Send swap request</button>';
   }
@@ -1998,11 +2031,11 @@ function renderJobsScreen(){
   '</div>';
 
   var firstDay = new Date(year, month, 1);
-  var startWeekday = firstDay.getDay();
+  var startWeekday = (firstDay.getDay() + 6) % 7;
   var daysInMonth = new Date(year, month+1, 0).getDate();
 
-  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--muted-2);text-align:center;margin-bottom:4px;">'+
-    ['S','M','T','W','T','F','S'].map(function(d){ return '<div>'+d+'</div>'; }).join('') + '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:10px;color:var(--text);text-align:center;margin-bottom:4px;">'+
+    ['M','T','W','T','F','S','S'].map(function(d){ return '<div>'+d+'</div>'; }).join('') + '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:16px;">';
   for(var i=0;i<startWeekday;i++) html += '<div></div>';
   for(var d=1; d<=daysInMonth; d++){
@@ -2074,7 +2107,7 @@ function fetchJobs(){
   var staffName = me ? (me.servicem8Name || me.name) : '';
   var qs = 'admin='+(admin?'1':'0')+(admin?'':'&staffName='+encodeURIComponent(staffName));
   if(hadCache) renderJobsScreen();
-  fetch('/.netlify/functions/servicem8-jobs?'+qs)
+  fetch('/.netlify/functions/servicem8-jobs?'+qs, { headers:{'X-App-Secret':APP_SHARED_SECRET} })
     .then(function(res){ return res.json(); })
     .then(function(data){
       state.jobsLoading = false;
@@ -3677,7 +3710,7 @@ function populateTransferItems(dest){
   }
   sel.innerHTML = eligible.map(function(it){
     var whQty = state.stock.warehouse[it.id]||0;
-    return '<option value="'+it.id+'">'+it.name+' (stores: '+whQty+' '+it.unit+')</option>';
+    return '<option value="'+it.id+'">'+escapeAttr(it.name)+' (stores: '+whQty+' '+it.unit+')</option>';
   }).join('');
 }
 
@@ -3689,7 +3722,7 @@ function openGeneralTransfer(){
       '<option value="job">A job</option>'+
     '</select></div>'+
     '<div class="vs-field" id="vs-tr-van-field"><label>Van</label><select id="vs-tr-van">'+
-      (vanHolders.length ? vanHolders.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('') : '<option value="">No vans set up</option>')+
+      (vanHolders.length ? vanHolders.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('') : '<option value="">No vans set up</option>')+
     '</select></div>'+
     '<div class="vs-field" id="vs-tr-job-field" style="display:none;"><label>ServiceM8 job number</label><input id="vs-tr-job" placeholder="e.g. 4521"><p style="font-size:11px;color:var(--muted-2);margin:4px 0 0 0;">Must match the job number in ServiceM8 exactly \u2014 this is what adds the material to the right job.</p></div>'+
     '<div class="vs-field"><label>Item</label><select id="vs-tr-item"></select></div>'+
@@ -3714,7 +3747,7 @@ function populateRestockItems(source, vanId){
     } else {
       qtyLabel = 'stores has '+(state.stock.warehouse[it.id]||0)+' '+it.unit;
     }
-    return '<option value="'+it.id+'">'+it.name+' ('+qtyLabel+')</option>';
+    return '<option value="'+it.id+'">'+escapeAttr(it.name)+' ('+qtyLabel+')</option>';
   }).join('');
 }
 
@@ -3742,7 +3775,7 @@ function openRestockStores(){
       '<option value="supplier">Site / supplier</option>'+
     '</select></div>'+
     '<div class="vs-field" id="rs-van-field"><label>Van</label><select id="rs-van" onchange="VS.onRestockChange()">'+
-      (vanHolders.length ? vanHolders.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('') : '<option value="">No vans set up</option>')+
+      (vanHolders.length ? vanHolders.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('') : '<option value="">No vans set up</option>')+
     '</select></div>'+
     '<div class="vs-field"><label>Item</label><select id="rs-item"></select></div>'+
     '<div class="vs-field"><label>Quantity</label><input id="rs-qty" type="number" min="1" value="1"></div>'+
@@ -3812,7 +3845,7 @@ function openTransfer(engId){
   }
   var options = eligible.map(function(it){
     var whQty = state.stock.warehouse[it.id]||0;
-    return '<option value="'+it.id+'">'+it.name+' (stores: '+whQty+' '+it.unit+')</option>';
+    return '<option value="'+it.id+'">'+escapeAttr(it.name)+' (stores: '+whQty+' '+it.unit+')</option>';
   }).join('');
   var html = '<h3>Transfer to '+eng.name+'</h3>'+
     '<div class="vs-field"><label>Item</label><select id="vs-t-item">'+options+'</select></div>'+
@@ -4388,7 +4421,7 @@ var VS = {
     if(!sub) return;
     var noteText = buildServiceReportNote(sub.fields);
     fetch('/.netlify/functions/servicem8-note', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json','X-App-Secret':APP_SHARED_SECRET},
       body: JSON.stringify({ jobNumber: sub.jobNumber, note: noteText })
     }).then(function(res){ return res.json(); }).then(function(data){
       var s = (state.formSubmissions||[]).filter(function(x){ return x.id===id; })[0];
@@ -4589,7 +4622,7 @@ var VS = {
   openRotaDay:function(dateStr){
     var current = state.rota.filter(function(r){ return r.date===dateStr; })[0];
     var options = state.catalog.engineers.map(function(e){
-      return '<option value="'+e.id+'" '+(current && current.engineerId===e.id?'selected':'')+'>'+e.name+'</option>';
+      return '<option value="'+e.id+'" '+(current && current.engineerId===e.id?'selected':'')+'>'+escapeAttr(e.name)+'</option>';
     }).join('');
     var dateLabel = new Date(dateStr+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
     var html = '<h3>'+dateLabel+'</h3>'+
@@ -4770,7 +4803,7 @@ var VS = {
       toast('Saved \u2014 sending to ServiceM8\u2026');
       fetch('/.netlify/functions/servicem8-material', {
         method:'POST',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json','X-App-Secret':APP_SHARED_SECRET},
         body:JSON.stringify({ jobNumber:jobRef, itemName: jobItem?jobItem.name:'Item', quantity:qty })
       }).then(function(res){ return res.json(); }).then(function(data){
         if(data.success){ toast('Added to ServiceM8 job '+jobRef); }
