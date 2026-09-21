@@ -501,7 +501,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -2312,6 +2312,7 @@ var SDP_POSITIONS = ['Front Left','Front Right','Rear Left','Rear Right','Other'
 var SDP_MOUNTING_HEIGHTS = (function(){ var arr=[]; for(var hI=15; hI<=35; hI++){ arr.push((hI/10).toFixed(1)); } return arr; })();
 var SDP_PANEL_TYPES = ['LightSYS Plus','LightSYS Air','Risco Agility','Other'];
 var SDP_AUDIBLE_TYPES = ['External Sounder','Internal Sounder','Sounder/Strobe Combined','Other'];
+var SDP_KEYPAD_TYPES = ['Standard','Elegant','Panda'];
 
 var SDP_INTRO = 'This assessment relates solely to the grading and the design of the Intruder Alarm System according to DD CLC/TS 50131-7. The grading and design are based on a survey of the premises and information available at the time, including any valuation(s) or other information provided by the customer or the customer\u2019s representative (e.g. insurer).\n\nYou are advised to consult with your insurer in relation to this Intruder Alarm System Design Proposal.\n\nEvery care has been taken during the preparation of the proposal to ensure it complies with the requirements of current standards.';
 
@@ -2634,6 +2635,16 @@ function syncDetectionZonesFromDOM(){
     p.notes = document.getElementById('dz-notes-'+i).value;
   });
 }
+function syncKeypadsFromDOM(){
+  state.surveyKeypads.forEach(function(p, i){
+    var el = document.getElementById('kp-type-'+i);
+    if(!el) return;
+    p.type = el.value;
+    p.location = document.getElementById('kp-location-'+i).value;
+    p.qty = parseInt(document.getElementById('kp-qty-'+i).value,10)||1;
+    p.notes = document.getElementById('kp-notes-'+i).value;
+  });
+}
 function syncAudibleDevicesFromDOM(){
   state.surveyAudibleDevices.forEach(function(p, i){
     var el = document.getElementById('ad-type-'+i);
@@ -2658,11 +2669,13 @@ function syncOtherItemsFromDOM(){
 
 function newDetectionZone(){ return { zoneNo:'', zoneType:'Entry/Exit', detectorType:SDP_DETECTOR_TYPES[0], room:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' }; }
 function newAudibleDevice(){ return { type:SDP_AUDIBLE_TYPES[0], typeOther:'', location:'', qty:1, notes:'' }; }
+function newKeypad(){ return { type:SDP_KEYPAD_TYPES[0], location:'', qty:1, notes:'' }; }
 function newOtherItem(){ return { itemId:'', room:'', qty:1, notes:'' }; }
 
 function renderSurveyForm(c){
   var me = currentPerson();
   if(!state.surveyDetectionZones || state.surveyDetectionZones.length===0) state.surveyDetectionZones = [newDetectionZone()];
+  if(!state.surveyKeypads || state.surveyKeypads.length===0) state.surveyKeypads = [newKeypad()];
   if(!state.surveyAudibleDevices || state.surveyAudibleDevices.length===0) state.surveyAudibleDevices = [newAudibleDevice()];
   if(!state.surveyOtherItems) state.surveyOtherItems = [];
 
@@ -2758,6 +2771,18 @@ function renderSurveyForm(c){
   // ---- Battery ----
   html += sectionHead('Battery');
   html += '<div class="vs-field"><label>Battery size</label><input id="sv-battery" value="'+escapeAttr(d.batterySize||'')+'" placeholder="e.g. 12V 7Ah"></div>';
+
+  // ---- Keypads ----
+  html += sectionHead('Keypads', '<button class="vs-btn small primary" onclick="VS.addKeypad()">+ Add</button>');
+  state.surveyKeypads.forEach(function(p, i){
+    html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Keypad '+(i+1)+'</span>'+(state.surveyKeypads.length>1?'<button class="vs-btn small danger" onclick="VS.removeKeypad('+i+')">Remove</button>':'')+'</div>';
+    html += '<div class="vs-field"><label>Type</label><select id="kp-type-'+i+'">'+SDP_KEYPAD_TYPES.map(function(kt){ return '<option value="'+kt+'" '+(p.type===kt?'selected':'')+'>'+kt+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Location</label><input id="kp-location-'+i+'" value="'+escapeAttr(p.location||'')+'" placeholder="e.g. adjacent to the entrance door"></div>';
+    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="kp-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += '<div class="vs-field"><label>Notes (optional)</label><input id="kp-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
+    html += '</div>';
+  });
 
   // ---- Audible Warning Devices ----
   html += sectionHead('Audible Warning Devices', '<button class="vs-btn small primary" onclick="VS.addAudibleDevice()">+ Add</button>');
@@ -2938,6 +2963,19 @@ function generateSurveyPDF(sub){
   line(null, 'Fused spur location: '+(f.fusedSpurLocation||'-')+' (customer supplied: '+(f.fusedSpurCustomerSupplied||'No')+')');
   line(null, 'Battery: '+(f.batterySize||'-'));
 
+  var keypads = f.keypads||[];
+  if(keypads.length){
+    subheading('Keypads');
+    keypads.forEach(function(p){
+      var sentence = 'A '+p.type+' keypad will be located '+(p.location||'on the property')+(p.qty>1?' (qty '+p.qty+')':'')+'. This keypad is designed to allow the system to be set/unset and interrogated from this position.'+(p.notes?' ('+p.notes+')':'');
+      var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
+      ensureSpace(wrapped.length*5.5+2);
+      doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+      line(null, 'Grade of component: '+f.securityGrade+'   Environmental Classification: '+envClass);
+      y += 2;
+    });
+  }
+
   if(audibles.length){
     heading('Notification \u2014 Audible Warning Devices');
     audibles.forEach(function(p){
@@ -2995,6 +3033,7 @@ function generateSurveyPDF(sub){
     totals[name] += qty;
   }
   zones.forEach(function(p){ addToTotals(p.detectorType, p.qty); });
+  keypads.forEach(function(p){ addToTotals(p.type+' Keypad', p.qty); });
   audibles.forEach(function(p){ addToTotals(p.type, p.qty); });
   others.forEach(function(p){ addToTotals(p.itemName, p.qty); });
   addToTotals(panelName, 1);
@@ -4712,39 +4751,50 @@ var VS = {
     renderFormsScreen();
   },
   addDetectionZone:function(){
-    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     state.surveyDetectionZones.push(newDetectionZone());
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
   removeDetectionZone:function(i){
-    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     state.surveyDetectionZones.splice(i,1);
     if(state.surveyDetectionZones.length===0) state.surveyDetectionZones.push(newDetectionZone());
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
   addAudibleDevice:function(){
-    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     state.surveyAudibleDevices.push(newAudibleDevice());
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
   removeAudibleDevice:function(i){
-    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     state.surveyAudibleDevices.splice(i,1);
     if(state.surveyAudibleDevices.length===0) state.surveyAudibleDevices.push(newAudibleDevice());
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
+  addKeypad:function(){
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyKeypads.push(newKeypad());
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
+  removeKeypad:function(i){
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyKeypads.splice(i,1);
+    if(state.surveyKeypads.length===0) state.surveyKeypads.push(newKeypad());
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
   addOtherItem:function(){
-    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     state.surveyOtherItems.push(newOtherItem());
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
   removeOtherItem:function(i){
-    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     state.surveyOtherItems.splice(i,1);
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
   submitSurvey:function(){
-    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     var client = document.getElementById('sv-client').value.trim();
     if(!client){ toast('Enter the client name'); return; }
     var me = currentPerson();
@@ -4776,6 +4826,9 @@ var VS = {
           mountingHeight:p.mountingHeight, qty:p.qty, notes:p.notes
         };
       }),
+      keypads: state.surveyKeypads.filter(function(p){ return p.type; }).map(function(p){
+        return { type:p.type, location:p.location, qty:p.qty, notes:p.notes };
+      }),
       audibleDevices: state.surveyAudibleDevices.filter(function(p){ return p.type; }).map(function(p){
         return {
           type: p.type==='Other' ? (p.typeOther||'Other') : p.type,
@@ -4795,6 +4848,7 @@ var VS = {
     saveFormSubmissions();
     toast('Survey saved');
     state.surveyDetectionZones = null;
+    state.surveyKeypads = null;
     state.surveyAudibleDevices = null;
     state.surveyOtherItems = null;
     state.surveyDraft = null;
