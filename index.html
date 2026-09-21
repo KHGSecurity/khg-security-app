@@ -501,7 +501,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyPlacements:null, surveyDraft:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -2304,9 +2304,14 @@ var STANDARD_HAZARDS = [
 var STANDARD_PPE = ['Hi-visibility clothing','Safety boots','Hard hat','Gloves','Safety glasses','Hearing protection'];
 
 var DEFAULT_SURVEY_ROOMS = ['Hallway','Living Room','Kitchen','Bedroom 1','Bedroom 2','Bedroom 3','Landing','Garage','Utility','Conservatory','Office','Stairs','Loft'];
-var SDP_ROLES = ['Detection Zone','Control Equipment','Audible Warning Device','Other'];
 var SDP_ZONE_TYPES = ['Entry/Exit','Entry Follow','Intruder','Instant Alarm','24hr/Panic','Tamper','Fire','Other'];
 var SDP_SECURITY_GRADES = ['Grade 1','Grade 2','Grade 3','Grade 4'];
+var SDP_NOTIFICATION_OPTIONS = ['Option X - Bells only','Option B - Siren + Single link to ARC','Option C - Two links to ARC','Option D - Single link to ARC'];
+var SDP_DETECTOR_TYPES = ['Surface Door Contact','Flush Door Contact','Heavy Duty Door Contact','Roller Shutter Contact','PIR','Pet Friendly PIR','Dual Technology Detector','Pet Friendly Dual Technology Detector','360\u00b0 Motion Detector','Shock Detector','Combined Shock and Contact Detector','Beyond External Detector','Panic Button'];
+var SDP_POSITIONS = ['Front Left','Front Right','Rear Left','Rear Right','Other'];
+var SDP_MOUNTING_HEIGHTS = (function(){ var arr=[]; for(var hI=15; hI<=35; hI++){ arr.push((hI/10).toFixed(1)); } return arr; })();
+var SDP_PANEL_TYPES = ['LightSYS Plus','LightSYS Air','Risco Agility','Other'];
+var SDP_AUDIBLE_TYPES = ['External Sounder','Internal Sounder','Sounder/Strobe Combined','Other'];
 
 var SDP_INTRO = 'This assessment relates solely to the grading and the design of the Intruder Alarm System according to DD CLC/TS 50131-7. The grading and design are based on a survey of the premises and information available at the time, including any valuation(s) or other information provided by the customer or the customer\u2019s representative (e.g. insurer).\n\nYou are advised to consult with your insurer in relation to this Intruder Alarm System Design Proposal.\n\nEvery care has been taken during the preparation of the proposal to ensure it complies with the requirements of current standards.';
 
@@ -2614,36 +2619,62 @@ function renderDisconnectionForm(c){
   initSignaturePad('dc-eng-sig');
 }
 
-function syncSurveyPlacementsFromDOM(){
-  state.surveyPlacements.forEach(function(p, i){
-    var roleEl = document.getElementById('sp-role-'+i);
-    if(!roleEl) return;
-    p.role = roleEl.value;
-    var zoneNoEl = document.getElementById('sp-zoneno-'+i);
-    var zoneTypeEl = document.getElementById('sp-zonetype-'+i);
-    p.zoneNo = zoneNoEl ? zoneNoEl.value : '';
-    p.zoneType = zoneTypeEl ? zoneTypeEl.value : '';
-    p.itemId = document.getElementById('sp-item-'+i).value;
-    p.room = document.getElementById('sp-room-'+i).value;
-    p.detail = document.getElementById('sp-detail-'+i).value;
-    p.qty = parseInt(document.getElementById('sp-qty-'+i).value,10)||1;
-    p.notes = document.getElementById('sp-notes-'+i).value;
+function syncDetectionZonesFromDOM(){
+  state.surveyDetectionZones.forEach(function(p, i){
+    var el = document.getElementById('dz-zoneno-'+i);
+    if(!el) return;
+    p.zoneNo = el.value;
+    p.zoneType = document.getElementById('dz-zonetype-'+i).value;
+    p.detectorType = document.getElementById('dz-detectortype-'+i).value;
+    p.room = document.getElementById('dz-room-'+i).value;
+    p.position = document.getElementById('dz-position-'+i).value;
+    p.positionOther = document.getElementById('dz-position-other-'+i).value;
+    p.mountingHeight = document.getElementById('dz-height-'+i).value;
+    p.qty = parseInt(document.getElementById('dz-qty-'+i).value,10)||1;
+    p.notes = document.getElementById('dz-notes-'+i).value;
+  });
+}
+function syncAudibleDevicesFromDOM(){
+  state.surveyAudibleDevices.forEach(function(p, i){
+    var el = document.getElementById('ad-type-'+i);
+    if(!el) return;
+    p.type = el.value;
+    p.typeOther = document.getElementById('ad-type-other-'+i).value;
+    p.location = document.getElementById('ad-location-'+i).value;
+    p.qty = parseInt(document.getElementById('ad-qty-'+i).value,10)||1;
+    p.notes = document.getElementById('ad-notes-'+i).value;
+  });
+}
+function syncOtherItemsFromDOM(){
+  state.surveyOtherItems.forEach(function(p, i){
+    var el = document.getElementById('oi-item-'+i);
+    if(!el) return;
+    p.itemId = el.value;
+    p.room = document.getElementById('oi-room-'+i).value;
+    p.qty = parseInt(document.getElementById('oi-qty-'+i).value,10)||1;
+    p.notes = document.getElementById('oi-notes-'+i).value;
   });
 }
 
+function newDetectionZone(){ return { zoneNo:'', zoneType:'Entry/Exit', detectorType:SDP_DETECTOR_TYPES[0], room:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' }; }
+function newAudibleDevice(){ return { type:SDP_AUDIBLE_TYPES[0], typeOther:'', location:'', qty:1, notes:'' }; }
+function newOtherItem(){ return { itemId:'', room:'', qty:1, notes:'' }; }
+
 function renderSurveyForm(c){
   var me = currentPerson();
-  if(!state.surveyPlacements || state.surveyPlacements.length===0){
-    state.surveyPlacements = [{ role:'Detection Zone', zoneNo:'', zoneType:'Entry/Exit', room:'', itemId:'', detail:'', qty:1, notes:'' }];
-  }
+  if(!state.surveyDetectionZones || state.surveyDetectionZones.length===0) state.surveyDetectionZones = [newDetectionZone()];
+  if(!state.surveyAudibleDevices || state.surveyAudibleDevices.length===0) state.surveyAudibleDevices = [newAudibleDevice()];
+  if(!state.surveyOtherItems) state.surveyOtherItems = [];
 
   var siteEl = document.getElementById('sv-client');
   if(!state.surveyDraft){
     state.surveyDraft = {
       client:'', address:'', surveyor: me?me.name:'', date:new Date().toISOString().slice(0,10),
-      premisesType:'', securityGrade:'Grade 2', subSystemGrade:'N/A', notificationOption:'N/A',
+      premisesType:'', securityGrade:'Grade 2', subSystemGrade:'N/A', notificationOption:SDP_NOTIFICATION_OPTIONS[0],
       settingText: SDP_SETTING_DEFAULT, unsettingText: SDP_UNSETTING_DEFAULT,
-      intervention:'No intervention is included in this System Design Proposal.',
+      panelType: SDP_PANEL_TYPES[0], panelTypeOther:'', panelLocation:'',
+      fusedSpurLocation:'', fusedSpurCustomerSupplied:'No',
+      batterySize:'',
       maintenanceVisits:'1', repairBusinessHours:'', repairOutOfHours:'',
       notes:''
     };
@@ -2659,7 +2690,12 @@ function renderSurveyForm(c){
     state.surveyDraft.notificationOption = document.getElementById('sv-notification').value;
     state.surveyDraft.settingText = document.getElementById('sv-setting').value;
     state.surveyDraft.unsettingText = document.getElementById('sv-unsetting').value;
-    state.surveyDraft.intervention = document.getElementById('sv-intervention').value;
+    state.surveyDraft.panelType = document.getElementById('sv-paneltype').value;
+    state.surveyDraft.panelTypeOther = document.getElementById('sv-paneltype-other').value;
+    state.surveyDraft.panelLocation = document.getElementById('sv-panellocation').value;
+    state.surveyDraft.fusedSpurLocation = document.getElementById('sv-fusedspur-location').value;
+    state.surveyDraft.fusedSpurCustomerSupplied = document.getElementById('sv-fusedspur-supplied').value;
+    state.surveyDraft.batterySize = document.getElementById('sv-battery').value;
     state.surveyDraft.maintenanceVisits = document.getElementById('sv-maintvisits').value;
     state.surveyDraft.repairBusinessHours = document.getElementById('sv-repairbh').value;
     state.surveyDraft.repairOutOfHours = document.getElementById('sv-repairooh').value;
@@ -2672,7 +2708,8 @@ function renderSurveyForm(c){
 
   var html = formsBackLink();
   html += sectionHead('Alarm System Survey (SDP)');
-  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">This builds a full System Design Proposal, plus a parts list from your Items catalog. Most text fields are pre-filled with KHG\u2019s standard wording \u2014 edit anything that needs changing for this job.</p>';
+  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">This builds a full System Design Proposal, plus a parts list. Most text fields are pre-filled with KHG\u2019s standard wording \u2014 edit anything that needs changing for this job.</p>';
+  html += '<datalist id="sv-room-list">'+rooms.map(function(r){ return '<option value="'+escapeAttr(r)+'">'; }).join('')+'</datalist>';
 
   html += sectionHead('Client &amp; premises');
   html += '<div class="vs-field"><label>Client name</label><input id="sv-client" value="'+escapeAttr(d.client)+'"></div>';
@@ -2684,34 +2721,73 @@ function renderSurveyForm(c){
   html += sectionHead('Grading &amp; notification');
   html += '<div class="vs-field"><label>Security Grade of Intruder Alarm System</label><select id="sv-grade">'+SDP_SECURITY_GRADES.map(function(g){ return '<option value="'+g+'" '+(d.securityGrade===g?'selected':'')+'>'+g+'</option>'; }).join('')+'</select></div>';
   html += '<div class="vs-field"><label>Security Grade(s) of any sub systems</label><input id="sv-subgrade" value="'+escapeAttr(d.subSystemGrade)+'"></div>';
-  html += '<div class="vs-field"><label>Notification Option</label><input id="sv-notification" value="'+escapeAttr(d.notificationOption)+'"></div>';
+  html += '<div class="vs-field"><label>Notification Option</label><select id="sv-notification">'+SDP_NOTIFICATION_OPTIONS.map(function(o){ return '<option value="'+escapeAttr(o)+'" '+(d.notificationOption===o?'selected':'')+'>'+escapeAttr(o)+'</option>'; }).join('')+'</select></div>';
 
   html += sectionHead('Setting &amp; un-setting');
   html += '<div class="vs-field"><label>Method of Setting</label><textarea id="sv-setting" rows="3">'+escapeAttr(d.settingText)+'</textarea></div>';
   html += '<div class="vs-field"><label>Method of Un-setting</label><textarea id="sv-unsetting" rows="3">'+escapeAttr(d.unsettingText)+'</textarea></div>';
 
-  html += sectionHead('Placements', '<button class="vs-btn small primary" onclick="VS.addSurveyPlacement()">+ Add</button>');
-  html += '<datalist id="sv-room-list">'+rooms.map(function(r){ return '<option value="'+escapeAttr(r)+'">'; }).join('')+'</datalist>';
-
-  state.surveyPlacements.forEach(function(p, i){
-    var isZone = p.role==='Detection Zone';
+  // ---- Detection ----
+  html += sectionHead('Detection', '<button class="vs-btn small primary" onclick="VS.addDetectionZone()">+ Add</button>');
+  state.surveyDetectionZones.forEach(function(p, i){
     html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Item '+(i+1)+'</span>'+(state.surveyPlacements.length>1?'<button class="vs-btn small danger" onclick="VS.removeSurveyPlacement('+i+')">Remove</button>':'')+'</div>';
-    html += '<div class="vs-field"><label>Role in system</label><select id="sp-role-'+i+'" onchange="document.getElementById(\'sp-zone-wrap-'+i+'\').style.display=(this.value===\'Detection Zone\'?\'block\':\'none\')">'+SDP_ROLES.map(function(r){ return '<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+r+'</option>'; }).join('')+'</select></div>';
-    html += '<div id="sp-zone-wrap-'+i+'" style="display:'+(isZone?'block':'none')+';">';
-    html += '<div class="vs-field"><label>Zone No.</label><input id="sp-zoneno-'+i+'" value="'+escapeAttr(p.zoneNo||'')+'" placeholder="e.g. 10"></div>';
-    html += '<div class="vs-field"><label>Zone type</label><select id="sp-zonetype-'+i+'">'+SDP_ZONE_TYPES.map(function(zt){ return '<option value="'+zt+'" '+(p.zoneType===zt?'selected':'')+'>'+zt+'</option>'; }).join('')+'</select></div>';
-    html += '</div>';
-    html += '<div class="vs-field"><label>Item</label><select id="sp-item-'+i+'"><option value="">\u2014 choose \u2014</option>'+items.map(function(it){ return '<option value="'+it.id+'" '+(p.itemId===it.id?'selected':'')+'>'+escapeAttr(it.name)+'</option>'; }).join('')+'</select></div>';
-    html += '<div class="vs-field"><label>Room / area</label><input list="sv-room-list" id="sp-room-'+i+'" value="'+escapeAttr(p.room)+'" placeholder="e.g. the front shop area"></div>';
-    html += '<div class="vs-field"><label>Positioning detail (optional)</label><textarea id="sp-detail-'+i+'" rows="2" placeholder="e.g. mounted at a height between 2-3m having an angle of coverage of 85 degrees with a nominal range of 12m, located in the rear right hand corner directed towards the centre of the room">'+escapeAttr(p.detail||'')+'</textarea></div>';
-    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="sp-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
-    html += '<div class="vs-field"><label>Notes (optional)</label><input id="sp-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Zone '+(i+1)+'</span>'+(state.surveyDetectionZones.length>1?'<button class="vs-btn small danger" onclick="VS.removeDetectionZone('+i+')">Remove</button>':'')+'</div>';
+    html += '<div class="vs-field"><label>Zone No.</label><input id="dz-zoneno-'+i+'" value="'+escapeAttr(p.zoneNo||'')+'" placeholder="e.g. 10"></div>';
+    html += '<div class="vs-field"><label>Zone type</label><select id="dz-zonetype-'+i+'">'+SDP_ZONE_TYPES.map(function(zt){ return '<option value="'+zt+'" '+(p.zoneType===zt?'selected':'')+'>'+zt+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Detector type</label><select id="dz-detectortype-'+i+'">'+SDP_DETECTOR_TYPES.map(function(dt){ return '<option value="'+escapeAttr(dt)+'" '+(p.detectorType===dt?'selected':'')+'>'+escapeAttr(dt)+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Room / area</label><input list="sv-room-list" id="dz-room-'+i+'" value="'+escapeAttr(p.room)+'" placeholder="e.g. the front shop area"></div>';
+    html += '<div class="vs-field"><label>Position</label><select id="dz-position-'+i+'" onchange="document.getElementById(\'dz-position-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_POSITIONS.map(function(ps){ return '<option value="'+ps+'" '+(p.position===ps?'selected':'')+'>'+ps+'</option>'; }).join('')+'</select></div>';
+    html += '<div id="dz-position-other-wrap-'+i+'" style="display:'+(p.position==='Other'?'block':'none')+';" class="vs-field"><label>Position (other)</label><input id="dz-position-other-'+i+'" value="'+escapeAttr(p.positionOther||'')+'"></div>';
+    html += '<div class="vs-field"><label>Mounting height</label><select id="dz-height-'+i+'">'+SDP_MOUNTING_HEIGHTS.map(function(h){ return '<option value="'+h+'" '+(p.mountingHeight===h?'selected':'')+'>'+h+'m</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="dz-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += '<div class="vs-field"><label>Notes (optional)</label><input id="dz-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
     html += '</div>';
   });
 
-  html += sectionHead('Intervention &amp; maintenance');
-  html += '<div class="vs-field"><label>Intervention</label><textarea id="sv-intervention" rows="2">'+escapeAttr(d.intervention)+'</textarea></div>';
+  // ---- Control Panel Info ----
+  html += sectionHead('Control Panel Info');
+  html += '<div class="vs-field"><label>Type</label><select id="sv-paneltype" onchange="document.getElementById(\'sv-paneltype-other-wrap\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_PANEL_TYPES.map(function(pt){ return '<option value="'+pt+'" '+(d.panelType===pt?'selected':'')+'>'+pt+'</option>'; }).join('')+'</select></div>';
+  html += '<div id="sv-paneltype-other-wrap" style="display:'+(d.panelType==='Other'?'block':'none')+';" class="vs-field"><label>Make/model (other)</label><input id="sv-paneltype-other" value="'+escapeAttr(d.panelTypeOther||'')+'"></div>';
+  html += '<div class="vs-field"><label>Control panel location</label><input id="sv-panellocation" value="'+escapeAttr(d.panelLocation||'')+'"></div>';
+
+  // ---- Fused Spur ----
+  html += sectionHead('Fused Spur');
+  html += '<div class="vs-field"><label>Fused spur location</label><input id="sv-fusedspur-location" value="'+escapeAttr(d.fusedSpurLocation||'')+'"></div>';
+  html += '<div class="vs-field"><label>Customer supplied?</label><select id="sv-fusedspur-supplied"><option value="Yes" '+(d.fusedSpurCustomerSupplied==='Yes'?'selected':'')+'>Yes</option><option value="No" '+(d.fusedSpurCustomerSupplied==='No'?'selected':'')+'>No</option></select></div>';
+
+  // ---- Battery ----
+  html += sectionHead('Battery');
+  html += '<div class="vs-field"><label>Battery size</label><input id="sv-battery" value="'+escapeAttr(d.batterySize||'')+'" placeholder="e.g. 12V 7Ah"></div>';
+
+  // ---- Audible Warning Devices ----
+  html += sectionHead('Audible Warning Devices', '<button class="vs-btn small primary" onclick="VS.addAudibleDevice()">+ Add</button>');
+  state.surveyAudibleDevices.forEach(function(p, i){
+    html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Device '+(i+1)+'</span>'+(state.surveyAudibleDevices.length>1?'<button class="vs-btn small danger" onclick="VS.removeAudibleDevice('+i+')">Remove</button>':'')+'</div>';
+    html += '<div class="vs-field"><label>Type</label><select id="ad-type-'+i+'" onchange="document.getElementById(\'ad-type-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_AUDIBLE_TYPES.map(function(at){ return '<option value="'+at+'" '+(p.type===at?'selected':'')+'>'+at+'</option>'; }).join('')+'</select></div>';
+    html += '<div id="ad-type-other-wrap-'+i+'" style="display:'+(p.type==='Other'?'block':'none')+';" class="vs-field"><label>Type (other)</label><input id="ad-type-other-'+i+'" value="'+escapeAttr(p.typeOther||'')+'"></div>';
+    html += '<div class="vs-field"><label>Location</label><input id="ad-location-'+i+'" value="'+escapeAttr(p.location||'')+'" placeholder="e.g. on the front elevation"></div>';
+    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="ad-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += '<div class="vs-field"><label>Notes (optional)</label><input id="ad-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
+    html += '</div>';
+  });
+
+  // ---- Other Equipment ----
+  html += sectionHead('Other Equipment', '<button class="vs-btn small primary" onclick="VS.addOtherItem()">+ Add</button>');
+  if(state.surveyOtherItems.length===0){
+    html += '<p style="font-size:12px;color:var(--muted-2);margin:0 0 10px 0;">Anything not covered above \u2014 router, camera, keypad, etc.</p>';
+  }
+  state.surveyOtherItems.forEach(function(p, i){
+    html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Item '+(i+1)+'</span><button class="vs-btn small danger" onclick="VS.removeOtherItem('+i+')">Remove</button></div>';
+    html += '<div class="vs-field"><label>Item</label><select id="oi-item-'+i+'"><option value="">\u2014 choose \u2014</option>'+items.map(function(it){ return '<option value="'+it.id+'" '+(p.itemId===it.id?'selected':'')+'>'+escapeAttr(it.name)+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Room / area</label><input list="sv-room-list" id="oi-room-'+i+'" value="'+escapeAttr(p.room)+'"></div>';
+    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="oi-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += '<div class="vs-field"><label>Notes (optional)</label><input id="oi-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
+    html += '</div>';
+  });
+
+  html += sectionHead('Maintenance &amp; repair');
   html += '<div class="vs-field"><label>Maintenance visits per year</label><input type="number" min="1" id="sv-maintvisits" value="'+escapeAttr(d.maintenanceVisits)+'"></div>';
   html += '<div class="vs-field"><label>Repair contact \u2014 business hours</label><input id="sv-repairbh" value="'+escapeAttr(d.repairBusinessHours)+'" placeholder="e.g. 01565 634211 (Option 2)"></div>';
   html += '<div class="vs-field"><label>Repair contact \u2014 out of hours (emergency)</label><input id="sv-repairooh" value="'+escapeAttr(d.repairOutOfHours)+'" placeholder="e.g. 01565 634211 (Option 1)"></div>';
@@ -2834,10 +2910,9 @@ function generateSurveyPDF(sub){
   para(SDP_REMOTE_WARNING);
   doc.setFont(undefined,'normal'); doc.setFontSize(10);
 
-  var zones = (f.placements||[]).filter(function(p){ return p.role==='Detection Zone'; });
-  var controls = (f.placements||[]).filter(function(p){ return p.role==='Control Equipment'; });
-  var audibles = (f.placements||[]).filter(function(p){ return p.role==='Audible Warning Device'; });
-  var others = (f.placements||[]).filter(function(p){ return p.role==='Other'; });
+  var zones = f.detectionZones||[];
+  var audibles = f.audibleDevices||[];
+  var others = f.otherItems||[];
 
   if(zones.length){
     subheading('Detection Devices');
@@ -2847,30 +2922,26 @@ function generateSurveyPDF(sub){
       doc.setFont(undefined,'bold'); doc.setFontSize(10);
       doc.text('Zone No. '+(p.zoneNo||'-')+'   Zone type: '+(p.zoneType||'-'), margin, y); y += 6;
       doc.setFont(undefined,'normal');
-      var sentence = 'A '+p.itemName+' will be fitted in '+(p.room||'the property')+(p.detail?' '+p.detail:'')+'.'+(p.notes?' ('+p.notes+')':'');
+      var sentence = 'A '+p.detectorType+' will be fitted in '+(p.room||'the property')+', mounted at a height of '+p.mountingHeight+'m, located to the '+p.position+' of the room.'+(p.notes?' ('+p.notes+')':'');
       var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
       ensureSpace(wrapped.length*5.5+4);
       doc.text(wrapped, margin, y); y += wrapped.length*5.5+4;
     });
   }
 
-  if(controls.length){
-    subheading('Control & Indicating Equipment');
-    para('Anti-tamper contacts will be fitted to detectors and junction boxes to conform to EN standards 50131 series. The control unit will be located within the protected/supervised area and out of sight where possible.');
-    controls.forEach(function(p){
-      var sentence = 'A '+p.itemName+' will be located in '+(p.room||'the property')+(p.detail?' '+p.detail:'')+'.'+(p.notes?' ('+p.notes+')':'');
-      var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
-      ensureSpace(wrapped.length*5.5+2);
-      doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
-      line(null, 'Grade of component: '+f.securityGrade+'   Environmental Classification: '+envClass);
-      y += 2;
-    });
-  }
+  subheading('Control & Indicating Equipment');
+  para('Anti-tamper contacts will be fitted to detectors and junction boxes to conform to EN standards 50131 series. The control unit will be located within the protected/supervised area and out of sight where possible.');
+  var panelName = f.panelType==='Other' ? (f.panelTypeOther||'control panel') : f.panelType;
+  line(null, 'A '+panelName+' control unit will be located in '+(f.panelLocation||'the property')+'.');
+  line(null, 'Grade of component: '+f.securityGrade+'   Environmental Classification: '+envClass);
+  y += 2;
+  line(null, 'Fused spur location: '+(f.fusedSpurLocation||'-')+' (customer supplied: '+(f.fusedSpurCustomerSupplied||'No')+')');
+  line(null, 'Battery: '+(f.batterySize||'-'));
 
   if(audibles.length){
     heading('Notification \u2014 Audible Warning Devices');
     audibles.forEach(function(p){
-      var sentence = 'A '+p.itemName+' will be located '+(p.room||'on the property')+(p.detail?' '+p.detail:'')+'. If the wires are cut or the unit is removed from its mounting, or the unit lid or access panel is opened by normal means, the sounder is designed to sound immediately.'+(p.notes?' ('+p.notes+')':'');
+      var sentence = 'A '+p.type+' will be located '+(p.location||'on the property')+'. If the wires are cut or the unit is removed from its mounting, or the unit lid or access panel is opened by normal means, the sounder is designed to sound immediately.'+(p.notes?' ('+p.notes+')':'');
       var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
       ensureSpace(wrapped.length*5.5+2);
       doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
@@ -2882,16 +2953,13 @@ function generateSurveyPDF(sub){
   if(others.length){
     heading('Other Equipment');
     others.forEach(function(p){
-      var sentence = p.qty+'x '+p.itemName+' \u2014 '+(p.room||'the property')+(p.detail?', '+p.detail:'')+(p.notes?' ('+p.notes+')':'');
+      var sentence = p.qty+'x '+p.itemName+' \u2014 '+(p.room||'the property')+(p.notes?' ('+p.notes+')':'');
       line(null, sentence);
     });
   }
 
   heading('Legislation');
   para(SDP_LEGISLATION);
-
-  heading('Intervention');
-  para(f.intervention);
 
   heading('System Certification');
   para(SDP_CERTIFICATION);
@@ -2922,10 +2990,14 @@ function generateSurveyPDF(sub){
 
   heading('Equipment Summary / Parts List');
   var totals = {}, itemOrder = [];
-  (f.placements||[]).forEach(function(p){
-    if(!totals[p.itemName]){ totals[p.itemName]=0; itemOrder.push(p.itemName); }
-    totals[p.itemName] += p.qty;
-  });
+  function addToTotals(name, qty){
+    if(!totals[name]){ totals[name]=0; itemOrder.push(name); }
+    totals[name] += qty;
+  }
+  zones.forEach(function(p){ addToTotals(p.detectorType, p.qty); });
+  audibles.forEach(function(p){ addToTotals(p.type, p.qty); });
+  others.forEach(function(p){ addToTotals(p.itemName, p.qty); });
+  addToTotals(panelName, 1);
   itemOrder.sort();
   itemOrder.forEach(function(name){
     ensureSpace(7);
@@ -4639,23 +4711,42 @@ var VS = {
     state.formsTab = 'mine';
     renderFormsScreen();
   },
-  addSurveyPlacement:function(){
-    syncSurveyPlacementsFromDOM();
-    state.surveyPlacements.push({ role:'Detection Zone', zoneNo:'', zoneType:'Entry/Exit', room:'', itemId:'', detail:'', qty:1, notes:'' });
+  addDetectionZone:function(){
+    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyDetectionZones.push(newDetectionZone());
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
-  removeSurveyPlacement:function(i){
-    syncSurveyPlacementsFromDOM();
-    state.surveyPlacements.splice(i,1);
-    if(state.surveyPlacements.length===0) state.surveyPlacements.push({ role:'Detection Zone', zoneNo:'', zoneType:'Entry/Exit', room:'', itemId:'', detail:'', qty:1, notes:'' });
+  removeDetectionZone:function(i){
+    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyDetectionZones.splice(i,1);
+    if(state.surveyDetectionZones.length===0) state.surveyDetectionZones.push(newDetectionZone());
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
+  addAudibleDevice:function(){
+    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyAudibleDevices.push(newAudibleDevice());
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
+  removeAudibleDevice:function(i){
+    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyAudibleDevices.splice(i,1);
+    if(state.surveyAudibleDevices.length===0) state.surveyAudibleDevices.push(newAudibleDevice());
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
+  addOtherItem:function(){
+    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyOtherItems.push(newOtherItem());
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
+  removeOtherItem:function(i){
+    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
+    state.surveyOtherItems.splice(i,1);
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
   submitSurvey:function(){
-    syncSurveyPlacementsFromDOM();
+    syncDetectionZonesFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     var client = document.getElementById('sv-client').value.trim();
     if(!client){ toast('Enter the client name'); return; }
-    var validPlacements = state.surveyPlacements.filter(function(p){ return p.itemId; });
-    if(validPlacements.length===0){ toast('Add at least one placement with an item selected'); return; }
     var me = currentPerson();
     var fields = {
       client: client,
@@ -4665,21 +4756,35 @@ var VS = {
       premisesType: document.getElementById('sv-premises').value.trim(),
       securityGrade: document.getElementById('sv-grade').value,
       subSystemGrade: document.getElementById('sv-subgrade').value.trim(),
-      notificationOption: document.getElementById('sv-notification').value.trim(),
+      notificationOption: document.getElementById('sv-notification').value,
       settingText: document.getElementById('sv-setting').value.trim(),
       unsettingText: document.getElementById('sv-unsetting').value.trim(),
-      intervention: document.getElementById('sv-intervention').value.trim(),
+      panelType: document.getElementById('sv-paneltype').value,
+      panelTypeOther: document.getElementById('sv-paneltype-other').value.trim(),
+      panelLocation: document.getElementById('sv-panellocation').value.trim(),
+      fusedSpurLocation: document.getElementById('sv-fusedspur-location').value.trim(),
+      fusedSpurCustomerSupplied: document.getElementById('sv-fusedspur-supplied').value,
+      batterySize: document.getElementById('sv-battery').value.trim(),
       maintenanceVisits: document.getElementById('sv-maintvisits').value.trim(),
       repairBusinessHours: document.getElementById('sv-repairbh').value.trim(),
       repairOutOfHours: document.getElementById('sv-repairooh').value.trim(),
       notes: document.getElementById('sv-notes').value.trim(),
-      placements: validPlacements.map(function(p){
-        var it = itemById(p.itemId);
+      detectionZones: state.surveyDetectionZones.filter(function(p){ return p.detectorType; }).map(function(p){
         return {
-          role: p.role, zoneNo: p.zoneNo, zoneType: p.zoneType,
-          itemName: it?it.name:'Unknown item', room:p.room, detail:p.detail,
-          qty:p.qty, notes:p.notes
+          zoneNo:p.zoneNo, zoneType:p.zoneType, detectorType:p.detectorType, room:p.room,
+          position: p.position==='Other' ? (p.positionOther||'Other') : p.position,
+          mountingHeight:p.mountingHeight, qty:p.qty, notes:p.notes
         };
+      }),
+      audibleDevices: state.surveyAudibleDevices.filter(function(p){ return p.type; }).map(function(p){
+        return {
+          type: p.type==='Other' ? (p.typeOther||'Other') : p.type,
+          location:p.location, qty:p.qty, notes:p.notes
+        };
+      }),
+      otherItems: state.surveyOtherItems.filter(function(p){ return p.itemId; }).map(function(p){
+        var it = itemById(p.itemId);
+        return { itemName: it?it.name:'Unknown item', room:p.room, qty:p.qty, notes:p.notes };
       })
     };
     state.formSubmissions.push({
@@ -4689,7 +4794,9 @@ var VS = {
     });
     saveFormSubmissions();
     toast('Survey saved');
-    state.surveyPlacements = null;
+    state.surveyDetectionZones = null;
+    state.surveyAudibleDevices = null;
+    state.surveyOtherItems = null;
     state.surveyDraft = null;
     state.formsTab = 'mine';
     renderFormsScreen();
