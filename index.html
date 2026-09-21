@@ -60,7 +60,7 @@ html, body{ margin:0; padding:0; background:var(--bg); }
   font-family:'Archivo',sans-serif;
 }
 .vs-header{
-  padding:20px 20px 0 20px;
+  padding:calc(20px + env(safe-area-inset-top)) 20px 0 20px;
   border-bottom:1px solid var(--line);
 }
 .vs-header-top{
@@ -207,7 +207,8 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
 .vs-rota-day.today{ border-color:var(--accent); }
 .vs-rota-day.selected{ background:var(--accent-dim); }
 .vs-lock-wrap{
-  min-height:100vh; background:var(--bg); display:flex; align-items:center; justify-content:center; padding:20px;
+  min-height:100vh; background:var(--bg); display:flex; align-items:center; justify-content:center;
+  padding:calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom)) 20px;
   font-family:'Inter',sans-serif; color:var(--text);
 }
 .vs-lock-card{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:26px; width:100%; max-width:320px; text-align:center; }
@@ -254,7 +255,8 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   display:flex; align-items:center; justify-content:center; font-family:'Archivo'; font-weight:800; font-size:10px; color:var(--accent);
 }
 .vs-home-wrap{
-  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px 20px 40px 20px;
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  padding:calc(20px + env(safe-area-inset-top)) 20px calc(40px + env(safe-area-inset-bottom)) 20px;
   font-family:'Inter',sans-serif; color:var(--text);
 }
 .vs-home-inner{ width:100%; max-width:460px; }
