@@ -2,6 +2,6 @@
   publish = "."
   functions = "netlify/functions"
 
-[[functions.schedule]]
-  name = "check-reminders"
+[functions]
+  [functions."check-reminders"]
   schedule = "0 7 * * *"
