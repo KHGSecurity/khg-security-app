@@ -501,7 +501,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyPlacements:null, surveyDraft:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -2160,12 +2160,15 @@ function renderFormsScreen(){
   if(state.formsTab==='terms_acceptance') return renderTermsAcceptanceForm(c);
   if(state.formsTab==='variation') return renderVariationForm(c);
   if(state.formsTab==='disconnection') return renderDisconnectionForm(c);
+  if(state.formsTab==='survey') return renderSurveyForm(c);
+  if(state.formsTab==='survey_settings') return renderSurveySettings(c);
   if(state.formsTab==='mine') return renderMyFormSubmissions(c);
   return renderFormsMenu(c);
 }
 
 function renderFormsMenu(c){
   var me = currentPerson();
+  var admin = isAdminPerson(me);
   var myCount = state.formSubmissions.filter(function(s){ return s.submittedBy===(me?me.name:''); }).length;
   var html = '<div class="vs-home-grid">';
   html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'service_report\')">'+
@@ -2213,6 +2216,18 @@ function renderFormsMenu(c){
     '<span class="vs-home-tile-label">Disconnection Authorisation</span>'+
     '<span class="vs-home-tile-sub">Creates a Follow Up reminder</span>'+
   '</button>';
+  html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'survey\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 21V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v12"/><path d="M3 21h18"/><path d="M5 21V6a1 1 0 0 1 1-1h3v16"/><path d="M15 21V9h3a1 1 0 0 1 1 1v11"/></svg>'+
+    '<span class="vs-home-tile-label">Alarm System Survey</span>'+
+    '<span class="vs-home-tile-sub">Parts list &amp; design proposal</span>'+
+  '</button>';
+  if(admin){
+    html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'survey_settings\')">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'+
+      '<span class="vs-home-tile-label">Survey Settings</span>'+
+      '<span class="vs-home-tile-sub">Edit room &amp; location lists</span>'+
+    '</button>';
+  }
   html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'mine\')">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>'+
     '<span class="vs-home-tile-label">My Submitted Reports</span>'+
@@ -2287,6 +2302,34 @@ var STANDARD_HAZARDS = [
   { name:'Other trades on site', controls:'Coordination through site manager and toolbox talks' }
 ];
 var STANDARD_PPE = ['Hi-visibility clothing','Safety boots','Hard hat','Gloves','Safety glasses','Hearing protection'];
+
+var DEFAULT_SURVEY_ROOMS = ['Hallway','Living Room','Kitchen','Bedroom 1','Bedroom 2','Bedroom 3','Landing','Garage','Utility','Conservatory','Office','Stairs','Loft'];
+var SDP_ROLES = ['Detection Zone','Control Equipment','Audible Warning Device','Other'];
+var SDP_ZONE_TYPES = ['Entry/Exit','Entry Follow','Intruder','Instant Alarm','24hr/Panic','Tamper','Fire','Other'];
+var SDP_SECURITY_GRADES = ['Grade 1','Grade 2','Grade 3','Grade 4'];
+
+var SDP_INTRO = 'This assessment relates solely to the grading and the design of the Intruder Alarm System according to DD CLC/TS 50131-7. The grading and design are based on a survey of the premises and information available at the time, including any valuation(s) or other information provided by the customer or the customer\u2019s representative (e.g. insurer).\n\nYou are advised to consult with your insurer in relation to this Intruder Alarm System Design Proposal.\n\nEvery care has been taken during the preparation of the proposal to ensure it complies with the requirements of current standards.';
+
+var SDP_STANDARDS = ['PD 6662:2017', 'BS EN 50131-1:2006 + A3 2020', 'DD CLC/TS 50131-7:2010'];
+
+var SDP_SETTING_DEFAULT = 'Setting is initiated by entering a personal identification number (PIN) into the keypad located adjacent to the exit door. Means of completion of setting will be by a protective switch fitted to the final exit door.';
+var SDP_UNSETTING_DEFAULT = 'Completion of un-setting is achieved by entering a personal identification number (PIN) into the keypad located adjacent to the entrance door after entering the supervised premises.';
+var SDP_REMOTE_WARNING = 'IMPORTANT: If using a remote device to remotely set/unset your intruder alarm system, your attention is drawn to the fact that whenever a premises is unattended but its intruder alarm system(s) is (are) not fully set, any related insurance cover might be inoperative. For advice on this matter, it is recommended that you consult your insurer(s).';
+
+var SDP_LEGISLATION = 'NOTE: Under the Clean Neighbourhoods and Environment Act (2005) a local authority may designate a geographic area to be an \u201calarm notification area\u201d. In these areas, the occupier or owner of any premises \u2014 residential or non-residential \u2014 within that area must notify the local authority of the details of a keyholder for the premises. The authority can then turn to that keyholder for assistance in silencing an alarm.\n\nIn such designated areas, it is an offence to fail to nominate keyholders or to fail to notify the local authority of the details of a keyholder.\n\nNotification to the local authority is your responsibility using the forms enclosed in the system handover pack.';
+
+var SDP_CERTIFICATION = 'Upon completion of the installation a Security Systems and Alarm Inspection Board (SSAIB) Certificate of Compliance will be issued.';
+
+var SDP_MAINTENANCE_INTRO = 'The system detailed in this System Design Proposal will be maintained in accordance with DD CLC/TS 50131-7:2010 and BS 9263:2016. As a minimum, each maintenance visit will consist of a check of:';
+var SDP_MAINTENANCE_CHECKLIST = ['Tamper Detection','Setting and Un-setting','Entry and Exit Procedures','Power Supplies and Circuits','Operation of Detectors','Operation of Warning Devices','Operation of ATE'];
+
+var SDP_MOVEMENT_NOTE = 'It should be recognised that movement detectors cannot provide complete coverage to all areas. In some instances coverage may extend beyond the stated area. Alteration of the position of objects within the area, or structural alterations, may cause significant changes in the area protected. It is therefore recommended that the detector is walk-tested periodically to ensure the required coverage is being obtained. Details of how to walk test movement detectors are contained in the control unit operating instructions.';
+var SDP_HOURS_NOTE = 'This proposal is subject to installation being carried out during our normal working hours \u2014 Monday to Friday 9.00am to 5.00pm. It does not cover extraneous work, building work, carpet lifting, refitting, or redecoration.';
+var SDP_RESPONSIBILITY_NOTE = 'The price does not include any charges arising from removing and replacing stock, furniture, carpets, fixtures and fittings that may be necessary.';
+var DEFAULT_SURVEY_LOCATIONS = ['High-level corner','Ceiling mounted','Above door','Above window','Wall mounted','Under stairs','Other'];
+
+function getSurveyRooms(){ return (state.catalog.surveyRooms && state.catalog.surveyRooms.length) ? state.catalog.surveyRooms : DEFAULT_SURVEY_ROOMS; }
+function getSurveyLocations(){ return (state.catalog.surveyLocations && state.catalog.surveyLocations.length) ? state.catalog.surveyLocations : DEFAULT_SURVEY_LOCATIONS; }
 
 var COMMISSIONING_TASKS = [
   'Area of cover logged (detection zones/coverage recorded against the site plan)',
@@ -2571,6 +2614,336 @@ function renderDisconnectionForm(c){
   initSignaturePad('dc-eng-sig');
 }
 
+function syncSurveyPlacementsFromDOM(){
+  state.surveyPlacements.forEach(function(p, i){
+    var roleEl = document.getElementById('sp-role-'+i);
+    if(!roleEl) return;
+    p.role = roleEl.value;
+    var zoneNoEl = document.getElementById('sp-zoneno-'+i);
+    var zoneTypeEl = document.getElementById('sp-zonetype-'+i);
+    p.zoneNo = zoneNoEl ? zoneNoEl.value : '';
+    p.zoneType = zoneTypeEl ? zoneTypeEl.value : '';
+    p.itemId = document.getElementById('sp-item-'+i).value;
+    p.room = document.getElementById('sp-room-'+i).value;
+    p.detail = document.getElementById('sp-detail-'+i).value;
+    p.qty = parseInt(document.getElementById('sp-qty-'+i).value,10)||1;
+    p.notes = document.getElementById('sp-notes-'+i).value;
+  });
+}
+
+function renderSurveyForm(c){
+  var me = currentPerson();
+  if(!state.surveyPlacements || state.surveyPlacements.length===0){
+    state.surveyPlacements = [{ role:'Detection Zone', zoneNo:'', zoneType:'Entry/Exit', room:'', itemId:'', detail:'', qty:1, notes:'' }];
+  }
+
+  var siteEl = document.getElementById('sv-client');
+  if(!state.surveyDraft){
+    state.surveyDraft = {
+      client:'', address:'', surveyor: me?me.name:'', date:new Date().toISOString().slice(0,10),
+      premisesType:'', securityGrade:'Grade 2', subSystemGrade:'N/A', notificationOption:'N/A',
+      settingText: SDP_SETTING_DEFAULT, unsettingText: SDP_UNSETTING_DEFAULT,
+      intervention:'No intervention is included in this System Design Proposal.',
+      maintenanceVisits:'1', repairBusinessHours:'', repairOutOfHours:'',
+      notes:''
+    };
+  }
+  if(siteEl){
+    state.surveyDraft.client = siteEl.value;
+    state.surveyDraft.address = document.getElementById('sv-address').value;
+    state.surveyDraft.surveyor = document.getElementById('sv-surveyor').value;
+    state.surveyDraft.date = document.getElementById('sv-date').value;
+    state.surveyDraft.premisesType = document.getElementById('sv-premises').value;
+    state.surveyDraft.securityGrade = document.getElementById('sv-grade').value;
+    state.surveyDraft.subSystemGrade = document.getElementById('sv-subgrade').value;
+    state.surveyDraft.notificationOption = document.getElementById('sv-notification').value;
+    state.surveyDraft.settingText = document.getElementById('sv-setting').value;
+    state.surveyDraft.unsettingText = document.getElementById('sv-unsetting').value;
+    state.surveyDraft.intervention = document.getElementById('sv-intervention').value;
+    state.surveyDraft.maintenanceVisits = document.getElementById('sv-maintvisits').value;
+    state.surveyDraft.repairBusinessHours = document.getElementById('sv-repairbh').value;
+    state.surveyDraft.repairOutOfHours = document.getElementById('sv-repairooh').value;
+    state.surveyDraft.notes = document.getElementById('sv-notes').value;
+  }
+  var d = state.surveyDraft;
+
+  var rooms = getSurveyRooms();
+  var items = (state.catalog.items||[]).slice().sort(function(a,b){ return a.name.toLowerCase()<b.name.toLowerCase()?-1:1; });
+
+  var html = formsBackLink();
+  html += sectionHead('Alarm System Survey (SDP)');
+  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">This builds a full System Design Proposal, plus a parts list from your Items catalog. Most text fields are pre-filled with KHG\u2019s standard wording \u2014 edit anything that needs changing for this job.</p>';
+
+  html += sectionHead('Client &amp; premises');
+  html += '<div class="vs-field"><label>Client name</label><input id="sv-client" value="'+escapeAttr(d.client)+'"></div>';
+  html += '<div class="vs-field"><label>Client address</label><textarea id="sv-address" rows="3">'+escapeAttr(d.address)+'</textarea></div>';
+  html += '<div class="vs-field"><label>Surveyor</label><input id="sv-surveyor" value="'+escapeAttr(d.surveyor)+'"></div>';
+  html += '<div class="vs-field"><label>Date</label><input type="date" id="sv-date" value="'+escapeAttr(d.date)+'"></div>';
+  html += '<div class="vs-field"><label>Type of premises</label><input id="sv-premises" value="'+escapeAttr(d.premisesType)+'" placeholder="e.g. Studio/Shop, Domestic dwelling, Office"></div>';
+
+  html += sectionHead('Grading &amp; notification');
+  html += '<div class="vs-field"><label>Security Grade of Intruder Alarm System</label><select id="sv-grade">'+SDP_SECURITY_GRADES.map(function(g){ return '<option value="'+g+'" '+(d.securityGrade===g?'selected':'')+'>'+g+'</option>'; }).join('')+'</select></div>';
+  html += '<div class="vs-field"><label>Security Grade(s) of any sub systems</label><input id="sv-subgrade" value="'+escapeAttr(d.subSystemGrade)+'"></div>';
+  html += '<div class="vs-field"><label>Notification Option</label><input id="sv-notification" value="'+escapeAttr(d.notificationOption)+'"></div>';
+
+  html += sectionHead('Setting &amp; un-setting');
+  html += '<div class="vs-field"><label>Method of Setting</label><textarea id="sv-setting" rows="3">'+escapeAttr(d.settingText)+'</textarea></div>';
+  html += '<div class="vs-field"><label>Method of Un-setting</label><textarea id="sv-unsetting" rows="3">'+escapeAttr(d.unsettingText)+'</textarea></div>';
+
+  html += sectionHead('Placements', '<button class="vs-btn small primary" onclick="VS.addSurveyPlacement()">+ Add</button>');
+  html += '<datalist id="sv-room-list">'+rooms.map(function(r){ return '<option value="'+escapeAttr(r)+'">'; }).join('')+'</datalist>';
+
+  state.surveyPlacements.forEach(function(p, i){
+    var isZone = p.role==='Detection Zone';
+    html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Item '+(i+1)+'</span>'+(state.surveyPlacements.length>1?'<button class="vs-btn small danger" onclick="VS.removeSurveyPlacement('+i+')">Remove</button>':'')+'</div>';
+    html += '<div class="vs-field"><label>Role in system</label><select id="sp-role-'+i+'" onchange="document.getElementById(\'sp-zone-wrap-'+i+'\').style.display=(this.value===\'Detection Zone\'?\'block\':\'none\')">'+SDP_ROLES.map(function(r){ return '<option value="'+r+'" '+(p.role===r?'selected':'')+'>'+r+'</option>'; }).join('')+'</select></div>';
+    html += '<div id="sp-zone-wrap-'+i+'" style="display:'+(isZone?'block':'none')+';">';
+    html += '<div class="vs-field"><label>Zone No.</label><input id="sp-zoneno-'+i+'" value="'+escapeAttr(p.zoneNo||'')+'" placeholder="e.g. 10"></div>';
+    html += '<div class="vs-field"><label>Zone type</label><select id="sp-zonetype-'+i+'">'+SDP_ZONE_TYPES.map(function(zt){ return '<option value="'+zt+'" '+(p.zoneType===zt?'selected':'')+'>'+zt+'</option>'; }).join('')+'</select></div>';
+    html += '</div>';
+    html += '<div class="vs-field"><label>Item</label><select id="sp-item-'+i+'"><option value="">\u2014 choose \u2014</option>'+items.map(function(it){ return '<option value="'+it.id+'" '+(p.itemId===it.id?'selected':'')+'>'+escapeAttr(it.name)+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Room / area</label><input list="sv-room-list" id="sp-room-'+i+'" value="'+escapeAttr(p.room)+'" placeholder="e.g. the front shop area"></div>';
+    html += '<div class="vs-field"><label>Positioning detail (optional)</label><textarea id="sp-detail-'+i+'" rows="2" placeholder="e.g. mounted at a height between 2-3m having an angle of coverage of 85 degrees with a nominal range of 12m, located in the rear right hand corner directed towards the centre of the room">'+escapeAttr(p.detail||'')+'</textarea></div>';
+    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="sp-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += '<div class="vs-field"><label>Notes (optional)</label><input id="sp-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
+    html += '</div>';
+  });
+
+  html += sectionHead('Intervention &amp; maintenance');
+  html += '<div class="vs-field"><label>Intervention</label><textarea id="sv-intervention" rows="2">'+escapeAttr(d.intervention)+'</textarea></div>';
+  html += '<div class="vs-field"><label>Maintenance visits per year</label><input type="number" min="1" id="sv-maintvisits" value="'+escapeAttr(d.maintenanceVisits)+'"></div>';
+  html += '<div class="vs-field"><label>Repair contact \u2014 business hours</label><input id="sv-repairbh" value="'+escapeAttr(d.repairBusinessHours)+'" placeholder="e.g. 01565 634211 (Option 2)"></div>';
+  html += '<div class="vs-field"><label>Repair contact \u2014 out of hours (emergency)</label><input id="sv-repairooh" value="'+escapeAttr(d.repairOutOfHours)+'" placeholder="e.g. 01565 634211 (Option 1)"></div>';
+
+  html += '<div class="vs-field"><label>General survey notes (optional)</label><textarea id="sv-notes" rows="3">'+escapeAttr(d.notes||'')+'</textarea></div>';
+  html += '<button class="vs-btn primary" style="width:100%;margin-top:6px;" onclick="VS.submitSurvey()">Generate SDP &amp; parts list</button>';
+  c.innerHTML = html;
+}
+
+function renderSurveySettings(c){
+  var html = formsBackLink();
+  html += sectionHead('Survey Settings');
+  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">This list appears as suggestions for \u2018Room / area\u2019 in the Alarm System Survey \u2014 whoever\u2019s filling it in can still type something else if it\u2019s not listed.</p>';
+
+  html += sectionHead('Rooms');
+  html += getSurveyRooms().map(function(r,i){
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="flex:1;font-size:13.5px;color:var(--text);">'+escapeAttr(r)+'</span><button class="vs-btn small danger" onclick="VS.removeSurveyListItem(\'surveyRooms\','+i+')">Remove</button></div>';
+  }).join('');
+  html += '<div style="display:flex;gap:8px;margin-top:8px;"><input id="new-survey-room" placeholder="Add a room"><button class="vs-btn small primary" onclick="VS.addSurveyListItem(\'surveyRooms\',\'new-survey-room\')">Add</button></div>';
+
+  c.innerHTML = html;
+}
+
+function gradeNumber(g){ var m = /\d+/.exec(g||''); return m ? m[0] : '2'; }
+
+function generateSurveyPDF(sub){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
+  var f = sub.fields;
+  var doc = new window.jspdf.jsPDF();
+  var margin = 15;
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var navy = [23, 34, 66];
+  var y;
+  var envClass = gradeNumber(f.securityGrade);
+
+  function drawFooter(){
+    var page = doc.internal.getNumberOfPages();
+    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text('KHG Security Ltd \u2014 System Design Proposal', margin, pageHeight-10);
+    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
+    doc.setTextColor(30,30,30);
+  }
+  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; } }
+  function heading(text){
+    ensureSpace(14); y += 3;
+    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
+    doc.text(text, margin, y); y += 2;
+    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
+    doc.line(margin, y, pageWidth-margin, y); y += 6;
+    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+  }
+  function subheading(text){
+    ensureSpace(9);
+    doc.setFont(undefined,'bold'); doc.setFontSize(10.5); doc.setTextColor(30,30,30);
+    doc.text(text, margin, y); y += 6;
+    doc.setFont(undefined,'normal'); doc.setFontSize(10);
+  }
+  function para(text){
+    (text||'').split('\n\n').forEach(function(p){
+      if(!p.trim()) return;
+      var wrapped = doc.splitTextToSize(p.trim(), pageWidth-margin*2);
+      ensureSpace(wrapped.length*5+3);
+      doc.text(wrapped, margin, y); y += wrapped.length*5+3;
+    });
+  }
+  function line(label, value){
+    var text = label ? (label+': '+(value||'-')) : (value||'-');
+    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
+    ensureSpace(wrapped.length*5.5+2);
+    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+  }
+  function bullet(text){
+    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2-6);
+    ensureSpace(wrapped.length*5.5);
+    doc.text('\u2022', margin, y);
+    doc.text(wrapped, margin+5, y);
+    y += wrapped.length*5.5;
+  }
+
+  y = pdfHeader(doc, margin, pageWidth, navy, 'SYSTEM DESIGN PROPOSAL (SDP)');
+  doc.setFontSize(10.5);
+  doc.text('For the attention: '+(f.client||'-'), margin, y); y += 6;
+  if(f.address){
+    var addrLines = doc.splitTextToSize(f.address, pageWidth-margin*2);
+    doc.text(addrLines, margin, y); y += addrLines.length*5.5+2;
+  }
+  y += 2;
+  doc.setFontSize(10);
+  line(null, 'Surveyor: '+(f.surveyor||'-')+'   Date: '+(f.date||'-'));
+
+  heading('Installation of an Intruder and Hold-Up Alarm System');
+  para(SDP_INTRO);
+
+  subheading('Supervised Premises details');
+  line('Type of premises', f.premisesType);
+
+  subheading('Security Grade');
+  line('Security Grade of Intruder Alarm System', f.securityGrade);
+  line('Security Grade(s) of any sub systems', f.subSystemGrade);
+  line('Notification Option', f.notificationOption);
+
+  subheading('Environmental class');
+  line(null, 'All equipment listed below is '+f.securityGrade+'/Environmental class '+envClass+' unless otherwise stated.');
+
+  subheading('Standards');
+  line(null, 'The system proposal conforms to:');
+  SDP_STANDARDS.forEach(function(s){ bullet(s); });
+
+  heading('System Configuration \u2014 Schedule of Equipment to be Installed');
+  para('The location of equipment detailed in this proposal is referenced from the front elevation when facing the building.');
+
+  subheading('Method of Setting');
+  para(f.settingText);
+  subheading('Method of Un-setting');
+  para(f.unsettingText);
+
+  ensureSpace(16);
+  doc.setFont(undefined,'italic'); doc.setFontSize(9);
+  para(SDP_REMOTE_WARNING);
+  doc.setFont(undefined,'normal'); doc.setFontSize(10);
+
+  var zones = (f.placements||[]).filter(function(p){ return p.role==='Detection Zone'; });
+  var controls = (f.placements||[]).filter(function(p){ return p.role==='Control Equipment'; });
+  var audibles = (f.placements||[]).filter(function(p){ return p.role==='Audible Warning Device'; });
+  var others = (f.placements||[]).filter(function(p){ return p.role==='Other'; });
+
+  if(zones.length){
+    subheading('Detection Devices');
+    para('Unless otherwise indicated, all detectors have effective confirmation capability with other detectors with the exception of entry/exit detectors.\n\nDetector walk-test indication is active during the unset period by agreement.');
+    zones.forEach(function(p){
+      ensureSpace(14);
+      doc.setFont(undefined,'bold'); doc.setFontSize(10);
+      doc.text('Zone No. '+(p.zoneNo||'-')+'   Zone type: '+(p.zoneType||'-'), margin, y); y += 6;
+      doc.setFont(undefined,'normal');
+      var sentence = 'A '+p.itemName+' will be fitted in '+(p.room||'the property')+(p.detail?' '+p.detail:'')+'.'+(p.notes?' ('+p.notes+')':'');
+      var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
+      ensureSpace(wrapped.length*5.5+4);
+      doc.text(wrapped, margin, y); y += wrapped.length*5.5+4;
+    });
+  }
+
+  if(controls.length){
+    subheading('Control & Indicating Equipment');
+    para('Anti-tamper contacts will be fitted to detectors and junction boxes to conform to EN standards 50131 series. The control unit will be located within the protected/supervised area and out of sight where possible.');
+    controls.forEach(function(p){
+      var sentence = 'A '+p.itemName+' will be located in '+(p.room||'the property')+(p.detail?' '+p.detail:'')+'.'+(p.notes?' ('+p.notes+')':'');
+      var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
+      ensureSpace(wrapped.length*5.5+2);
+      doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+      line(null, 'Grade of component: '+f.securityGrade+'   Environmental Classification: '+envClass);
+      y += 2;
+    });
+  }
+
+  if(audibles.length){
+    heading('Notification \u2014 Audible Warning Devices');
+    audibles.forEach(function(p){
+      var sentence = 'A '+p.itemName+' will be located '+(p.room||'on the property')+(p.detail?' '+p.detail:'')+'. If the wires are cut or the unit is removed from its mounting, or the unit lid or access panel is opened by normal means, the sounder is designed to sound immediately.'+(p.notes?' ('+p.notes+')':'');
+      var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
+      ensureSpace(wrapped.length*5.5+2);
+      doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+      line(null, 'Grade of component: '+f.securityGrade+'   Environmental Classification: '+envClass);
+      y += 2;
+    });
+  }
+
+  if(others.length){
+    heading('Other Equipment');
+    others.forEach(function(p){
+      var sentence = p.qty+'x '+p.itemName+' \u2014 '+(p.room||'the property')+(p.detail?', '+p.detail:'')+(p.notes?' ('+p.notes+')':'');
+      line(null, sentence);
+    });
+  }
+
+  heading('Legislation');
+  para(SDP_LEGISLATION);
+
+  heading('Intervention');
+  para(f.intervention);
+
+  heading('System Certification');
+  para(SDP_CERTIFICATION);
+
+  heading('Maintenance');
+  para(SDP_MAINTENANCE_INTRO);
+  var visits = f.maintenanceVisits || '1';
+  para(visits+' maintenance visit'+(visits==='1'?'':'s')+' for the system quoted will be made per year. As a minimum the maintenance will consist of a check of:');
+  SDP_MAINTENANCE_CHECKLIST.forEach(function(item){ bullet(item); });
+
+  subheading('Repair');
+  para('Calls for corrective maintenance may be made by contacting our offices on the following numbers:');
+  line('Business hours', f.repairBusinessHours);
+  line('Out of hours (Emergency)', f.repairOutOfHours);
+
+  heading('General Notes');
+  subheading('Movement detectors');
+  para(SDP_MOVEMENT_NOTE);
+  subheading('Working hours');
+  para(SDP_HOURS_NOTE);
+  subheading('Customer responsibilities');
+  para(SDP_RESPONSIBILITY_NOTE);
+
+  if(f.notes){
+    heading('Survey Notes');
+    line(null, f.notes);
+  }
+
+  heading('Equipment Summary / Parts List');
+  var totals = {}, itemOrder = [];
+  (f.placements||[]).forEach(function(p){
+    if(!totals[p.itemName]){ totals[p.itemName]=0; itemOrder.push(p.itemName); }
+    totals[p.itemName] += p.qty;
+  });
+  itemOrder.sort();
+  itemOrder.forEach(function(name){
+    ensureSpace(7);
+    doc.setFont(undefined,'normal');
+    doc.text(name, margin, y);
+    doc.setFont(undefined,'bold');
+    doc.text('x'+totals[name], pageWidth-margin, y, {align:'right'});
+    doc.setFont(undefined,'normal');
+    doc.setDrawColor(210,210,210); doc.setLineWidth(0.2);
+    doc.line(margin, y+2, pageWidth-margin, y+2);
+    y += 7;
+  });
+
+  drawFooter();
+  var fileSafe = (f.client||'client').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  sharePdf(doc, 'SDP-'+fileSafe+'.pdf');
+}
+
 function renderServiceReportForm(c){
   var me = currentPerson();
   var html = formsBackLink();
@@ -2635,7 +3008,7 @@ function buildServiceReportNote(f){
 
 function formSubmissionRowHtml(s){
   var dt = new Date(s.submittedAt).toLocaleDateString(undefined,{day:'numeric',month:'short'});
-  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED', variation:'VARIATION', disconnection:'DISCONNECTION' };
+  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED', variation:'VARIATION', disconnection:'DISCONNECTION', survey:'SURVEY' };
   var noSyncType = badgeByType[s.formType];
   var titleText = noSyncType ? escapeAttr(s.jobNumber) : 'Job #'+escapeAttr(s.jobNumber);
   var html;
@@ -4266,6 +4639,75 @@ var VS = {
     state.formsTab = 'mine';
     renderFormsScreen();
   },
+  addSurveyPlacement:function(){
+    syncSurveyPlacementsFromDOM();
+    state.surveyPlacements.push({ role:'Detection Zone', zoneNo:'', zoneType:'Entry/Exit', room:'', itemId:'', detail:'', qty:1, notes:'' });
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
+  removeSurveyPlacement:function(i){
+    syncSurveyPlacementsFromDOM();
+    state.surveyPlacements.splice(i,1);
+    if(state.surveyPlacements.length===0) state.surveyPlacements.push({ role:'Detection Zone', zoneNo:'', zoneType:'Entry/Exit', room:'', itemId:'', detail:'', qty:1, notes:'' });
+    renderSurveyForm(document.getElementById('vs-forms-content'));
+  },
+  submitSurvey:function(){
+    syncSurveyPlacementsFromDOM();
+    var client = document.getElementById('sv-client').value.trim();
+    if(!client){ toast('Enter the client name'); return; }
+    var validPlacements = state.surveyPlacements.filter(function(p){ return p.itemId; });
+    if(validPlacements.length===0){ toast('Add at least one placement with an item selected'); return; }
+    var me = currentPerson();
+    var fields = {
+      client: client,
+      address: document.getElementById('sv-address').value.trim(),
+      surveyor: document.getElementById('sv-surveyor').value.trim(),
+      date: document.getElementById('sv-date').value,
+      premisesType: document.getElementById('sv-premises').value.trim(),
+      securityGrade: document.getElementById('sv-grade').value,
+      subSystemGrade: document.getElementById('sv-subgrade').value.trim(),
+      notificationOption: document.getElementById('sv-notification').value.trim(),
+      settingText: document.getElementById('sv-setting').value.trim(),
+      unsettingText: document.getElementById('sv-unsetting').value.trim(),
+      intervention: document.getElementById('sv-intervention').value.trim(),
+      maintenanceVisits: document.getElementById('sv-maintvisits').value.trim(),
+      repairBusinessHours: document.getElementById('sv-repairbh').value.trim(),
+      repairOutOfHours: document.getElementById('sv-repairooh').value.trim(),
+      notes: document.getElementById('sv-notes').value.trim(),
+      placements: validPlacements.map(function(p){
+        var it = itemById(p.itemId);
+        return {
+          role: p.role, zoneNo: p.zoneNo, zoneType: p.zoneType,
+          itemName: it?it.name:'Unknown item', room:p.room, detail:p.detail,
+          qty:p.qty, notes:p.notes
+        };
+      })
+    };
+    state.formSubmissions.push({
+      id: uid(), formType:'survey', jobNumber: client,
+      submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
+      fields: fields
+    });
+    saveFormSubmissions();
+    toast('Survey saved');
+    state.surveyPlacements = null;
+    state.surveyDraft = null;
+    state.formsTab = 'mine';
+    renderFormsScreen();
+  },
+  addSurveyListItem:function(field, inputId){
+    var val = document.getElementById(inputId).value.trim();
+    if(!val) return;
+    if(!state.catalog[field]) state.catalog[field] = (field==='surveyRooms'?DEFAULT_SURVEY_ROOMS:DEFAULT_SURVEY_LOCATIONS).slice();
+    state.catalog[field].push(val);
+    saveCatalog();
+    renderFormsScreen();
+  },
+  removeSurveyListItem:function(field, index){
+    if(!state.catalog[field]) state.catalog[field] = (field==='surveyRooms'?DEFAULT_SURVEY_ROOMS:DEFAULT_SURVEY_LOCATIONS).slice();
+    state.catalog[field].splice(index,1);
+    saveCatalog();
+    renderFormsScreen();
+  },
   checkDisconnectionRepairDate:function(){
     var val = document.getElementById('dc-repairby').value;
     var max = new Date(); max.setDate(max.getDate()+14);
@@ -4454,6 +4896,7 @@ var VS = {
     else if(sub.formType==='terms_acceptance'){ generateTermsAcceptancePDF(sub); }
     else if(sub.formType==='variation'){ generateVariationPDF(sub); }
     else if(sub.formType==='disconnection'){ generateDisconnectionPDF(sub); }
+    else if(sub.formType==='survey'){ generateSurveyPDF(sub); }
     else { generateServiceReportPDF(sub); }
   },
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
