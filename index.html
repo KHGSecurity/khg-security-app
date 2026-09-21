@@ -501,7 +501,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -2313,6 +2313,9 @@ var SDP_MOUNTING_HEIGHTS = (function(){ var arr=[]; for(var hI=15; hI<=35; hI++)
 var SDP_PANEL_TYPES = ['LightSYS Plus','LightSYS Air','Risco Agility','Other'];
 var SDP_AUDIBLE_TYPES = ['External Sounder','Internal Sounder','Sounder/Strobe Combined','Other'];
 var SDP_KEYPAD_TYPES = ['Standard','Elegant','Panda'];
+var SDP_BATTERY_SIZES = ['2.3Ah','3.4Ah','7.0Ah','10Ah','17.2Ah','Other'];
+var SDP_CSL_TYPES = ['CSL DigiAir','CSL DigiAir Connected','CSL DualCom'];
+var SDP_CSL_GRADES = ['SP2','SP3','DP1','DP2','DP2+','DP3','DP4'];
 
 var SDP_INTRO = 'This assessment relates solely to the grading and the design of the Intruder Alarm System according to DD CLC/TS 50131-7. The grading and design are based on a survey of the premises and information available at the time, including any valuation(s) or other information provided by the customer or the customer\u2019s representative (e.g. insurer).\n\nYou are advised to consult with your insurer in relation to this Intruder Alarm System Design Proposal.\n\nEvery care has been taken during the preparation of the proposal to ensure it complies with the requirements of current standards.';
 
@@ -2667,6 +2670,11 @@ function syncOtherItemsFromDOM(){
   });
 }
 
+function reconstructChoice(saved, options){
+  if(options.indexOf(saved)!==-1) return { value: saved, other: '' };
+  return { value: 'Other', other: saved };
+}
+
 function newDetectionZone(){ return { zoneNo:'', zoneType:'Entry/Exit', detectorType:SDP_DETECTOR_TYPES[0], room:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' }; }
 function newAudibleDevice(){ return { type:SDP_AUDIBLE_TYPES[0], typeOther:'', location:'', qty:1, notes:'' }; }
 function newKeypad(){ return { type:SDP_KEYPAD_TYPES[0], location:'', qty:1, notes:'' }; }
@@ -2679,6 +2687,9 @@ function renderSurveyForm(c){
   if(!state.surveyAudibleDevices || state.surveyAudibleDevices.length===0) state.surveyAudibleDevices = [newAudibleDevice()];
   if(!state.surveyOtherItems) state.surveyOtherItems = [];
 
+  var totalZoneQty = state.surveyDetectionZones.reduce(function(sum,p){ return sum + (parseInt(p.qty,10)||0); }, 0);
+  var suggestedExpanders = Math.max(0, Math.ceil((totalZoneQty-8)/8));
+
   var siteEl = document.getElementById('sv-client');
   if(!state.surveyDraft){
     state.surveyDraft = {
@@ -2686,13 +2697,17 @@ function renderSurveyForm(c){
       premisesType:'', securityGrade:'Grade 2', subSystemGrade:'N/A', notificationOption:SDP_NOTIFICATION_OPTIONS[0],
       settingText: SDP_SETTING_DEFAULT, unsettingText: SDP_UNSETTING_DEFAULT,
       panelType: SDP_PANEL_TYPES[0], panelTypeOther:'', panelLocation:'',
+      zoneExpanders: suggestedExpanders>0 ? String(suggestedExpanders) : '0', zoneExpandersOther:'',
       fusedSpurLocation:'', fusedSpurCustomerSupplied:'No',
-      batterySize:'',
-      maintenanceVisits:'1', repairBusinessHours:'', repairOutOfHours:'',
+      batterySize:'', batteryOther:'',
+      apsNeeded:'No', apsNumber:'0', apsLocation:'',
+      monitored:'No', cslType:SDP_CSL_TYPES[0], cslGrade:SDP_CSL_GRADES[0],
+      maintenanceVisits:'1', repairBusinessHours:'01565 634211', repairOutOfHours:'01565 634211',
       notes:''
     };
   }
   if(siteEl){
+    state.editingDocStage = document.getElementById('sv-docstage').value;
     state.surveyDraft.client = siteEl.value;
     state.surveyDraft.address = document.getElementById('sv-address').value;
     state.surveyDraft.surveyor = document.getElementById('sv-surveyor').value;
@@ -2706,9 +2721,18 @@ function renderSurveyForm(c){
     state.surveyDraft.panelType = document.getElementById('sv-paneltype').value;
     state.surveyDraft.panelTypeOther = document.getElementById('sv-paneltype-other').value;
     state.surveyDraft.panelLocation = document.getElementById('sv-panellocation').value;
+    state.surveyDraft.zoneExpanders = document.getElementById('sv-zoneexp').value;
+    state.surveyDraft.zoneExpandersOther = document.getElementById('sv-zoneexp-other').value;
     state.surveyDraft.fusedSpurLocation = document.getElementById('sv-fusedspur-location').value;
     state.surveyDraft.fusedSpurCustomerSupplied = document.getElementById('sv-fusedspur-supplied').value;
     state.surveyDraft.batterySize = document.getElementById('sv-battery').value;
+    state.surveyDraft.batteryOther = document.getElementById('sv-battery-other').value;
+    state.surveyDraft.apsNeeded = document.getElementById('sv-aps-needed').value;
+    state.surveyDraft.apsNumber = document.getElementById('sv-aps-number').value;
+    state.surveyDraft.apsLocation = document.getElementById('sv-aps-location').value;
+    state.surveyDraft.monitored = document.getElementById('sv-monitored').value;
+    state.surveyDraft.cslType = document.getElementById('sv-cslterms') ? document.getElementById('sv-cslterms').value : state.surveyDraft.cslType;
+    state.surveyDraft.cslGrade = document.getElementById('sv-cslgrade') ? document.getElementById('sv-cslgrade').value : state.surveyDraft.cslGrade;
     state.surveyDraft.maintenanceVisits = document.getElementById('sv-maintvisits').value;
     state.surveyDraft.repairBusinessHours = document.getElementById('sv-repairbh').value;
     state.surveyDraft.repairOutOfHours = document.getElementById('sv-repairooh').value;
@@ -2722,6 +2746,7 @@ function renderSurveyForm(c){
   var html = formsBackLink();
   html += sectionHead('Alarm System Survey (SDP)');
   html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">This builds a full System Design Proposal, plus a parts list. Most text fields are pre-filled with KHG\u2019s standard wording \u2014 edit anything that needs changing for this job.</p>';
+  html += '<div class="vs-field"><label>Document type</label><select id="sv-docstage"><option value="proposal" '+(state.editingDocStage==='proposal'?'selected':'')+'>System Design Proposal</option><option value="specification" '+(state.editingDocStage==='specification'?'selected':'')+'>System Specification</option><option value="as_fitted" '+(state.editingDocStage==='as_fitted'?'selected':'')+'>As Fitted</option></select></div>';
   html += '<datalist id="sv-room-list">'+rooms.map(function(r){ return '<option value="'+escapeAttr(r)+'">'; }).join('')+'</datalist>';
 
   html += sectionHead('Client &amp; premises');
@@ -2763,6 +2788,14 @@ function renderSurveyForm(c){
   html += '<div id="sv-paneltype-other-wrap" style="display:'+(d.panelType==='Other'?'block':'none')+';" class="vs-field"><label>Make/model (other)</label><input id="sv-paneltype-other" value="'+escapeAttr(d.panelTypeOther||'')+'"></div>';
   html += '<div class="vs-field"><label>Control panel location</label><input id="sv-panellocation" value="'+escapeAttr(d.panelLocation||'')+'"></div>';
 
+  // ---- Zone Expanders ----
+  html += sectionHead('Zone Expanders');
+  html += '<p style="font-size:12px;color:var(--muted-2);margin:-6px 0 10px 0;">'+totalZoneQty+' zone(s) selected in Detection. '+(totalZoneQty>8?('Suggested: '+suggestedExpanders+' expander(s), based on 8 zones per panel/expander \u2014 adjust below if needed.'):'8 or fewer zones typically fit on the panel without an expander.')+'</p>';
+  html += '<div class="vs-field"><label>Number of zone expanders</label><select id="sv-zoneexp" onchange="document.getElementById(\'sv-zoneexp-other-wrap\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+
+    ['0','1','2','3','4','5','6','7','8','Other'].map(function(n){ return '<option value="'+n+'" '+(d.zoneExpanders===n?'selected':'')+'>'+n+'</option>'; }).join('')+
+  '</select></div>';
+  html += '<div id="sv-zoneexp-other-wrap" style="display:'+(d.zoneExpanders==='Other'?'block':'none')+';" class="vs-field"><label>Number (other)</label><input type="number" min="0" id="sv-zoneexp-other" value="'+escapeAttr(d.zoneExpandersOther||'')+'"></div>';
+
   // ---- Fused Spur ----
   html += sectionHead('Fused Spur');
   html += '<div class="vs-field"><label>Fused spur location</label><input id="sv-fusedspur-location" value="'+escapeAttr(d.fusedSpurLocation||'')+'"></div>';
@@ -2770,7 +2803,14 @@ function renderSurveyForm(c){
 
   // ---- Battery ----
   html += sectionHead('Battery');
-  html += '<div class="vs-field"><label>Battery size</label><input id="sv-battery" value="'+escapeAttr(d.batterySize||'')+'" placeholder="e.g. 12V 7Ah"></div>';
+  html += '<div class="vs-field"><label>Battery size</label><select id="sv-battery" onchange="document.getElementById(\'sv-battery-other-wrap\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_BATTERY_SIZES.map(function(b){ return '<option value="'+b+'" '+(d.batterySize===b?'selected':'')+'>'+b+'</option>'; }).join('')+'</select></div>';
+  html += '<div id="sv-battery-other-wrap" style="display:'+(d.batterySize==='Other'?'block':'none')+';" class="vs-field"><label>Battery size (other)</label><input id="sv-battery-other" value="'+escapeAttr(d.batteryOther||'')+'"></div>';
+
+  // ---- Additional Power Supply ----
+  html += sectionHead('Additional Power Supply');
+  html += '<div class="vs-field"><label>Additional power supply needed?</label><select id="sv-aps-needed"><option value="No" '+(d.apsNeeded==='No'?'selected':'')+'>No</option><option value="Yes" '+(d.apsNeeded==='Yes'?'selected':'')+'>Yes</option></select></div>';
+  html += '<div class="vs-field"><label>Number</label><input type="number" min="0" id="sv-aps-number" value="'+escapeAttr(d.apsNumber||'0')+'"></div>';
+  html += '<div class="vs-field"><label>Location</label><input id="sv-aps-location" value="'+escapeAttr(d.apsLocation||'')+'"></div>';
 
   // ---- Keypads ----
   html += sectionHead('Keypads', '<button class="vs-btn small primary" onclick="VS.addKeypad()">+ Add</button>');
@@ -2811,6 +2851,14 @@ function renderSurveyForm(c){
     html += '<div class="vs-field"><label>Notes (optional)</label><input id="oi-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
     html += '</div>';
   });
+
+  // ---- Monitoring ----
+  html += sectionHead('Monitoring');
+  html += '<div class="vs-field"><label>Is this system monitored?</label><select id="sv-monitored" onchange="document.getElementById(\'sv-monitoring-wrap\').style.display=(this.value===\'Yes\'?\'block\':\'none\')"><option value="No" '+(d.monitored==='No'?'selected':'')+'>No</option><option value="Yes" '+(d.monitored==='Yes'?'selected':'')+'>Yes</option></select></div>';
+  html += '<div id="sv-monitoring-wrap" style="display:'+(d.monitored==='Yes'?'block':'none')+';">';
+  html += '<div class="vs-field"><label>Signalling type</label><select id="sv-cslterms">'+SDP_CSL_TYPES.map(function(t){ return '<option value="'+t+'" '+(d.cslType===t?'selected':'')+'>'+t+'</option>'; }).join('')+'</select></div>';
+  html += '<div class="vs-field"><label>Signalling grade</label><select id="sv-cslgrade">'+SDP_CSL_GRADES.map(function(g){ return '<option value="'+g+'" '+(d.cslGrade===g?'selected':'')+'>'+g+'</option>'; }).join('')+'</select></div>';
+  html += '</div>';
 
   html += sectionHead('Maintenance &amp; repair');
   html += '<div class="vs-field"><label>Maintenance visits per year</label><input type="number" min="1" id="sv-maintvisits" value="'+escapeAttr(d.maintenanceVisits)+'"></div>';
@@ -2893,7 +2941,8 @@ function generateSurveyPDF(sub){
     y += wrapped.length*5.5;
   }
 
-  y = pdfHeader(doc, margin, pageWidth, navy, 'SYSTEM DESIGN PROPOSAL (SDP)');
+  var docTitles = { proposal:'SYSTEM DESIGN PROPOSAL (SDP)', specification:'SYSTEM SPECIFICATION', as_fitted:'AS FITTED SPECIFICATION' };
+  y = pdfHeader(doc, margin, pageWidth, navy, docTitles[sub.docStage] || docTitles.proposal);
   doc.setFontSize(10.5);
   doc.text('For the attention: '+(f.client||'-'), margin, y); y += 6;
   if(f.address){
@@ -2904,7 +2953,7 @@ function generateSurveyPDF(sub){
   doc.setFontSize(10);
   line(null, 'Surveyor: '+(f.surveyor||'-')+'   Date: '+(f.date||'-'));
 
-  heading('Installation of an Intruder and Hold-Up Alarm System');
+  heading('Installation of an Intruder and/or Hold-Up Alarm System');
   para(SDP_INTRO);
 
   subheading('Supervised Premises details');
@@ -2960,8 +3009,14 @@ function generateSurveyPDF(sub){
   line(null, 'A '+panelName+' control unit will be located in '+(f.panelLocation||'the property')+'.');
   line(null, 'Grade of component: '+f.securityGrade+'   Environmental Classification: '+envClass);
   y += 2;
+  if(f.zoneExpanders && f.zoneExpanders!=='0'){
+    line(null, 'Zone expanders: '+f.zoneExpanders);
+  }
   line(null, 'Fused spur location: '+(f.fusedSpurLocation||'-')+' (customer supplied: '+(f.fusedSpurCustomerSupplied||'No')+')');
   line(null, 'Battery: '+(f.batterySize||'-'));
+  if(f.apsNeeded==='Yes'){
+    line(null, 'Additional power supply: '+(f.apsNumber||'1')+' at '+(f.apsLocation||'-'));
+  }
 
   var keypads = f.keypads||[];
   if(keypads.length){
@@ -2996,6 +3051,11 @@ function generateSurveyPDF(sub){
     });
   }
 
+  if(f.monitored==='Yes'){
+    heading('Monitoring');
+    line(null, 'This system will be monitored via '+(f.cslType||'-')+', signalling to grade '+(f.cslGrade||'-')+'.');
+  }
+
   heading('Legislation');
   para(SDP_LEGISLATION);
 
@@ -3012,6 +3072,7 @@ function generateSurveyPDF(sub){
   para('Calls for corrective maintenance may be made by contacting our offices on the following numbers:');
   line('Business hours', f.repairBusinessHours);
   line('Out of hours (Emergency)', f.repairOutOfHours);
+  para('Please report all faults before 10am to aid with same day response.');
 
   heading('General Notes');
   subheading('Movement detectors');
@@ -3037,6 +3098,9 @@ function generateSurveyPDF(sub){
   audibles.forEach(function(p){ addToTotals(p.type, p.qty); });
   others.forEach(function(p){ addToTotals(p.itemName, p.qty); });
   addToTotals(panelName, 1);
+  if(f.zoneExpanders && f.zoneExpanders!=='0') addToTotals('Zone Expander', parseInt(f.zoneExpanders,10)||1);
+  if(f.apsNeeded==='Yes') addToTotals('Additional Power Supply', parseInt(f.apsNumber,10)||1);
+  if(f.batterySize) addToTotals('Battery ('+f.batterySize+')', 1);
   itemOrder.sort();
   itemOrder.forEach(function(name){
     ensureSpace(7);
@@ -3050,9 +3114,18 @@ function generateSurveyPDF(sub){
     y += 7;
   });
 
+  heading('Terms &amp; Conditions');
+  para(GENERAL_TERMS_INTRO);
+  GENERAL_TERMS_SECTIONS.forEach(function(sec){ subheading(sec.heading); para(sec.body); });
+  ensureSpace(12);
+  doc.setFont(undefined,'italic'); doc.setFontSize(8.5); doc.setTextColor(120,120,120);
+  para(GENERAL_TERMS_DISCLAIMER);
+  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+
   drawFooter();
   var fileSafe = (f.client||'client').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  sharePdf(doc, 'SDP-'+fileSafe+'.pdf');
+  var filePrefix = { proposal:'SDP', specification:'System-Spec', as_fitted:'As-Fitted' }[sub.docStage] || 'SDP';
+  sharePdf(doc, filePrefix+'-'+fileSafe+'.pdf');
 }
 
 function renderServiceReportForm(c){
@@ -3119,7 +3192,9 @@ function buildServiceReportNote(f){
 
 function formSubmissionRowHtml(s){
   var dt = new Date(s.submittedAt).toLocaleDateString(undefined,{day:'numeric',month:'short'});
-  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED', variation:'VARIATION', disconnection:'DISCONNECTION', survey:'SURVEY' };
+  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED', variation:'VARIATION', disconnection:'DISCONNECTION' };
+  var stageLabels = { proposal:'SURVEY - PROPOSAL', specification:'SURVEY - SPECIFICATION', as_fitted:'SURVEY - AS FITTED' };
+  if(s.formType==='survey') badgeByType.survey = stageLabels[s.docStage] || 'SURVEY - PROPOSAL';
   var noSyncType = badgeByType[s.formType];
   var titleText = noSyncType ? escapeAttr(s.jobNumber) : 'Job #'+escapeAttr(s.jobNumber);
   var html;
@@ -3137,6 +3212,9 @@ function formSubmissionRowHtml(s){
   }
   html += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;">';
   html += '<button class="vs-btn small primary" onclick="VS.downloadReportPDF(\''+s.id+'\')">Download PDF</button>';
+  if(s.formType==='survey'){
+    html += '<button class="vs-btn small" onclick="VS.editSurvey(\''+s.id+'\')">Edit / Promote</button>';
+  }
   if(!noSyncType && s.syncStatus==='failed'){
     html += '<button class="vs-btn small" onclick="VS.retryFormSync(\''+s.id+'\')">Retry sync</button>';
   }
@@ -3154,7 +3232,7 @@ function sharePdf(doc, filename){
   try{
     var file = new File([blob], filename, { type:'application/pdf' });
     if(navigator.canShare && navigator.canShare({ files:[file] })){
-      navigator.share({ files:[file], title:filename }).catch(function(){});
+      navigator.share({ files:[file] }).catch(function(){});
       return;
     }
   }catch(e){}
@@ -4812,9 +4890,16 @@ var VS = {
       panelType: document.getElementById('sv-paneltype').value,
       panelTypeOther: document.getElementById('sv-paneltype-other').value.trim(),
       panelLocation: document.getElementById('sv-panellocation').value.trim(),
+      zoneExpanders: (function(){ var v=document.getElementById('sv-zoneexp').value; return v==='Other' ? (document.getElementById('sv-zoneexp-other').value.trim()||'0') : v; })(),
       fusedSpurLocation: document.getElementById('sv-fusedspur-location').value.trim(),
       fusedSpurCustomerSupplied: document.getElementById('sv-fusedspur-supplied').value,
-      batterySize: document.getElementById('sv-battery').value.trim(),
+      batterySize: (function(){ var v=document.getElementById('sv-battery').value; return v==='Other' ? (document.getElementById('sv-battery-other').value.trim()||'Other') : v; })(),
+      apsNeeded: document.getElementById('sv-aps-needed').value,
+      apsNumber: document.getElementById('sv-aps-number').value.trim(),
+      apsLocation: document.getElementById('sv-aps-location').value.trim(),
+      monitored: document.getElementById('sv-monitored').value,
+      cslType: document.getElementById('sv-cslterms') ? document.getElementById('sv-cslterms').value : '',
+      cslGrade: document.getElementById('sv-cslgrade') ? document.getElementById('sv-cslgrade').value : '',
       maintenanceVisits: document.getElementById('sv-maintvisits').value.trim(),
       repairBusinessHours: document.getElementById('sv-repairbh').value.trim(),
       repairOutOfHours: document.getElementById('sv-repairooh').value.trim(),
@@ -4840,11 +4925,23 @@ var VS = {
         return { itemName: it?it.name:'Unknown item', room:p.room, qty:p.qty, notes:p.notes };
       })
     };
-    state.formSubmissions.push({
-      id: uid(), formType:'survey', jobNumber: client,
-      submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
-      fields: fields
-    });
+    var docStage = document.getElementById('sv-docstage').value;
+    if(state.editingSurveyId){
+      var existing = state.formSubmissions.filter(function(s){ return s.id===state.editingSurveyId; })[0];
+      if(existing){
+        existing.fields = fields;
+        existing.docStage = docStage;
+        existing.jobNumber = client;
+        existing.lastEditedBy = me?me.name:'Unknown';
+        existing.lastEditedAt = new Date().toISOString();
+      }
+    } else {
+      state.formSubmissions.push({
+        id: uid(), formType:'survey', jobNumber: client, docStage: docStage,
+        submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
+        fields: fields
+      });
+    }
     saveFormSubmissions();
     toast('Survey saved');
     state.surveyDetectionZones = null;
@@ -4852,7 +4949,64 @@ var VS = {
     state.surveyAudibleDevices = null;
     state.surveyOtherItems = null;
     state.surveyDraft = null;
+    state.editingSurveyId = null;
+    state.editingDocStage = 'proposal';
     state.formsTab = 'mine';
+    renderFormsScreen();
+  },
+  editSurvey:function(id){
+    var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
+    if(!sub || sub.formType!=='survey') return;
+    var f = sub.fields;
+
+    var panelChoice = reconstructChoice(f.panelType, SDP_PANEL_TYPES.filter(function(x){ return x!=='Other'; }));
+    var batteryChoice = reconstructChoice(f.batterySize, SDP_BATTERY_SIZES.filter(function(x){ return x!=='Other'; }));
+    var zoneExpChoice = reconstructChoice(f.zoneExpanders||'0', ['0','1','2','3','4','5','6','7','8']);
+
+    state.surveyDraft = {
+      client: f.client, address: f.address, surveyor: f.surveyor, date: f.date,
+      premisesType: f.premisesType, securityGrade: f.securityGrade, subSystemGrade: f.subSystemGrade,
+      notificationOption: f.notificationOption,
+      settingText: f.settingText, unsettingText: f.unsettingText,
+      panelType: panelChoice.value, panelTypeOther: panelChoice.other, panelLocation: f.panelLocation,
+      zoneExpanders: zoneExpChoice.value, zoneExpandersOther: zoneExpChoice.other,
+      fusedSpurLocation: f.fusedSpurLocation, fusedSpurCustomerSupplied: f.fusedSpurCustomerSupplied,
+      batterySize: batteryChoice.value, batteryOther: batteryChoice.other,
+      apsNeeded: f.apsNeeded||'No', apsNumber: f.apsNumber||'0', apsLocation: f.apsLocation||'',
+      monitored: f.monitored||'No', cslType: f.cslType||SDP_CSL_TYPES[0], cslGrade: f.cslGrade||SDP_CSL_GRADES[0],
+      maintenanceVisits: f.maintenanceVisits, repairBusinessHours: f.repairBusinessHours, repairOutOfHours: f.repairOutOfHours,
+      notes: f.notes
+    };
+
+    state.surveyDetectionZones = (f.detectionZones||[]).map(function(p){
+      var posChoice = reconstructChoice(p.position, SDP_POSITIONS.filter(function(x){ return x!=='Other'; }));
+      return {
+        zoneNo:p.zoneNo, zoneType:p.zoneType, detectorType:p.detectorType, room:p.room,
+        position: posChoice.value, positionOther: posChoice.other,
+        mountingHeight:p.mountingHeight, qty:p.qty, notes:p.notes
+      };
+    });
+    if(state.surveyDetectionZones.length===0) state.surveyDetectionZones = [newDetectionZone()];
+
+    state.surveyKeypads = (f.keypads||[]).map(function(p){
+      return { type:p.type, location:p.location, qty:p.qty, notes:p.notes };
+    });
+    if(state.surveyKeypads.length===0) state.surveyKeypads = [newKeypad()];
+
+    state.surveyAudibleDevices = (f.audibleDevices||[]).map(function(p){
+      var typeChoice = reconstructChoice(p.type, SDP_AUDIBLE_TYPES.filter(function(x){ return x!=='Other'; }));
+      return { type:typeChoice.value, typeOther:typeChoice.other, location:p.location, qty:p.qty, notes:p.notes };
+    });
+    if(state.surveyAudibleDevices.length===0) state.surveyAudibleDevices = [newAudibleDevice()];
+
+    state.surveyOtherItems = (f.otherItems||[]).map(function(p){
+      var matchItem = (state.catalog.items||[]).filter(function(it){ return it.name===p.itemName; })[0];
+      return { itemId: matchItem?matchItem.id:'', room:p.room, qty:p.qty, notes:p.notes };
+    });
+
+    state.editingSurveyId = id;
+    state.editingDocStage = sub.docStage || 'proposal';
+    state.formsTab = 'survey';
     renderFormsScreen();
   },
   addSurveyListItem:function(field, inputId){
