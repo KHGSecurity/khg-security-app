@@ -2303,7 +2303,8 @@ var STANDARD_HAZARDS = [
 ];
 var STANDARD_PPE = ['Hi-visibility clothing','Safety boots','Hard hat','Gloves','Safety glasses','Hearing protection'];
 
-var DEFAULT_SURVEY_ROOMS = ['Hallway','Living Room','Kitchen','Bedroom 1','Bedroom 2','Bedroom 3','Landing','Garage','Utility','Conservatory','Office','Stairs','Loft'];
+var DEFAULT_SURVEY_ROOMS = ['Front Door','Hallway','Lounge','Dining Room','Sitting Room','Kitchen','Utility Room','Back Door','Landing','Master Bedroom','Bedroom 2','Bedroom 3','Bedroom 4','Study','Office','Garage','Bifold Doors'];
+var SDP_ZONE_NUMBERS = (function(){ var a=[]; for(var i=1;i<=128;i++){ a.push(String(i)); } return a; })();
 var SDP_ZONE_TYPES = ['Entry/Exit','Entry Follow','Intruder','Instant Alarm','24hr/Panic','Tamper','Fire','Other'];
 var SDP_SECURITY_GRADES = ['Grade 1','Grade 2','Grade 3','Grade 4'];
 var SDP_NOTIFICATION_OPTIONS = ['Option X - Bells only','Option B - Siren + Single link to ARC','Option C - Two links to ARC','Option D - Single link to ARC'];
@@ -2631,10 +2632,11 @@ function syncDetectionZonesFromDOM(){
     p.zoneType = document.getElementById('dz-zonetype-'+i).value;
     p.detectorType = document.getElementById('dz-detectortype-'+i).value;
     p.room = document.getElementById('dz-room-'+i).value;
+    p.roomOther = document.getElementById('dz-room-other-'+i).value;
     p.position = document.getElementById('dz-position-'+i).value;
     p.positionOther = document.getElementById('dz-position-other-'+i).value;
     p.mountingHeight = document.getElementById('dz-height-'+i).value;
-    p.qty = parseInt(document.getElementById('dz-qty-'+i).value,10)||1;
+    p.qty = 1;
     p.notes = document.getElementById('dz-notes-'+i).value;
   });
 }
@@ -2644,7 +2646,8 @@ function syncKeypadsFromDOM(){
     if(!el) return;
     p.type = el.value;
     p.location = document.getElementById('kp-location-'+i).value;
-    p.qty = parseInt(document.getElementById('kp-qty-'+i).value,10)||1;
+    p.locationOther = document.getElementById('kp-location-other-'+i).value;
+    p.qty = 1;
     p.notes = document.getElementById('kp-notes-'+i).value;
   });
 }
@@ -2655,7 +2658,8 @@ function syncAudibleDevicesFromDOM(){
     p.type = el.value;
     p.typeOther = document.getElementById('ad-type-other-'+i).value;
     p.location = document.getElementById('ad-location-'+i).value;
-    p.qty = parseInt(document.getElementById('ad-qty-'+i).value,10)||1;
+    p.locationOther = document.getElementById('ad-location-other-'+i).value;
+    p.qty = 1;
     p.notes = document.getElementById('ad-notes-'+i).value;
   });
 }
@@ -2665,7 +2669,8 @@ function syncOtherItemsFromDOM(){
     if(!el) return;
     p.itemId = el.value;
     p.room = document.getElementById('oi-room-'+i).value;
-    p.qty = parseInt(document.getElementById('oi-qty-'+i).value,10)||1;
+    p.roomOther = document.getElementById('oi-room-other-'+i).value;
+    p.qty = 1;
     p.notes = document.getElementById('oi-notes-'+i).value;
   });
 }
@@ -2675,10 +2680,20 @@ function reconstructChoice(saved, options){
   return { value: 'Other', other: saved };
 }
 
-function newDetectionZone(){ return { zoneNo:'', zoneType:'Entry/Exit', detectorType:SDP_DETECTOR_TYPES[0], room:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' }; }
-function newAudibleDevice(){ return { type:SDP_AUDIBLE_TYPES[0], typeOther:'', location:'', qty:1, notes:'' }; }
-function newKeypad(){ return { type:SDP_KEYPAD_TYPES[0], location:'', qty:1, notes:'' }; }
-function newOtherItem(){ return { itemId:'', room:'', qty:1, notes:'' }; }
+function locationFieldHtml(idPrefix, i, label, value, otherValue){
+  var rooms = getSurveyRooms();
+  var html = '<div class="vs-field"><label>'+escapeAttr(label)+'</label><select id="'+idPrefix+'-'+i+'" onchange="document.getElementById(\''+idPrefix+'-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">';
+  html += rooms.map(function(r){ return '<option value="'+escapeAttr(r)+'" '+(value===r?'selected':'')+'>'+escapeAttr(r)+'</option>'; }).join('');
+  html += '<option value="Other" '+(value==='Other'?'selected':'')+'>Other</option>';
+  html += '</select></div>';
+  html += '<div id="'+idPrefix+'-other-wrap-'+i+'" style="display:'+(value==='Other'?'block':'none')+';" class="vs-field"><label>'+escapeAttr(label)+' (other)</label><input id="'+idPrefix+'-other-'+i+'" value="'+escapeAttr(otherValue||'')+'"></div>';
+  return html;
+}
+
+function newDetectionZone(){ return { zoneNo:'1', zoneType:'Entry/Exit', detectorType:SDP_DETECTOR_TYPES[0], room:DEFAULT_SURVEY_ROOMS[0], roomOther:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' }; }
+function newAudibleDevice(){ return { type:SDP_AUDIBLE_TYPES[0], typeOther:'', location:DEFAULT_SURVEY_ROOMS[0], locationOther:'', qty:1, notes:'' }; }
+function newKeypad(){ return { type:SDP_KEYPAD_TYPES[0], location:DEFAULT_SURVEY_ROOMS[0], locationOther:'', qty:1, notes:'' }; }
+function newOtherItem(){ return { itemId:'', room:DEFAULT_SURVEY_ROOMS[0], roomOther:'', qty:1, notes:'' }; }
 
 function renderSurveyForm(c){
   var me = currentPerson();
@@ -2730,12 +2745,10 @@ function renderSurveyForm(c){
     state.surveyDraft.apsNeeded = document.getElementById('sv-aps-needed').value;
     state.surveyDraft.apsNumber = document.getElementById('sv-aps-number').value;
     state.surveyDraft.apsLocation = document.getElementById('sv-aps-location').value;
-    state.surveyDraft.monitored = document.getElementById('sv-monitored').value;
+    state.surveyDraft.monitored = state.surveyDraft.notificationOption.indexOf('Option X')===0 ? 'No' : 'Yes';
     state.surveyDraft.cslType = document.getElementById('sv-cslterms') ? document.getElementById('sv-cslterms').value : state.surveyDraft.cslType;
     state.surveyDraft.cslGrade = document.getElementById('sv-cslgrade') ? document.getElementById('sv-cslgrade').value : state.surveyDraft.cslGrade;
     state.surveyDraft.maintenanceVisits = document.getElementById('sv-maintvisits').value;
-    state.surveyDraft.repairBusinessHours = document.getElementById('sv-repairbh').value;
-    state.surveyDraft.repairOutOfHours = document.getElementById('sv-repairooh').value;
     state.surveyDraft.notes = document.getElementById('sv-notes').value;
   }
   var d = state.surveyDraft;
@@ -2747,7 +2760,6 @@ function renderSurveyForm(c){
   html += sectionHead('Alarm System Survey (SDP)');
   html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">This builds a full System Design Proposal, plus a parts list. Most text fields are pre-filled with KHG\u2019s standard wording \u2014 edit anything that needs changing for this job.</p>';
   html += '<div class="vs-field"><label>Document type</label><select id="sv-docstage"><option value="proposal" '+(state.editingDocStage==='proposal'?'selected':'')+'>System Design Proposal</option><option value="specification" '+(state.editingDocStage==='specification'?'selected':'')+'>System Specification</option><option value="as_fitted" '+(state.editingDocStage==='as_fitted'?'selected':'')+'>As Fitted</option></select></div>';
-  html += '<datalist id="sv-room-list">'+rooms.map(function(r){ return '<option value="'+escapeAttr(r)+'">'; }).join('')+'</datalist>';
 
   html += sectionHead('Client &amp; premises');
   html += '<div class="vs-field"><label>Client name</label><input id="sv-client" value="'+escapeAttr(d.client)+'"></div>';
@@ -2759,28 +2771,32 @@ function renderSurveyForm(c){
   html += sectionHead('Grading &amp; notification');
   html += '<div class="vs-field"><label>Security Grade of Intruder Alarm System</label><select id="sv-grade">'+SDP_SECURITY_GRADES.map(function(g){ return '<option value="'+g+'" '+(d.securityGrade===g?'selected':'')+'>'+g+'</option>'; }).join('')+'</select></div>';
   html += '<div class="vs-field"><label>Security Grade(s) of any sub systems</label><input id="sv-subgrade" value="'+escapeAttr(d.subSystemGrade)+'"></div>';
-  html += '<div class="vs-field"><label>Notification Option</label><select id="sv-notification">'+SDP_NOTIFICATION_OPTIONS.map(function(o){ return '<option value="'+escapeAttr(o)+'" '+(d.notificationOption===o?'selected':'')+'>'+escapeAttr(o)+'</option>'; }).join('')+'</select></div>';
+  html += '<div class="vs-field"><label>Notification Option</label><select id="sv-notification" onchange="document.getElementById(\'sv-monitoring-wrap\').style.display=(this.value.indexOf(\'Option X\')===0?\'none\':\'block\')">'+SDP_NOTIFICATION_OPTIONS.map(function(o){ return '<option value="'+escapeAttr(o)+'" '+(d.notificationOption===o?'selected':'')+'>'+escapeAttr(o)+'</option>'; }).join('')+'</select></div>';
+  html += '<div id="sv-monitoring-wrap" style="display:'+(d.notificationOption.indexOf('Option X')===0?'none':'block')+';">';
+  html += '<div class="vs-field"><label>Signalling type</label><select id="sv-cslterms">'+SDP_CSL_TYPES.map(function(t){ return '<option value="'+t+'" '+(d.cslType===t?'selected':'')+'>'+t+'</option>'; }).join('')+'</select></div>';
+  html += '<div class="vs-field"><label>Signalling grade</label><select id="sv-cslgrade">'+SDP_CSL_GRADES.map(function(g){ return '<option value="'+g+'" '+(d.cslGrade===g?'selected':'')+'>'+g+'</option>'; }).join('')+'</select></div>';
+  html += '</div>';
 
   html += sectionHead('Setting &amp; un-setting');
   html += '<div class="vs-field"><label>Method of Setting</label><textarea id="sv-setting" rows="3">'+escapeAttr(d.settingText)+'</textarea></div>';
   html += '<div class="vs-field"><label>Method of Un-setting</label><textarea id="sv-unsetting" rows="3">'+escapeAttr(d.unsettingText)+'</textarea></div>';
 
   // ---- Detection ----
-  html += sectionHead('Detection', '<button class="vs-btn small primary" onclick="VS.addDetectionZone()">+ Add</button>');
+  html += sectionHead('Detection');
   state.surveyDetectionZones.forEach(function(p, i){
     html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Zone '+(i+1)+'</span>'+(state.surveyDetectionZones.length>1?'<button class="vs-btn small danger" onclick="VS.removeDetectionZone('+i+')">Remove</button>':'')+'</div>';
-    html += '<div class="vs-field"><label>Zone No.</label><input id="dz-zoneno-'+i+'" value="'+escapeAttr(p.zoneNo||'')+'" placeholder="e.g. 10"></div>';
+    html += '<div class="vs-field"><label>Zone No.</label><select id="dz-zoneno-'+i+'">'+SDP_ZONE_NUMBERS.map(function(n){ return '<option value="'+n+'" '+(p.zoneNo===n?'selected':'')+'>'+n+'</option>'; }).join('')+'</select></div>';
     html += '<div class="vs-field"><label>Zone type</label><select id="dz-zonetype-'+i+'">'+SDP_ZONE_TYPES.map(function(zt){ return '<option value="'+zt+'" '+(p.zoneType===zt?'selected':'')+'>'+zt+'</option>'; }).join('')+'</select></div>';
     html += '<div class="vs-field"><label>Detector type</label><select id="dz-detectortype-'+i+'">'+SDP_DETECTOR_TYPES.map(function(dt){ return '<option value="'+escapeAttr(dt)+'" '+(p.detectorType===dt?'selected':'')+'>'+escapeAttr(dt)+'</option>'; }).join('')+'</select></div>';
-    html += '<div class="vs-field"><label>Room / area</label><input list="sv-room-list" id="dz-room-'+i+'" value="'+escapeAttr(p.room)+'" placeholder="e.g. the front shop area"></div>';
+    html += locationFieldHtml('dz-room', i, 'Room / area', p.room, p.roomOther);
     html += '<div class="vs-field"><label>Position</label><select id="dz-position-'+i+'" onchange="document.getElementById(\'dz-position-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_POSITIONS.map(function(ps){ return '<option value="'+ps+'" '+(p.position===ps?'selected':'')+'>'+ps+'</option>'; }).join('')+'</select></div>';
     html += '<div id="dz-position-other-wrap-'+i+'" style="display:'+(p.position==='Other'?'block':'none')+';" class="vs-field"><label>Position (other)</label><input id="dz-position-other-'+i+'" value="'+escapeAttr(p.positionOther||'')+'"></div>';
     html += '<div class="vs-field"><label>Mounting height</label><select id="dz-height-'+i+'">'+SDP_MOUNTING_HEIGHTS.map(function(h){ return '<option value="'+h+'" '+(p.mountingHeight===h?'selected':'')+'>'+h+'m</option>'; }).join('')+'</select></div>';
-    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="dz-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
     html += '<div class="vs-field"><label>Notes (optional)</label><input id="dz-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
     html += '</div>';
   });
+  html += '<button class="vs-btn small primary" style="width:100%;margin-bottom:16px;" onclick="VS.addDetectionZone()">+ Add another zone</button>';
 
   // ---- Control Panel Info ----
   html += sectionHead('Control Panel Info');
@@ -2813,32 +2829,32 @@ function renderSurveyForm(c){
   html += '<div class="vs-field"><label>Location</label><input id="sv-aps-location" value="'+escapeAttr(d.apsLocation||'')+'"></div>';
 
   // ---- Keypads ----
-  html += sectionHead('Keypads', '<button class="vs-btn small primary" onclick="VS.addKeypad()">+ Add</button>');
+  html += sectionHead('Keypads');
   state.surveyKeypads.forEach(function(p, i){
     html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Keypad '+(i+1)+'</span>'+(state.surveyKeypads.length>1?'<button class="vs-btn small danger" onclick="VS.removeKeypad('+i+')">Remove</button>':'')+'</div>';
     html += '<div class="vs-field"><label>Type</label><select id="kp-type-'+i+'">'+SDP_KEYPAD_TYPES.map(function(kt){ return '<option value="'+kt+'" '+(p.type===kt?'selected':'')+'>'+kt+'</option>'; }).join('')+'</select></div>';
-    html += '<div class="vs-field"><label>Location</label><input id="kp-location-'+i+'" value="'+escapeAttr(p.location||'')+'" placeholder="e.g. adjacent to the entrance door"></div>';
-    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="kp-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += locationFieldHtml('kp-location', i, 'Location', p.location, p.locationOther);
     html += '<div class="vs-field"><label>Notes (optional)</label><input id="kp-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
     html += '</div>';
   });
+  html += '<button class="vs-btn small primary" style="width:100%;margin-bottom:16px;" onclick="VS.addKeypad()">+ Add another keypad</button>';
 
   // ---- Audible Warning Devices ----
-  html += sectionHead('Audible Warning Devices', '<button class="vs-btn small primary" onclick="VS.addAudibleDevice()">+ Add</button>');
+  html += sectionHead('Audible Warning Devices');
   state.surveyAudibleDevices.forEach(function(p, i){
     html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Device '+(i+1)+'</span>'+(state.surveyAudibleDevices.length>1?'<button class="vs-btn small danger" onclick="VS.removeAudibleDevice('+i+')">Remove</button>':'')+'</div>';
     html += '<div class="vs-field"><label>Type</label><select id="ad-type-'+i+'" onchange="document.getElementById(\'ad-type-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_AUDIBLE_TYPES.map(function(at){ return '<option value="'+at+'" '+(p.type===at?'selected':'')+'>'+at+'</option>'; }).join('')+'</select></div>';
     html += '<div id="ad-type-other-wrap-'+i+'" style="display:'+(p.type==='Other'?'block':'none')+';" class="vs-field"><label>Type (other)</label><input id="ad-type-other-'+i+'" value="'+escapeAttr(p.typeOther||'')+'"></div>';
-    html += '<div class="vs-field"><label>Location</label><input id="ad-location-'+i+'" value="'+escapeAttr(p.location||'')+'" placeholder="e.g. on the front elevation"></div>';
-    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="ad-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += locationFieldHtml('ad-location', i, 'Location', p.location, p.locationOther);
     html += '<div class="vs-field"><label>Notes (optional)</label><input id="ad-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
     html += '</div>';
   });
+  html += '<button class="vs-btn small primary" style="width:100%;margin-bottom:16px;" onclick="VS.addAudibleDevice()">+ Add another device</button>';
 
   // ---- Other Equipment ----
-  html += sectionHead('Other Equipment', '<button class="vs-btn small primary" onclick="VS.addOtherItem()">+ Add</button>');
+  html += sectionHead('Other Equipment');
   if(state.surveyOtherItems.length===0){
     html += '<p style="font-size:12px;color:var(--muted-2);margin:0 0 10px 0;">Anything not covered above \u2014 router, camera, keypad, etc.</p>';
   }
@@ -2846,24 +2862,15 @@ function renderSurveyForm(c){
     html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Item '+(i+1)+'</span><button class="vs-btn small danger" onclick="VS.removeOtherItem('+i+')">Remove</button></div>';
     html += '<div class="vs-field"><label>Item</label><select id="oi-item-'+i+'"><option value="">\u2014 choose \u2014</option>'+items.map(function(it){ return '<option value="'+it.id+'" '+(p.itemId===it.id?'selected':'')+'>'+escapeAttr(it.name)+'</option>'; }).join('')+'</select></div>';
-    html += '<div class="vs-field"><label>Room / area</label><input list="sv-room-list" id="oi-room-'+i+'" value="'+escapeAttr(p.room)+'"></div>';
-    html += '<div class="vs-field"><label>Quantity</label><input type="number" min="1" id="oi-qty-'+i+'" value="'+(p.qty||1)+'"></div>';
+    html += locationFieldHtml('oi-room', i, 'Room / area', p.room, p.roomOther);
     html += '<div class="vs-field"><label>Notes (optional)</label><input id="oi-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
     html += '</div>';
   });
-
-  // ---- Monitoring ----
-  html += sectionHead('Monitoring');
-  html += '<div class="vs-field"><label>Is this system monitored?</label><select id="sv-monitored" onchange="document.getElementById(\'sv-monitoring-wrap\').style.display=(this.value===\'Yes\'?\'block\':\'none\')"><option value="No" '+(d.monitored==='No'?'selected':'')+'>No</option><option value="Yes" '+(d.monitored==='Yes'?'selected':'')+'>Yes</option></select></div>';
-  html += '<div id="sv-monitoring-wrap" style="display:'+(d.monitored==='Yes'?'block':'none')+';">';
-  html += '<div class="vs-field"><label>Signalling type</label><select id="sv-cslterms">'+SDP_CSL_TYPES.map(function(t){ return '<option value="'+t+'" '+(d.cslType===t?'selected':'')+'>'+t+'</option>'; }).join('')+'</select></div>';
-  html += '<div class="vs-field"><label>Signalling grade</label><select id="sv-cslgrade">'+SDP_CSL_GRADES.map(function(g){ return '<option value="'+g+'" '+(d.cslGrade===g?'selected':'')+'>'+g+'</option>'; }).join('')+'</select></div>';
-  html += '</div>';
+  html += '<button class="vs-btn small primary" style="width:100%;margin-bottom:16px;" onclick="VS.addOtherItem()">+ Add another item</button>';
 
   html += sectionHead('Maintenance &amp; repair');
   html += '<div class="vs-field"><label>Maintenance visits per year</label><input type="number" min="1" id="sv-maintvisits" value="'+escapeAttr(d.maintenanceVisits)+'"></div>';
-  html += '<div class="vs-field"><label>Repair contact \u2014 business hours</label><input id="sv-repairbh" value="'+escapeAttr(d.repairBusinessHours)+'" placeholder="e.g. 01565 634211 (Option 2)"></div>';
-  html += '<div class="vs-field"><label>Repair contact \u2014 out of hours (emergency)</label><input id="sv-repairooh" value="'+escapeAttr(d.repairOutOfHours)+'" placeholder="e.g. 01565 634211 (Option 1)"></div>';
+  html += '<p style="font-size:12px;color:var(--muted-2);margin:-6px 0 16px 0;">Repair contact (business hours and out of hours): 01565 634211</p>';
 
   html += '<div class="vs-field"><label>General survey notes (optional)</label><textarea id="sv-notes" rows="3">'+escapeAttr(d.notes||'')+'</textarea></div>';
   html += '<button class="vs-btn primary" style="width:100%;margin-top:6px;" onclick="VS.submitSurvey()">Generate SDP &amp; parts list</button>';
@@ -4830,7 +4837,10 @@ var VS = {
   },
   addDetectionZone:function(){
     syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
-    state.surveyDetectionZones.push(newDetectionZone());
+    var maxZone = state.surveyDetectionZones.reduce(function(max,p){ return Math.max(max, parseInt(p.zoneNo,10)||0); }, 0);
+    var nextZone = newDetectionZone();
+    if(maxZone>0 && maxZone<128) nextZone.zoneNo = String(maxZone+1);
+    state.surveyDetectionZones.push(nextZone);
     renderSurveyForm(document.getElementById('vs-forms-content'));
   },
   removeDetectionZone:function(i){
@@ -4897,32 +4907,34 @@ var VS = {
       apsNeeded: document.getElementById('sv-aps-needed').value,
       apsNumber: document.getElementById('sv-aps-number').value.trim(),
       apsLocation: document.getElementById('sv-aps-location').value.trim(),
-      monitored: document.getElementById('sv-monitored').value,
+      monitored: document.getElementById('sv-notification').value.indexOf('Option X')===0 ? 'No' : 'Yes',
       cslType: document.getElementById('sv-cslterms') ? document.getElementById('sv-cslterms').value : '',
       cslGrade: document.getElementById('sv-cslgrade') ? document.getElementById('sv-cslgrade').value : '',
       maintenanceVisits: document.getElementById('sv-maintvisits').value.trim(),
-      repairBusinessHours: document.getElementById('sv-repairbh').value.trim(),
-      repairOutOfHours: document.getElementById('sv-repairooh').value.trim(),
+      repairBusinessHours: '01565 634211',
+      repairOutOfHours: '01565 634211',
       notes: document.getElementById('sv-notes').value.trim(),
       detectionZones: state.surveyDetectionZones.filter(function(p){ return p.detectorType; }).map(function(p){
         return {
-          zoneNo:p.zoneNo, zoneType:p.zoneType, detectorType:p.detectorType, room:p.room,
+          zoneNo:p.zoneNo, zoneType:p.zoneType, detectorType:p.detectorType,
+          room: p.room==='Other' ? (p.roomOther||'Other') : p.room,
           position: p.position==='Other' ? (p.positionOther||'Other') : p.position,
-          mountingHeight:p.mountingHeight, qty:p.qty, notes:p.notes
+          mountingHeight:p.mountingHeight, qty:1, notes:p.notes
         };
       }),
       keypads: state.surveyKeypads.filter(function(p){ return p.type; }).map(function(p){
-        return { type:p.type, location:p.location, qty:p.qty, notes:p.notes };
+        return { type:p.type, location: p.location==='Other' ? (p.locationOther||'Other') : p.location, qty:1, notes:p.notes };
       }),
       audibleDevices: state.surveyAudibleDevices.filter(function(p){ return p.type; }).map(function(p){
         return {
           type: p.type==='Other' ? (p.typeOther||'Other') : p.type,
-          location:p.location, qty:p.qty, notes:p.notes
+          location: p.location==='Other' ? (p.locationOther||'Other') : p.location,
+          qty:1, notes:p.notes
         };
       }),
       otherItems: state.surveyOtherItems.filter(function(p){ return p.itemId; }).map(function(p){
         var it = itemById(p.itemId);
-        return { itemName: it?it.name:'Unknown item', room:p.room, qty:p.qty, notes:p.notes };
+        return { itemName: it?it.name:'Unknown item', room: p.room==='Other' ? (p.roomOther||'Other') : p.room, qty:1, notes:p.notes };
       })
     };
     var docStage = document.getElementById('sv-docstage').value;
@@ -4974,34 +4986,39 @@ var VS = {
       batterySize: batteryChoice.value, batteryOther: batteryChoice.other,
       apsNeeded: f.apsNeeded||'No', apsNumber: f.apsNumber||'0', apsLocation: f.apsLocation||'',
       monitored: f.monitored||'No', cslType: f.cslType||SDP_CSL_TYPES[0], cslGrade: f.cslGrade||SDP_CSL_GRADES[0],
-      maintenanceVisits: f.maintenanceVisits, repairBusinessHours: f.repairBusinessHours, repairOutOfHours: f.repairOutOfHours,
+      maintenanceVisits: f.maintenanceVisits,
       notes: f.notes
     };
 
     state.surveyDetectionZones = (f.detectionZones||[]).map(function(p){
       var posChoice = reconstructChoice(p.position, SDP_POSITIONS.filter(function(x){ return x!=='Other'; }));
+      var roomChoice = reconstructChoice(p.room, getSurveyRooms());
       return {
-        zoneNo:p.zoneNo, zoneType:p.zoneType, detectorType:p.detectorType, room:p.room,
+        zoneNo:p.zoneNo, zoneType:p.zoneType, detectorType:p.detectorType,
+        room: roomChoice.value, roomOther: roomChoice.other,
         position: posChoice.value, positionOther: posChoice.other,
-        mountingHeight:p.mountingHeight, qty:p.qty, notes:p.notes
+        mountingHeight:p.mountingHeight, qty:1, notes:p.notes
       };
     });
     if(state.surveyDetectionZones.length===0) state.surveyDetectionZones = [newDetectionZone()];
 
     state.surveyKeypads = (f.keypads||[]).map(function(p){
-      return { type:p.type, location:p.location, qty:p.qty, notes:p.notes };
+      var locChoice = reconstructChoice(p.location, getSurveyRooms());
+      return { type:p.type, location:locChoice.value, locationOther:locChoice.other, qty:1, notes:p.notes };
     });
     if(state.surveyKeypads.length===0) state.surveyKeypads = [newKeypad()];
 
     state.surveyAudibleDevices = (f.audibleDevices||[]).map(function(p){
       var typeChoice = reconstructChoice(p.type, SDP_AUDIBLE_TYPES.filter(function(x){ return x!=='Other'; }));
-      return { type:typeChoice.value, typeOther:typeChoice.other, location:p.location, qty:p.qty, notes:p.notes };
+      var locChoice = reconstructChoice(p.location, getSurveyRooms());
+      return { type:typeChoice.value, typeOther:typeChoice.other, location:locChoice.value, locationOther:locChoice.other, qty:1, notes:p.notes };
     });
     if(state.surveyAudibleDevices.length===0) state.surveyAudibleDevices = [newAudibleDevice()];
 
     state.surveyOtherItems = (f.otherItems||[]).map(function(p){
       var matchItem = (state.catalog.items||[]).filter(function(it){ return it.name===p.itemName; })[0];
-      return { itemId: matchItem?matchItem.id:'', room:p.room, qty:p.qty, notes:p.notes };
+      var roomChoice = reconstructChoice(p.room, getSurveyRooms());
+      return { itemId: matchItem?matchItem.id:'', room:roomChoice.value, roomOther:roomChoice.other, qty:1, notes:p.notes };
     });
 
     state.editingSurveyId = id;
