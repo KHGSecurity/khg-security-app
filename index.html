@@ -3259,13 +3259,16 @@ function formSubmissionRowHtml(s){
 function sharePdf(doc, filename){
   var blob;
   try{ blob = doc.output('blob'); }catch(e){ doc.save(filename); return; }
-  try{
-    var file = new File([blob], filename, { type:'application/pdf' });
-    if(navigator.canShare && navigator.canShare({ files:[file] })){
-      navigator.share({ files:[file] }).catch(function(){});
-      return;
-    }
-  }catch(e){}
+  var isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(isMobile){
+    try{
+      var file = new File([blob], filename, { type:'application/pdf' });
+      if(navigator.canShare && navigator.canShare({ files:[file] })){
+        navigator.share({ files:[file] }).catch(function(){});
+        return;
+      }
+    }catch(e){}
+  }
   try{
     var blobUrl = URL.createObjectURL(blob);
     var a = document.createElement('a');
