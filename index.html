@@ -2305,14 +2305,17 @@ var STANDARD_PPE = ['Hi-visibility clothing','Safety boots','Hard hat','Gloves',
 
 var DEFAULT_SURVEY_ROOMS = ['Front Door','Hallway','Lounge','Dining Room','Sitting Room','Kitchen','Utility Room','Back Door','Landing','Master Bedroom','Bedroom 2','Bedroom 3','Bedroom 4','Study','Office','Garage','Bifold Doors'];
 var SDP_ZONE_NUMBERS = (function(){ var a=[]; for(var i=1;i<=128;i++){ a.push(String(i)); } return a; })();
-var SDP_ZONE_TYPES = ['Entry/Exit','Entry Follow','Intruder','Instant Alarm','24hr/Panic','Tamper','Fire','Other'];
+var SDP_ZONE_TYPES = ['Entry/Exit','Entry Follow','Intruder','Part Set','24hr/Panic','Tamper','Fire','Other'];
 var SDP_SECURITY_GRADES = ['Grade 1','Grade 2','Grade 3','Grade 4'];
 var SDP_NOTIFICATION_OPTIONS = ['Option X - Bells only','Option B - Siren + Single link to ARC','Option C - Two links to ARC','Option D - Single link to ARC'];
 var SDP_DETECTOR_TYPES = ['Surface Door Contact','Flush Door Contact','Heavy Duty Door Contact','Roller Shutter Contact','PIR','Pet Friendly PIR','Dual Technology Detector','Pet Friendly Dual Technology Detector','360\u00b0 Motion Detector','Shock Detector','Combined Shock and Contact Detector','Beyond External Detector','Panic Button'];
+var SDP_DOOR_SHOCK_TYPES = ['Surface Door Contact','Flush Door Contact','Heavy Duty Door Contact','Roller Shutter Contact','Shock Detector','Combined Shock and Contact Detector'];
 var SDP_POSITIONS = ['Front Left','Front Right','Rear Left','Rear Right','Other'];
+var SDP_POSITIONS_DOOR = ['Front Left','Front Right','Rear Left','Rear Right','Top','Bottom','Other'];
 var SDP_MOUNTING_HEIGHTS = (function(){ var arr=[]; for(var hI=15; hI<=35; hI++){ arr.push((hI/10).toFixed(1)); } return arr; })();
 var SDP_PANEL_TYPES = ['LightSYS Plus','LightSYS Air','Risco Agility','Other'];
 var SDP_AUDIBLE_TYPES = ['External Sounder','Internal Sounder','Sounder/Strobe Combined','Other'];
+var SDP_AUDIBLE_LOCATIONS = ['Front Elevation','Rear Elevation','Left Side','Right Side','Other'];
 var SDP_KEYPAD_TYPES = ['Standard','Elegant','Panda'];
 var SDP_BATTERY_SIZES = ['2.3Ah','3.4Ah','7.0Ah','10Ah','17.2Ah','Other'];
 var SDP_CSL_TYPES = ['CSL DigiAir','CSL DigiAir Connected','CSL DualCom'];
@@ -2330,7 +2333,7 @@ var SDP_LEGISLATION = 'NOTE: Under the Clean Neighbourhoods and Environment Act 
 
 var SDP_CERTIFICATION = 'Upon completion of the installation a Security Systems and Alarm Inspection Board (SSAIB) Certificate of Compliance will be issued.';
 
-var SDP_MAINTENANCE_INTRO = 'The system detailed in this System Design Proposal will be maintained in accordance with DD CLC/TS 50131-7:2010 and BS 9263:2016. As a minimum, each maintenance visit will consist of a check of:';
+var SDP_MAINTENANCE_INTRO = 'The system detailed in this System Design Proposal will be maintained in accordance with DD CLC/TS 50131-7:2010 and BS 9263:2016.';
 var SDP_MAINTENANCE_CHECKLIST = ['Tamper Detection','Setting and Un-setting','Entry and Exit Procedures','Power Supplies and Circuits','Operation of Detectors','Operation of Warning Devices','Operation of ATE'];
 
 var SDP_MOVEMENT_NOTE = 'It should be recognised that movement detectors cannot provide complete coverage to all areas. In some instances coverage may extend beyond the stated area. Alteration of the position of objects within the area, or structural alterations, may cause significant changes in the area protected. It is therefore recommended that the detector is walk-tested periodically to ensure the required coverage is being obtained. Details of how to walk test movement detectors are contained in the control unit operating instructions.';
@@ -2680,18 +2683,35 @@ function reconstructChoice(saved, options){
   return { value: 'Other', other: saved };
 }
 
-function locationFieldHtml(idPrefix, i, label, value, otherValue){
-  var rooms = getSurveyRooms();
+function updatePositionOptions(i){
+  var detType = document.getElementById('dz-detectortype-'+i).value;
+  var posSelect = document.getElementById('dz-position-'+i);
+  if(!posSelect) return;
+  var currentVal = posSelect.value;
+  var options = SDP_DOOR_SHOCK_TYPES.indexOf(detType)!==-1 ? SDP_POSITIONS_DOOR : SDP_POSITIONS;
+  posSelect.innerHTML = options.map(function(ps){ return '<option value="'+ps+'"'+(ps===currentVal?' selected':'')+'>'+ps+'</option>'; }).join('');
+  if(options.indexOf(currentVal)===-1){ posSelect.value = options[0]; }
+  var otherWrap = document.getElementById('dz-position-other-wrap-'+i);
+  if(otherWrap) otherWrap.style.display = (posSelect.value==='Other'?'block':'none');
+}
+
+function locationFieldHtml(idPrefix, i, label, value, otherValue, optionsList){
+  var options = optionsList || getSurveyRooms();
   var html = '<div class="vs-field"><label>'+escapeAttr(label)+'</label><select id="'+idPrefix+'-'+i+'" onchange="document.getElementById(\''+idPrefix+'-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">';
-  html += rooms.map(function(r){ return '<option value="'+escapeAttr(r)+'" '+(value===r?'selected':'')+'>'+escapeAttr(r)+'</option>'; }).join('');
+  html += options.map(function(r){ return '<option value="'+escapeAttr(r)+'" '+(value===r?'selected':'')+'>'+escapeAttr(r)+'</option>'; }).join('');
   html += '<option value="Other" '+(value==='Other'?'selected':'')+'>Other</option>';
   html += '</select></div>';
   html += '<div id="'+idPrefix+'-other-wrap-'+i+'" style="display:'+(value==='Other'?'block':'none')+';" class="vs-field"><label>'+escapeAttr(label)+' (other)</label><input id="'+idPrefix+'-other-'+i+'" value="'+escapeAttr(otherValue||'')+'"></div>';
   return html;
 }
 
-function newDetectionZone(){ return { zoneNo:'1', zoneType:'Entry/Exit', detectorType:SDP_DETECTOR_TYPES[0], room:DEFAULT_SURVEY_ROOMS[0], roomOther:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' }; }
-function newAudibleDevice(){ return { type:SDP_AUDIBLE_TYPES[0], typeOther:'', location:DEFAULT_SURVEY_ROOMS[0], locationOther:'', qty:1, notes:'' }; }
+function newDetectionZone(isFirst){
+  if(isFirst===false){
+    return { zoneNo:'1', zoneType:'Intruder', detectorType:'PIR', room:DEFAULT_SURVEY_ROOMS[0], roomOther:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' };
+  }
+  return { zoneNo:'1', zoneType:'Entry/Exit', detectorType:SDP_DETECTOR_TYPES[0], room:DEFAULT_SURVEY_ROOMS[0], roomOther:'', position:'Front Left', positionOther:'', mountingHeight:'2.0', qty:1, notes:'' };
+}
+function newAudibleDevice(){ return { type:SDP_AUDIBLE_TYPES[0], typeOther:'', location:SDP_AUDIBLE_LOCATIONS[0], locationOther:'', qty:1, notes:'' }; }
 function newKeypad(){ return { type:SDP_KEYPAD_TYPES[0], location:DEFAULT_SURVEY_ROOMS[0], locationOther:'', qty:1, notes:'' }; }
 function newOtherItem(){ return { itemId:'', room:DEFAULT_SURVEY_ROOMS[0], roomOther:'', qty:1, notes:'' }; }
 
@@ -2715,7 +2735,7 @@ function renderSurveyForm(c){
       zoneExpanders: suggestedExpanders>0 ? String(suggestedExpanders) : '0', zoneExpandersOther:'',
       fusedSpurLocation:'', fusedSpurCustomerSupplied:'No',
       batterySize:'', batteryOther:'',
-      apsNeeded:'No', apsNumber:'0', apsLocation:'',
+      apsNeeded:'No', apsNumber:'0', apsLocation:'', apsBatterySize:'', apsBatteryOther:'',
       monitored:'No', cslType:SDP_CSL_TYPES[0], cslGrade:SDP_CSL_GRADES[0],
       maintenanceVisits:'1', repairBusinessHours:'01565 634211', repairOutOfHours:'01565 634211',
       notes:''
@@ -2745,6 +2765,8 @@ function renderSurveyForm(c){
     state.surveyDraft.apsNeeded = document.getElementById('sv-aps-needed').value;
     state.surveyDraft.apsNumber = document.getElementById('sv-aps-number').value;
     state.surveyDraft.apsLocation = document.getElementById('sv-aps-location').value;
+    state.surveyDraft.apsBatterySize = document.getElementById('sv-aps-battery').value;
+    state.surveyDraft.apsBatteryOther = document.getElementById('sv-aps-battery-other').value;
     state.surveyDraft.monitored = state.surveyDraft.notificationOption.indexOf('Option X')===0 ? 'No' : 'Yes';
     state.surveyDraft.cslType = document.getElementById('sv-cslterms') ? document.getElementById('sv-cslterms').value : state.surveyDraft.cslType;
     state.surveyDraft.cslGrade = document.getElementById('sv-cslgrade') ? document.getElementById('sv-cslgrade').value : state.surveyDraft.cslGrade;
@@ -2788,9 +2810,10 @@ function renderSurveyForm(c){
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Zone '+(i+1)+'</span>'+(state.surveyDetectionZones.length>1?'<button class="vs-btn small danger" onclick="VS.removeDetectionZone('+i+')">Remove</button>':'')+'</div>';
     html += '<div class="vs-field"><label>Zone No.</label><select id="dz-zoneno-'+i+'">'+SDP_ZONE_NUMBERS.map(function(n){ return '<option value="'+n+'" '+(p.zoneNo===n?'selected':'')+'>'+n+'</option>'; }).join('')+'</select></div>';
     html += '<div class="vs-field"><label>Zone type</label><select id="dz-zonetype-'+i+'">'+SDP_ZONE_TYPES.map(function(zt){ return '<option value="'+zt+'" '+(p.zoneType===zt?'selected':'')+'>'+zt+'</option>'; }).join('')+'</select></div>';
-    html += '<div class="vs-field"><label>Detector type</label><select id="dz-detectortype-'+i+'">'+SDP_DETECTOR_TYPES.map(function(dt){ return '<option value="'+escapeAttr(dt)+'" '+(p.detectorType===dt?'selected':'')+'>'+escapeAttr(dt)+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>Detector type</label><select id="dz-detectortype-'+i+'" onchange="updatePositionOptions('+i+')">'+SDP_DETECTOR_TYPES.map(function(dt){ return '<option value="'+escapeAttr(dt)+'" '+(p.detectorType===dt?'selected':'')+'>'+escapeAttr(dt)+'</option>'; }).join('')+'</select></div>';
     html += locationFieldHtml('dz-room', i, 'Room / area', p.room, p.roomOther);
-    html += '<div class="vs-field"><label>Position</label><select id="dz-position-'+i+'" onchange="document.getElementById(\'dz-position-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_POSITIONS.map(function(ps){ return '<option value="'+ps+'" '+(p.position===ps?'selected':'')+'>'+ps+'</option>'; }).join('')+'</select></div>';
+    var posOptions = SDP_DOOR_SHOCK_TYPES.indexOf(p.detectorType)!==-1 ? SDP_POSITIONS_DOOR : SDP_POSITIONS;
+    html += '<div class="vs-field"><label>Position</label><select id="dz-position-'+i+'" onchange="document.getElementById(\'dz-position-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+posOptions.map(function(ps){ return '<option value="'+ps+'" '+(p.position===ps?'selected':'')+'>'+ps+'</option>'; }).join('')+'</select></div>';
     html += '<div id="dz-position-other-wrap-'+i+'" style="display:'+(p.position==='Other'?'block':'none')+';" class="vs-field"><label>Position (other)</label><input id="dz-position-other-'+i+'" value="'+escapeAttr(p.positionOther||'')+'"></div>';
     html += '<div class="vs-field"><label>Mounting height</label><select id="dz-height-'+i+'">'+SDP_MOUNTING_HEIGHTS.map(function(h){ return '<option value="'+h+'" '+(p.mountingHeight===h?'selected':'')+'>'+h+'m</option>'; }).join('')+'</select></div>';
     html += '<div class="vs-field"><label>Notes (optional)</label><input id="dz-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
@@ -2825,8 +2848,10 @@ function renderSurveyForm(c){
   // ---- Additional Power Supply ----
   html += sectionHead('Additional Power Supply');
   html += '<div class="vs-field"><label>Additional power supply needed?</label><select id="sv-aps-needed"><option value="No" '+(d.apsNeeded==='No'?'selected':'')+'>No</option><option value="Yes" '+(d.apsNeeded==='Yes'?'selected':'')+'>Yes</option></select></div>';
-  html += '<div class="vs-field"><label>Number</label><input type="number" min="0" id="sv-aps-number" value="'+escapeAttr(d.apsNumber||'0')+'"></div>';
+  html += '<div class="vs-field"><label>Number</label><select id="sv-aps-number">'+(function(){ var o=''; for(var n=0;n<=16;n++){ o+='<option value="'+n+'" '+(d.apsNumber===String(n)?'selected':'')+'>'+n+'</option>'; } return o; })()+'</select></div>';
   html += '<div class="vs-field"><label>Location</label><input id="sv-aps-location" value="'+escapeAttr(d.apsLocation||'')+'"></div>';
+  html += '<div class="vs-field"><label>Battery size</label><select id="sv-aps-battery" onchange="document.getElementById(\'sv-aps-battery-other-wrap\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_BATTERY_SIZES.map(function(b){ return '<option value="'+b+'" '+(d.apsBatterySize===b?'selected':'')+'>'+b+'</option>'; }).join('')+'</select></div>';
+  html += '<div id="sv-aps-battery-other-wrap" style="display:'+(d.apsBatterySize==='Other'?'block':'none')+';" class="vs-field"><label>Battery size (other)</label><input id="sv-aps-battery-other" value="'+escapeAttr(d.apsBatteryOther||'')+'"></div>';
 
   // ---- Keypads ----
   html += sectionHead('Keypads');
@@ -2847,7 +2872,7 @@ function renderSurveyForm(c){
     html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Device '+(i+1)+'</span>'+(state.surveyAudibleDevices.length>1?'<button class="vs-btn small danger" onclick="VS.removeAudibleDevice('+i+')">Remove</button>':'')+'</div>';
     html += '<div class="vs-field"><label>Type</label><select id="ad-type-'+i+'" onchange="document.getElementById(\'ad-type-other-wrap-'+i+'\').style.display=(this.value===\'Other\'?\'block\':\'none\')">'+SDP_AUDIBLE_TYPES.map(function(at){ return '<option value="'+at+'" '+(p.type===at?'selected':'')+'>'+at+'</option>'; }).join('')+'</select></div>';
     html += '<div id="ad-type-other-wrap-'+i+'" style="display:'+(p.type==='Other'?'block':'none')+';" class="vs-field"><label>Type (other)</label><input id="ad-type-other-'+i+'" value="'+escapeAttr(p.typeOther||'')+'"></div>';
-    html += locationFieldHtml('ad-location', i, 'Location', p.location, p.locationOther);
+    html += locationFieldHtml('ad-location', i, 'Location', p.location, p.locationOther, SDP_AUDIBLE_LOCATIONS);
     html += '<div class="vs-field"><label>Notes (optional)</label><input id="ad-notes-'+i+'" value="'+escapeAttr(p.notes||'')+'"></div>';
     html += '</div>';
   });
@@ -2892,6 +2917,12 @@ function renderSurveySettings(c){
 }
 
 function gradeNumber(g){ var m = /\d+/.exec(g||''); return m ? m[0] : '2'; }
+function formatUKDate(d){
+  if(!d) return '-';
+  var parts = String(d).split('-');
+  if(parts.length!==3) return d;
+  return parts[2]+'/'+parts[1]+'/'+parts[0];
+}
 
 function generateSurveyPDF(sub){
   if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
@@ -2958,7 +2989,7 @@ function generateSurveyPDF(sub){
   }
   y += 2;
   doc.setFontSize(10);
-  line(null, 'Surveyor: '+(f.surveyor||'-')+'   Date: '+(f.date||'-'));
+  line(null, 'Surveyor: '+(f.surveyor||'-')+'   Date: '+formatUKDate(f.date));
 
   heading('Installation of an Intruder and/or Hold-Up Alarm System');
   para(SDP_INTRO);
@@ -3022,7 +3053,7 @@ function generateSurveyPDF(sub){
   line(null, 'Fused spur location: '+(f.fusedSpurLocation||'-')+' (customer supplied: '+(f.fusedSpurCustomerSupplied||'No')+')');
   line(null, 'Battery: '+(f.batterySize||'-'));
   if(f.apsNeeded==='Yes'){
-    line(null, 'Additional power supply: '+(f.apsNumber||'1')+' at '+(f.apsLocation||'-'));
+    line(null, 'Additional power supply: '+(f.apsNumber||'1')+' at '+(f.apsLocation||'-')+' \u2014 battery: '+(f.apsBatterySize||'-'));
   }
 
   var keypads = f.keypads||[];
@@ -3072,7 +3103,7 @@ function generateSurveyPDF(sub){
   heading('Maintenance');
   para(SDP_MAINTENANCE_INTRO);
   var visits = f.maintenanceVisits || '1';
-  para(visits+' maintenance visit'+(visits==='1'?'':'s')+' for the system quoted will be made per year. As a minimum the maintenance will consist of a check of:');
+  para(visits+' maintenance visit'+(visits==='1'?'':'s')+' for the system quoted will be made per year. As a minimum, each visit will consist of a check of:');
   SDP_MAINTENANCE_CHECKLIST.forEach(function(item){ bullet(item); });
 
   subheading('Repair');
@@ -3121,7 +3152,7 @@ function generateSurveyPDF(sub){
     y += 7;
   });
 
-  heading('Terms &amp; Conditions');
+  heading('Terms & Conditions');
   para(GENERAL_TERMS_INTRO);
   GENERAL_TERMS_SECTIONS.forEach(function(sec){ subheading(sec.heading); para(sec.body); });
   ensureSpace(12);
@@ -4838,7 +4869,7 @@ var VS = {
   addDetectionZone:function(){
     syncDetectionZonesFromDOM(); syncKeypadsFromDOM(); syncAudibleDevicesFromDOM(); syncOtherItemsFromDOM();
     var maxZone = state.surveyDetectionZones.reduce(function(max,p){ return Math.max(max, parseInt(p.zoneNo,10)||0); }, 0);
-    var nextZone = newDetectionZone();
+    var nextZone = newDetectionZone(false);
     if(maxZone>0 && maxZone<128) nextZone.zoneNo = String(maxZone+1);
     state.surveyDetectionZones.push(nextZone);
     renderSurveyForm(document.getElementById('vs-forms-content'));
@@ -4907,6 +4938,7 @@ var VS = {
       apsNeeded: document.getElementById('sv-aps-needed').value,
       apsNumber: document.getElementById('sv-aps-number').value.trim(),
       apsLocation: document.getElementById('sv-aps-location').value.trim(),
+      apsBatterySize: (function(){ var v=document.getElementById('sv-aps-battery').value; return v==='Other' ? (document.getElementById('sv-aps-battery-other').value.trim()||'Other') : v; })(),
       monitored: document.getElementById('sv-notification').value.indexOf('Option X')===0 ? 'No' : 'Yes',
       cslType: document.getElementById('sv-cslterms') ? document.getElementById('sv-cslterms').value : '',
       cslGrade: document.getElementById('sv-cslgrade') ? document.getElementById('sv-cslgrade').value : '',
@@ -4973,6 +5005,7 @@ var VS = {
 
     var panelChoice = reconstructChoice(f.panelType, SDP_PANEL_TYPES.filter(function(x){ return x!=='Other'; }));
     var batteryChoice = reconstructChoice(f.batterySize, SDP_BATTERY_SIZES.filter(function(x){ return x!=='Other'; }));
+    var apsBatteryChoice = reconstructChoice(f.apsBatterySize||'', SDP_BATTERY_SIZES.filter(function(x){ return x!=='Other'; }));
     var zoneExpChoice = reconstructChoice(f.zoneExpanders||'0', ['0','1','2','3','4','5','6','7','8']);
 
     state.surveyDraft = {
@@ -4985,13 +5018,15 @@ var VS = {
       fusedSpurLocation: f.fusedSpurLocation, fusedSpurCustomerSupplied: f.fusedSpurCustomerSupplied,
       batterySize: batteryChoice.value, batteryOther: batteryChoice.other,
       apsNeeded: f.apsNeeded||'No', apsNumber: f.apsNumber||'0', apsLocation: f.apsLocation||'',
+      apsBatterySize: apsBatteryChoice.value, apsBatteryOther: apsBatteryChoice.other,
       monitored: f.monitored||'No', cslType: f.cslType||SDP_CSL_TYPES[0], cslGrade: f.cslGrade||SDP_CSL_GRADES[0],
       maintenanceVisits: f.maintenanceVisits,
       notes: f.notes
     };
 
     state.surveyDetectionZones = (f.detectionZones||[]).map(function(p){
-      var posChoice = reconstructChoice(p.position, SDP_POSITIONS.filter(function(x){ return x!=='Other'; }));
+      var posList = SDP_DOOR_SHOCK_TYPES.indexOf(p.detectorType)!==-1 ? SDP_POSITIONS_DOOR : SDP_POSITIONS;
+      var posChoice = reconstructChoice(p.position, posList.filter(function(x){ return x!=='Other'; }));
       var roomChoice = reconstructChoice(p.room, getSurveyRooms());
       return {
         zoneNo:p.zoneNo, zoneType:p.zoneType, detectorType:p.detectorType,
@@ -5010,7 +5045,7 @@ var VS = {
 
     state.surveyAudibleDevices = (f.audibleDevices||[]).map(function(p){
       var typeChoice = reconstructChoice(p.type, SDP_AUDIBLE_TYPES.filter(function(x){ return x!=='Other'; }));
-      var locChoice = reconstructChoice(p.location, getSurveyRooms());
+      var locChoice = reconstructChoice(p.location, SDP_AUDIBLE_LOCATIONS.filter(function(x){ return x!=='Other'; }));
       return { type:typeChoice.value, typeOther:typeChoice.other, location:locChoice.value, locationOther:locChoice.other, qty:1, notes:p.notes };
     });
     if(state.surveyAudibleDevices.length===0) state.surveyAudibleDevices = [newAudibleDevice()];
