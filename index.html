@@ -3248,6 +3248,7 @@ function formSubmissionRowHtml(s){
   if(!noSyncType && s.syncStatus==='failed'){
     html += '<button class="vs-btn small" onclick="VS.retryFormSync(\''+s.id+'\')">Retry sync</button>';
   }
+  html += '<button class="vs-btn small danger" onclick="VS.deleteFormSubmission(\''+s.id+'\')">Delete</button>';
   html += '</div>';
   return html;
 }
@@ -5233,6 +5234,15 @@ var VS = {
   retryFormSync:function(id){
     toast('Retrying\u2026');
     this.syncFormSubmission(id);
+  },
+  deleteFormSubmission:function(id){
+    var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
+    if(!sub) return;
+    if(!confirm('Delete this report? This can\u2019t be undone.')) return;
+    state.formSubmissions = state.formSubmissions.filter(function(s){ return s.id!==id; });
+    saveFormSubmissions();
+    toast('Deleted');
+    renderFormsScreen();
   },
   downloadReportPDF:function(id){
     var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
