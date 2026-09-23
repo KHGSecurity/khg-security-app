@@ -501,7 +501,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'' }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -910,6 +910,7 @@ function renderStockFilterBar(){
   return '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">'+
     '<input id="stock-search" value="'+escapeAttr(state.stockFilter.q)+'" placeholder="Search stock\u2026" oninput="VS.setStockSearch(this.value)" style="flex:1;min-width:140px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-size:14px;font-family:\'Inter\';">'+
     '<select onchange="VS.setStockCategory(this.value)" style="background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-size:13px;font-family:\'Inter\';">'+opts+'</select>'+
+    '<button class="vs-btn small'+(state.stockFilter.lowOnly?' primary':'')+'" onclick="VS.toggleLowStockOnly()">'+(state.stockFilter.lowOnly?'Showing low stock only':'Show low stock only')+'</button>'+
   '</div>';
 }
 
@@ -1470,9 +1471,10 @@ function renderVan(c){
   state.catalog.items.forEach(function(it){
     if(!itemAppliesTo(it,'van')) return;
     if(!itemMatchesFilter(it)) return;
-    shown++;
     var qty = (state.stock.van[eng.id]||{})[it.id]||0;
     var status = statusFor(qty, it.vanPar);
+    if(state.stockFilter.lowOnly && status==='ok') return;
+    shown++;
     html += '<div class="vs-item-row '+status+'">'+
       '<div class="vs-item-info"><div class="vs-item-name">'+escapeAttr(it.name)+
         (status!=='ok' ? '<span class="vs-stock-badge '+status+'">'+status.toUpperCase()+'</span>' : '')+
@@ -1501,9 +1503,10 @@ function renderWarehouse(c){
   state.catalog.items.forEach(function(it){
     if(!itemAppliesTo(it,'warehouse')) return;
     if(!itemMatchesFilter(it)) return;
-    shown++;
     var qty = state.stock.warehouse[it.id]||0;
     var status = statusFor(qty, it.whPar);
+    if(state.stockFilter.lowOnly && status==='ok') return;
+    shown++;
     html += '<div class="vs-item-row '+status+'">'+
       '<div class="vs-item-info"><div class="vs-item-name">'+escapeAttr(it.name)+
         (status!=='ok' ? '<span class="vs-stock-badge '+status+'">'+status.toUpperCase()+'</span>' : '')+
@@ -5537,6 +5540,7 @@ var VS = {
   setTab:function(t){ state.tab=t; render(); },
   setStockSearch:function(v){ state.stockFilter.q = v; render(); },
   setStockCategory:function(v){ state.stockFilter.cat = v; render(); },
+  toggleLowStockOnly:function(){ state.stockFilter.lowOnly = !state.stockFilter.lowOnly; render(); },
   setVan:function(id){
     if(!visibleVanHolders().some(function(e){ return e.id===id; })) return;
     state.activeVan=id; render();
