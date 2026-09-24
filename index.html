@@ -530,7 +530,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu', feedback:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu', feedback:null, hrDocuments:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -543,7 +543,7 @@ var HOME_TILES = [
   { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
   { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
-  { key:'hr', label:'HR', sub:'', onclick:'VS.enterHR()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' },
+  { key:'hr', label:'HR', sub:'', onclick:'VS.enterHR()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>', badgeFn: hrSectionBadgeCount },
   { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', fullWidth:true }
 ];
 
@@ -692,6 +692,14 @@ function overtimePendingCount(){
 function leaveRotaSectionBadgeCount(){
   if(!state.leaveRequests || !state.swapRequests || !state.overtime) return 0;
   return myLeaveUnseenCount() + mySwapUnseenCount() + myOvertimeUnseenCount() + leaveApprovalsPendingCount() + overtimePendingCount();
+}
+
+function feedbackUnreadCount(){
+  if(!isAdminPerson(currentPerson())) return 0;
+  return (state.feedback||[]).filter(function(f){ return !f.read; }).length;
+}
+function hrSectionBadgeCount(){
+  return feedbackUnreadCount();
 }
 
 function currentScreenLabel(){
@@ -1128,7 +1136,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false, overtime:false, feedback:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false, overtime:false, feedback:false, hrDocuments:false };
 
 function startLiveSync(){
   if(!db){
@@ -1212,6 +1220,11 @@ function startLiveSync(){
     liveLoaded.feedback = true;
     onSharedUpdate('feedback');
   });
+  subscribeShared('hr-documents', function(value, exists){
+    state.hrDocuments = exists ? JSON.parse(value) : [];
+    liveLoaded.hrDocuments = true;
+    onSharedUpdate('hrDocuments');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -1236,7 +1249,7 @@ var TAB_DEPENDS_ON = {
 };
 
 function allCoreLoaded(){
-  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps && liveLoaded.pushSubs && liveLoaded.overtime && liveLoaded.feedback;
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps && liveLoaded.pushSubs && liveLoaded.overtime && liveLoaded.feedback && liveLoaded.hrDocuments;
 }
 
 function onSharedUpdate(changedKey){
@@ -1251,7 +1264,8 @@ function onSharedUpdate(changedKey){
     if(state.authResolved && state.currentUser){ checkStillAuthorized(); }
     if(!state.currentUser){ var w = document.getElementById('vs-setup-wrap'); if(w && w.style.display==='flex') renderSetupScreen(); }
   }
-  if(appView==='home' && ['catalog','leave','swaps','overtime'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
+  if(appView==='home' && ['catalog','leave','swaps','overtime','feedback'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
+  if(appView==='hr' && ['catalog','feedback','hrDocuments'].indexOf(changedKey)!==-1){ renderHRScreen(); }
   if(appView==='home' && ['catalog','stock','leave','swaps','overtime'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
   else if(state.currentUser && ['catalog','stock','leave','swaps','overtime'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
   if(appView==='leave' && ['catalog','leave','rota','swaps','overtime'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
@@ -1334,6 +1348,11 @@ function saveOvertime(){
 function saveFeedback(){
   trackSave(function(){
     return storageSet('feedback', JSON.stringify(state.feedback), true);
+  });
+}
+function saveHRDocuments(){
+  trackSave(function(){
+    return storageSet('hr-documents', JSON.stringify(state.hrDocuments), true);
   });
 }
 function savePushSubscriptions(){
@@ -1744,12 +1763,15 @@ function renderHRScreen(){
   var c = document.getElementById('vs-hr-content');
   if(!c || !state.catalog) return;
   if(state.hrTab==='team') return renderHRTeam(c);
+  if(state.hrTab==='feedback' && isAdminPerson(currentPerson())) return renderHRFeedback(c);
+  if(state.hrTab==='documents') return renderHRDocuments(c);
   return renderHRMenu(c);
 }
 
 function renderHRMenu(c){
   var me = currentPerson();
   var admin = isAdminPerson(me) || noAdminYet();
+  var canManageDocs = admin || (me && me.hrDocsManager);
   var html = '<div class="vs-home-grid">';
   if(admin){
     html += '<button class="vs-home-tile" onclick="VS.setHRTab(\'team\')">'+
@@ -1757,12 +1779,86 @@ function renderHRMenu(c){
       '<span class="vs-home-tile-label">Team</span>'+
       '<span class="vs-home-tile-sub">People, access &amp; leave allowance</span>'+
     '</button>';
+    var unread = feedbackUnreadCount();
+    html += '<button class="vs-home-tile" onclick="VS.setHRTab(\'feedback\')">'+
+      (unread>0 ? '<span class="vs-tile-badge">'+unread+'</span>' : '')+
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>'+
+      '<span class="vs-home-tile-label">Feedback</span>'+
+      '<span class="vs-home-tile-sub">Feature requests &amp; comments</span>'+
+    '</button>';
   }
+  html += '<button class="vs-home-tile" onclick="VS.setHRTab(\'documents\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/></svg>'+
+    '<span class="vs-home-tile-label">Documents</span>'+
+    '<span class="vs-home-tile-sub">'+(canManageDocs?'Upload &amp; manage policies':'Your policies &amp; documents')+'</span>'+
+  '</button>';
   html += '</div>';
-  if(!admin){
-    html += '<div class="vs-empty">Nothing here for you right now. Overtime has moved to Leave &amp; Rota.</div>';
+  c.innerHTML = html;
+}
+
+function renderHRDocuments(c){
+  var me = currentPerson();
+  if(!state.hrDocuments) state.hrDocuments = [];
+  var canManage = isAdminPerson(me) || (me && me.hrDocsManager);
+  var html = hrBackLink();
+
+  if(canManage){
+    html += sectionHead('Upload document');
+    html += '<div class="vs-field"><label>Title</label><input id="hrdoc-title" placeholder="e.g. Employment Contract"></div>';
+    html += '<div class="vs-field"><label>Visibility</label><select id="hrdoc-visibility" onchange="document.getElementById(\'hrdoc-assignee-wrap\').style.display=(this.value===\'private\'?\'block\':\'none\')"><option value="private" selected>Private \u2014 one person only</option><option value="public">Public \u2014 everyone can see it</option></select></div>';
+    html += '<div id="hrdoc-assignee-wrap" class="vs-field"><label>Assign to</label><select id="hrdoc-assignee">'+state.catalog.engineers.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+'</select></div>';
+    html += '<div class="vs-field"><label>File</label><input type="file" id="hrdoc-file"></div>';
+    html += '<p style="font-size:11px;color:var(--muted-2);margin:-6px 0 12px 0;">Keep files under about 700KB \u2014 documents are stored directly in the app\u2019s database rather than separate file storage, so very large scanned PDFs won\u2019t fit.</p>';
+    html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitHRDoc()">Upload</button>';
+  }
+
+  html += sectionHead(canManage ? 'All documents' : 'My documents');
+  var visible = state.hrDocuments.filter(function(d){
+    if(canManage) return true;
+    if(d.visibility==='public') return true;
+    return d.visibility==='private' && me && d.assignedToId===me.id;
+  }).slice().reverse();
+
+  if(visible.length===0){
+    html += '<div class="vs-empty">No documents yet.</div>';
+  } else {
+    html += '<div class="vs-cards">'+visible.map(function(d){
+      var assigneeName = '';
+      if(d.visibility==='private'){ var p = engById(d.assignedToId); assigneeName = p?p.name:'Unknown'; }
+      var badgeText = d.visibility==='public' ? 'PUBLIC' : ('PRIVATE'+(canManage?': '+escapeAttr(assigneeName):''));
+      return '<div class="vs-item-row"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+escapeAttr(d.title)+'<span class="vs-stock-badge '+(d.visibility==='public'?'ok':'low')+'">'+badgeText+'</span></div>'+
+        '<div class="vs-item-meta">'+escapeAttr(d.fileName)+' \u00b7 Uploaded by '+escapeAttr(d.uploadedBy)+' \u00b7 '+new Date(d.uploadedAt).toLocaleDateString()+'</div>'+
+      '</div></div>'+
+      '<div style="display:flex;gap:8px;margin:8px 0 16px 0;">'+
+        '<button class="vs-btn small primary" onclick="VS.downloadHRDoc(\''+d.id+'\')">Download</button>'+
+        (canManage?'<button class="vs-btn small danger" onclick="VS.deleteHRDoc(\''+d.id+'\')">Delete</button>':'')+
+      '</div>';
+    }).join('')+'</div>';
   }
   c.innerHTML = html;
+}
+
+function renderHRFeedback(c){
+  var html = hrBackLink();
+  html += sectionHead('Feedback &amp; Feature Requests');
+  var items = (state.feedback||[]).slice().reverse();
+  if(items.length===0){
+    html += '<div class="vs-empty">No feedback submitted yet.</div>';
+  } else {
+    html += '<div class="vs-cards">'+items.map(function(f){
+      return '<div class="vs-item-row'+(f.read?'':' low')+'"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+escapeAttr(f.personName)+(f.read?'':'<span class="vs-stock-badge low">NEW</span>')+'</div>'+
+        '<div class="vs-item-meta">'+escapeAttr(f.screen)+' \u00b7 '+new Date(f.submittedAt).toLocaleString()+'</div>'+
+        '<div class="vs-item-meta">'+escapeAttr(f.text)+'</div>'+
+      '</div></div>'+
+      '<div style="margin:8px 0 16px 0;"><button class="vs-btn small danger" onclick="VS.deleteFeedback(\''+f.id+'\')">Delete</button></div>';
+    }).join('')+'</div>';
+  }
+  c.innerHTML = html;
+  var changed = false;
+  (state.feedback||[]).forEach(function(f){ if(!f.read){ f.read = true; changed = true; } });
+  if(changed) saveFeedback();
 }
 
 function renderHRTeam(c){
@@ -1796,6 +1892,7 @@ function renderHRTeam(c){
       '<input value="'+escapeAttr(e.servicem8Name||'')+'" placeholder="ServiceM8 name" title="Their exact full name as it appears in ServiceM8" style="width:150px;flex:none;" onchange="VS.setPersonServiceM8Name(\''+e.id+'\',this.value)">'+
       '<input value="'+escapeAttr(e.registration||'')+'" placeholder="Van reg" title="Vehicle registration" style="width:90px;flex:none;" onchange="VS.setPersonRegistration(\''+e.id+'\',this.value)">'+
       '<input type="number" min="0" step="0.5" value="'+(e.leaveAllowanceDays!=null?e.leaveAllowanceDays:25)+'" placeholder="Leave days" title="Annual leave allowance (days)" style="width:70px;flex:none;" onchange="VS.setPersonLeaveAllowance(\''+e.id+'\',this.value)">'+
+      '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;"><input type="checkbox" '+(e.hrDocsManager?'checked':'')+' onchange="VS.setPersonHRDocsManager(\''+e.id+'\',this.checked)" style="width:auto;">HR Docs</label>'+
       '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;"><input type="checkbox" '+(isAdminPerson(e)?'checked':'')+' onchange="VS.setPersonAdmin(\''+e.id+'\',this.checked)" style="width:auto;">Admin</label>'+
       '<button class="vs-btn small danger" onclick="VS.removePerson(\''+e.id+'\')">Remove</button>'+
     '</div>';
@@ -5016,13 +5113,66 @@ var VS = {
     if(!state.feedback) state.feedback = [];
     state.feedback.push({
       id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
-      screen: screen, text: text, submittedAt: new Date().toISOString()
+      screen: screen, text: text, read: false, submittedAt: new Date().toISOString()
     });
     saveFeedback();
     var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
     sendPushNotification(adminIds, 'Feedback submitted', (me?me.name:'Someone')+' on '+screen+': '+text.slice(0,80));
     closeModal();
     toast('Thanks \u2014 sent to admin');
+  },
+  deleteFeedback:function(id){
+    if(!confirm('Delete this feedback?')) return;
+    state.feedback = (state.feedback||[]).filter(function(f){ return f.id!==id; });
+    saveFeedback();
+    renderHRScreen();
+    toast('Deleted');
+  },
+  submitHRDoc:function(){
+    var title = document.getElementById('hrdoc-title').value.trim();
+    if(!title){ toast('Enter a title'); return; }
+    var visibility = document.getElementById('hrdoc-visibility').value;
+    var assignedToId = visibility==='private' ? document.getElementById('hrdoc-assignee').value : null;
+    if(visibility==='private' && !assignedToId){ toast('Choose who this is for'); return; }
+    var fileInput = document.getElementById('hrdoc-file');
+    var file = fileInput.files[0];
+    if(!file){ toast('Choose a file'); return; }
+    if(file.size > 750000){ toast('That file is too large \u2014 keep it under about 700KB'); return; }
+    var me = currentPerson();
+    var reader = new FileReader();
+    reader.onload = function(){
+      if(!state.hrDocuments) state.hrDocuments = [];
+      state.hrDocuments.push({
+        id: uid(), title: title, visibility: visibility, assignedToId: assignedToId,
+        fileName: file.name, fileData: reader.result,
+        uploadedBy: me?me.name:'Unknown', uploadedById: me?me.id:null, uploadedAt: new Date().toISOString()
+      });
+      saveHRDocuments();
+      toast('Document uploaded');
+      renderHRScreen();
+      if(visibility==='private' && assignedToId){
+        sendPushNotification([assignedToId], 'New document', title+' has been added for you in HR');
+      }
+    };
+    reader.onerror = function(){ toast('Could not read that file'); };
+    reader.readAsDataURL(file);
+  },
+  downloadHRDoc:function(id){
+    var d = (state.hrDocuments||[]).filter(function(x){ return x.id===id; })[0];
+    if(!d) return;
+    var a = document.createElement('a');
+    a.href = d.fileData;
+    a.download = d.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  },
+  deleteHRDoc:function(id){
+    if(!confirm('Delete this document?')) return;
+    state.hrDocuments = (state.hrDocuments||[]).filter(function(d){ return d.id!==id; });
+    saveHRDocuments();
+    renderHRScreen();
+    toast('Deleted');
   },
   setHRTab:function(t){ state.hrTab=t; renderHRScreen(); },
   submitOvertime:function(){
@@ -6296,6 +6446,12 @@ var VS = {
   setPersonLeaveAllowance:function(id, days){
     var e = engById(id); if(!e) return;
     e.leaveAllowanceDays = Math.max(0, parseFloat(days)||0);
+    saveCatalog(); renderHRScreen();
+    toast('Saved');
+  },
+  setPersonHRDocsManager:function(id, checked){
+    var e = engById(id); if(!e) return;
+    e.hrDocsManager = !!checked;
     saveCatalog(); renderHRScreen();
     toast('Saved');
   },
