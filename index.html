@@ -198,6 +198,11 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
 .vs-manual-info{ min-width:0; }
 .vs-manual-name{ font-weight:600; font-size:14px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vs-manual-meta{ font-size:11.5px; color:var(--muted-2); margin-top:2px; }
+.vs-date-chip{
+  aspect-ratio:1; border-radius:6px; border:1px solid var(--line); background:var(--panel-2); color:var(--text);
+  font-size:12px; font-family:'Inter'; cursor:pointer;
+}
+.vs-date-chip.selected{ background:var(--accent); border-color:var(--accent); color:var(--bg); font-weight:700; }
 .vs-rota-day{
   aspect-ratio:1; background:var(--panel); border:1px solid var(--line); border-radius:6px; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:2px; cursor:pointer; color:var(--text); font-family:'Inter'; padding:2px; min-width:0;
@@ -454,6 +459,20 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   <main id="vs-followups-content"></main>
 </div>
 
+<div id="vs-hr-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
+        <h1>HR</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+    </div>
+    <div class="vs-who-badge" id="vs-hr-who-badge"></div>
+  </div>
+  <main id="vs-hr-content"></main>
+</div>
+
 <div id="vs-modal-root"></div>
 
 
@@ -501,7 +520,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu' };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -514,7 +533,7 @@ var HOME_TILES = [
   { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
   { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
-  { key:'hr', label:'HR', sub:'', onclick:"VS.openPlaceholder('HR')", icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' },
+  { key:'hr', label:'HR', sub:'', onclick:'VS.enterHR()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>' },
   { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', fullWidth:true }
 ];
 
@@ -553,7 +572,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap','vs-hr-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -574,6 +593,7 @@ function enterJobs(){ appView = 'jobs'; refreshAppScreen(); }
 function enterForms(){ appView = 'forms'; refreshAppScreen(); }
 function enterVehicles(){ appView = 'vehicles'; refreshAppScreen(); }
 function enterFollowUps(){ appView = 'followups'; refreshAppScreen(); }
+function enterHR(){ appView = 'hr'; refreshAppScreen(); }
 
 // Decides what's on screen right now: connecting, first-run setup, the PIN
 // gate, or (once logged in) whichever app view is currently active.
@@ -617,6 +637,9 @@ function refreshAppScreen(){
   } else if(appView==='followups'){
     document.getElementById('vs-followups-wrap').style.display = 'block';
     renderFollowUpsScreen();
+  } else if(appView==='hr'){
+    document.getElementById('vs-hr-wrap').style.display = 'block';
+    renderHRScreen();
   } else if(appView==='placeholder'){
     document.getElementById('vs-placeholder-wrap').style.display = 'flex';
   } else {
@@ -886,7 +909,7 @@ function renderWhoBadge(){
     '<div class="vs-welcome-title">Welcome '+escapeAttr(p.name)+'</div>'+
     '<div class="vs-welcome-sub">Not '+escapeAttr(p.name)+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -1029,7 +1052,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false, overtime:false };
 
 function startLiveSync(){
   if(!db){
@@ -1103,6 +1126,11 @@ function startLiveSync(){
     liveLoaded.pushSubs = true;
     onSharedUpdate('pushSubs');
   });
+  subscribeShared('overtime', function(value, exists){
+    state.overtime = exists ? JSON.parse(value) : [];
+    liveLoaded.overtime = true;
+    onSharedUpdate('overtime');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -1127,7 +1155,7 @@ var TAB_DEPENDS_ON = {
 };
 
 function allCoreLoaded(){
-  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps && liveLoaded.pushSubs;
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps && liveLoaded.pushSubs && liveLoaded.overtime;
 }
 
 function onSharedUpdate(changedKey){
@@ -1215,6 +1243,11 @@ function saveVehicleChecks(){
 function saveFollowUps(){
   trackSave(function(){
     return storageSet('follow-ups', JSON.stringify(state.followUps), true);
+  });
+}
+function saveOvertime(){
+  trackSave(function(){
+    return storageSet('overtime', JSON.stringify(state.overtime), true);
   });
 }
 function savePushSubscriptions(){
@@ -1548,41 +1581,7 @@ function renderItems(c){
 
   if(bootstrap){
     html += '<div class="vs-empty" style="background:var(--panel);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;text-align:left;margin-bottom:16px;color:var(--text);">'+
-      '<b style="color:var(--amber);">No one is set as admin yet.</b> Everyone can currently edit everything below. Tick "Admin" next to your own name in Team to lock this down properly.</div>';
-  }
-
-  if(admin){
-    html += sectionHead('Team', '<button class="vs-btn small primary" onclick="VS.openAddPerson()">+ Add team member</button>');
-    html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 14px;margin-bottom:8px;">';
-    state.catalog.engineers.forEach(function(e){
-      var hv = personHasVan(e);
-      html += '<div class="vs-team-row" style="flex-wrap:wrap;">'+
-        '<input value="'+escapeAttr(e.name)+'" onchange="VS.renameEngineer(\''+e.id+'\',this.value)" style="flex:1 1 100%;">'+
-        '<select onchange="VS.setPersonRole(\''+e.id+'\',this.value)">'+
-          '<option value="van" '+(hv?'selected':'')+'>Engineer (van)</option>'+
-          '<option value="office" '+(!hv?'selected':'')+'>Office / Stores</option>'+
-        '</select>'+
-        '<input value="'+escapeAttr(e.pin||'')+'" placeholder="PIN" style="width:60px;flex:none;" onchange="VS.setPersonPinLive(\''+e.id+'\',this.value)">'+
-        '<input value="'+escapeAttr(e.code||'')+'" placeholder="Code" title="Short code for the callout rota (e.g. RR)" style="width:60px;flex:none;" onchange="VS.setPersonCode(\''+e.id+'\',this.value)">'+
-        '<input value="'+escapeAttr(e.servicem8Name||'')+'" placeholder="ServiceM8 name" title="Their exact full name as it appears in ServiceM8" style="width:150px;flex:none;" onchange="VS.setPersonServiceM8Name(\''+e.id+'\',this.value)">'+
-        '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;"><input type="checkbox" '+(isAdminPerson(e)?'checked':'')+' onchange="VS.setPersonAdmin(\''+e.id+'\',this.checked)" style="width:auto;">Admin</label>'+
-        '<button class="vs-btn small danger" onclick="VS.removePerson(\''+e.id+'\')">Remove</button>'+
-      '</div>';
-    });
-    html += '</div>';
-
-    html += sectionHead('Section Access', '');
-    html += '<p style="font-size:12px;color:var(--muted);margin:0 0 10px 0;">Choose which Home screen sections each person can see. Admins always see everything, regardless of these settings.</p>';
-    state.catalog.engineers.filter(function(e){ return !isAdminPerson(e); }).forEach(function(e){
-      html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px;">'+
-        '<div style="font-family:\'Archivo\';font-weight:800;font-size:13.5px;margin-bottom:8px;">'+escapeAttr(e.name)+'</div>'+
-        '<div style="display:flex;flex-wrap:wrap;gap:12px;">'+
-        HOME_TILES.map(function(t){
-          var checked = personCanSeeSection(e, t.key);
-          return '<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text);white-space:nowrap;"><input type="checkbox" '+(checked?'checked':'')+' onchange="VS.toggleSectionAccess(\''+e.id+'\',\''+t.key+'\',this.checked)" style="width:auto;">'+t.label+'</label>';
-        }).join('')+
-        '</div></div>';
-    });
+      '<b style="color:var(--amber);">No one is set as admin yet.</b> Everyone can currently edit everything below. Go to HR \u2192 Team and tick "Admin" next to your own name to lock this down properly.</div>';
   }
 
   html += sectionHead('Item catalog', '<button class="vs-btn small primary" onclick="VS.openAddItem()">+ Add item</button>');
@@ -1648,6 +1647,125 @@ function setContentPreservingFocus(c, html, inputId){
   }
 }
 
+// ---------- HR ----------
+
+function hrBackLink(){
+  return '<button class="vs-back-link" onclick="VS.setHRTab(\'menu\')" style="margin-bottom:16px;">&larr; HR</button>';
+}
+
+function renderHRScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-hr-content');
+  if(!c || !state.catalog) return;
+  if(state.hrTab==='team') return renderHRTeam(c);
+  if(state.hrTab==='overtime') return renderHROvertime(c);
+  return renderHRMenu(c);
+}
+
+function renderHRMenu(c){
+  var me = currentPerson();
+  var admin = isAdminPerson(me) || noAdminYet();
+  var html = '<div class="vs-home-grid">';
+  if(admin){
+    html += '<button class="vs-home-tile" onclick="VS.setHRTab(\'team\')">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/></svg>'+
+      '<span class="vs-home-tile-label">Team</span>'+
+      '<span class="vs-home-tile-sub">People, access &amp; leave allowance</span>'+
+    '</button>';
+  }
+  html += '<button class="vs-home-tile" onclick="VS.setHRTab(\'overtime\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>'+
+    '<span class="vs-home-tile-label">Overtime</span>'+
+    '<span class="vs-home-tile-sub">Submit and view overtime</span>'+
+  '</button>';
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+function renderHRTeam(c){
+  var me = currentPerson();
+  var bootstrap = noAdminYet();
+  var admin = isAdminPerson(me) || bootstrap;
+  var html = hrBackLink();
+
+  if(bootstrap){
+    html += '<div class="vs-empty" style="background:var(--panel);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;text-align:left;margin-bottom:16px;color:var(--text);">'+
+      '<b style="color:var(--amber);">No one is set as admin yet.</b> Everyone can currently edit everything below. Tick "Admin" next to your own name to lock this down properly.</div>';
+  }
+  if(!admin){
+    html += '<div class="vs-empty">Only admins can manage the team.</div>';
+    c.innerHTML = html;
+    return;
+  }
+
+  html += sectionHead('Team', '<button class="vs-btn small primary" onclick="VS.openAddPerson()">+ Add team member</button>');
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 14px;margin-bottom:8px;">';
+  state.catalog.engineers.forEach(function(e){
+    var hv = personHasVan(e);
+    html += '<div class="vs-team-row" style="flex-wrap:wrap;">'+
+      '<input value="'+escapeAttr(e.name)+'" onchange="VS.renameEngineer(\''+e.id+'\',this.value)" style="flex:1 1 100%;">'+
+      '<select onchange="VS.setPersonRole(\''+e.id+'\',this.value)">'+
+        '<option value="van" '+(hv?'selected':'')+'>Engineer (van)</option>'+
+        '<option value="office" '+(!hv?'selected':'')+'>Office / Stores</option>'+
+      '</select>'+
+      '<input value="'+escapeAttr(e.pin||'')+'" placeholder="PIN" style="width:60px;flex:none;" onchange="VS.setPersonPinLive(\''+e.id+'\',this.value)">'+
+      '<input value="'+escapeAttr(e.code||'')+'" placeholder="Code" title="Short code for the callout rota (e.g. RR)" style="width:60px;flex:none;" onchange="VS.setPersonCode(\''+e.id+'\',this.value)">'+
+      '<input value="'+escapeAttr(e.servicem8Name||'')+'" placeholder="ServiceM8 name" title="Their exact full name as it appears in ServiceM8" style="width:150px;flex:none;" onchange="VS.setPersonServiceM8Name(\''+e.id+'\',this.value)">'+
+      '<input value="'+escapeAttr(e.registration||'')+'" placeholder="Van reg" title="Vehicle registration" style="width:90px;flex:none;" onchange="VS.setPersonRegistration(\''+e.id+'\',this.value)">'+
+      '<input type="number" min="0" step="0.5" value="'+(e.leaveAllowanceDays!=null?e.leaveAllowanceDays:25)+'" placeholder="Leave days" title="Annual leave allowance (days)" style="width:70px;flex:none;" onchange="VS.setPersonLeaveAllowance(\''+e.id+'\',this.value)">'+
+      '<label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap;"><input type="checkbox" '+(isAdminPerson(e)?'checked':'')+' onchange="VS.setPersonAdmin(\''+e.id+'\',this.checked)" style="width:auto;">Admin</label>'+
+      '<button class="vs-btn small danger" onclick="VS.removePerson(\''+e.id+'\')">Remove</button>'+
+    '</div>';
+  });
+  html += '</div>';
+  html += '<p style="font-size:11px;color:var(--muted-2);margin:0 0 16px 0;">Leave days = annual allowance used for the days taken/left summary. Van reg links this person to their vehicle in the Vehicles section.</p>';
+
+  html += sectionHead('Section Access', '');
+  html += '<p style="font-size:12px;color:var(--muted);margin:0 0 10px 0;">Choose which Home screen sections each person can see. Admins always see everything, regardless of these settings.</p>';
+  state.catalog.engineers.filter(function(e){ return !isAdminPerson(e); }).forEach(function(e){
+    html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:8px;">'+
+      '<div style="font-family:\'Archivo\';font-weight:800;font-size:13.5px;margin-bottom:8px;">'+escapeAttr(e.name)+'</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:12px;">'+
+      HOME_TILES.map(function(t){
+        var checked = personCanSeeSection(e, t.key);
+        return '<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--text);white-space:nowrap;"><input type="checkbox" '+(checked?'checked':'')+' onchange="VS.toggleSectionAccess(\''+e.id+'\',\''+t.key+'\',this.checked)" style="width:auto;">'+t.label+'</label>';
+      }).join('')+
+      '</div></div>';
+  });
+  c.innerHTML = html;
+}
+
+var OVERTIME_HOURS_OPTIONS = (function(){ var a=[]; for(var h=0.5; h<=12; h+=0.5){ a.push(h.toFixed(1)); } return a; })();
+
+function renderHROvertime(c){
+  var me = currentPerson();
+  var admin = isAdminPerson(me);
+  var html = hrBackLink();
+  html += sectionHead('Submit overtime');
+  html += '<div class="vs-field"><label>Date</label><input type="date" id="ot-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
+  html += '<div class="vs-field"><label>Hours</label><select id="ot-hours">'+OVERTIME_HOURS_OPTIONS.map(function(h){ return '<option value="'+h+'">'+h+'</option>'; }).join('')+'</select></div>';
+  html += '<div class="vs-field"><label>Where</label><input id="ot-location" placeholder="Site / job"></div>';
+  html += '<div class="vs-field"><label>Work carried out</label><textarea id="ot-work" rows="3"></textarea></div>';
+  html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitOvertime()">Submit</button>';
+
+  var mine = (state.overtime||[]).filter(function(o){ return o.personId===me.id; }).slice().reverse();
+  html += sectionHead(admin ? 'All overtime' : 'My overtime');
+  var list = admin ? (state.overtime||[]).slice().reverse() : mine;
+  if(list.length===0){
+    html += '<div class="vs-empty">No overtime submitted yet.</div>';
+  } else {
+    html += '<div class="vs-cards">'+list.map(function(o){
+      return '<div class="vs-item-row"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+(admin?escapeAttr(o.personName)+' \u2014 ':'')+fmtLeaveDate(o.date)+'<span class="vs-stock-badge ok">'+o.hours+'h</span></div>'+
+        '<div class="vs-item-meta">'+escapeAttr(o.location)+'</div>'+
+        '<div class="vs-item-meta">'+escapeAttr(o.work)+'</div>'+
+      '</div></div>'+
+      (admin?'<div style="margin:8px 0 16px 0;"><button class="vs-btn small danger" onclick="VS.deleteOvertime(\''+o.id+'\')">Delete</button></div>':'');
+    }).join('')+'</div>';
+  }
+  c.innerHTML = html;
+}
+
 // ---------- Leave, Callout Rota, and Swap requests ----------
 
 var rotaViewMonth = new Date();
@@ -1683,7 +1801,7 @@ function renderLeaveMenu(c){
   var html = '<div class="vs-home-grid">';
   html += leaveMenuTile('request', 'Request Leave', 'Ask for time off', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M8.5 15l2 2 4.5-4.5"/>');
   html += leaveMenuTile('mine', 'My Requests', 'Status of your requests', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h10M7 17h6"/>');
-  html += leaveMenuTile('rota', 'Callout Rota', 'Who\u2019s on call, and when', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="8" cy="14" r="1"/><circle cx="12" cy="14" r="1"/><circle cx="16" cy="14" r="1"/>');
+  html += leaveMenuTile('rota', 'Calendar', 'On call, leave & bank holidays', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="8" cy="14" r="1"/><circle cx="12" cy="14" r="1"/><circle cx="16" cy="14" r="1"/>');
   html += leaveMenuTile('swap', 'Cover / Swap', 'Hand over or trade dates', '<path d="M7 3L3 7l4 4"/><path d="M3 7h13a4 4 0 0 1 4 4v1"/><path d="M17 21l4-4-4-4"/><path d="M21 17H8a4 4 0 0 1-4-4v-1"/>');
   if(admin){
     html += leaveMenuTile('approvals', 'Approvals'+(pendingCount?' ('+pendingCount+')':''), 'Review pending requests', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
@@ -1734,6 +1852,15 @@ function renderMyLeaveRequests(c){
   var me = currentPerson();
   var mine = state.leaveRequests.filter(function(r){ return r.requesterId===me.id; }).slice().reverse();
   var html = leaveBackLink();
+  var thisYear = new Date().getFullYear();
+  var allowance = (me.leaveAllowanceDays!=null) ? me.leaveAllowanceDays : 25;
+  var taken = leaveTakenForPerson(me.id, thisYear);
+  var remaining = Math.max(0, allowance - taken);
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-around;text-align:center;">'+
+    '<div><div style="font-family:\'Archivo\';font-weight:800;font-size:20px;color:var(--text);">'+taken+'</div><div style="font-size:11px;color:var(--muted);">Days taken ('+thisYear+')</div></div>'+
+    '<div><div style="font-family:\'Archivo\';font-weight:800;font-size:20px;color:var(--accent);">'+remaining+'</div><div style="font-size:11px;color:var(--muted);">Days left</div></div>'+
+    '<div><div style="font-family:\'Archivo\';font-weight:800;font-size:20px;color:var(--muted);">'+allowance+'</div><div style="font-size:11px;color:var(--muted);">Allowance</div></div>'+
+  '</div>';
   html += sectionHead('My leave requests');
   if(mine.length===0){
     html += '<div class="vs-empty">You haven\u2019t requested any leave yet.</div>';
@@ -1772,17 +1899,26 @@ function renderLeaveApprovals(c){
   c.innerHTML = html;
 }
 
+function personOnLeave(person, dateStr){
+  return state.leaveRequests.some(function(r){
+    if(r.requesterId!==person.id) return false;
+    if(r.status!=='approved' && r.status!=='approved_conditions') return false;
+    return dateStr>=r.startDate && dateStr<=r.endDate;
+  });
+}
+
 function renderCalloutRota(c){
   var admin = isAdminPerson(currentPerson());
   var year = rotaViewMonth.getFullYear(), month = rotaViewMonth.getMonth();
   var monthLabel = rotaViewMonth.toLocaleDateString(undefined,{month:'long',year:'numeric'});
   var html = leaveBackLink();
-  html += sectionHead('Callout rota',
+  html += sectionHead('Calendar',
     '<div style="display:flex;gap:6px;">'+
       '<button class="vs-btn small" onclick="VS.rotaMonthShift(-1)">\u2039</button>'+
       '<button class="vs-btn small" onclick="VS.rotaMonthShift(1)">\u203a</button>'+
     '</div>');
-  html += '<div style="text-align:center;font-family:\'Archivo\';font-weight:800;font-size:15px;margin-bottom:10px;color:var(--text);">'+monthLabel+'</div>';
+  html += '<div style="text-align:center;font-family:\'Archivo\';font-weight:800;font-size:15px;margin-bottom:4px;color:var(--text);">'+monthLabel+'</div>';
+  html += '<p style="font-size:11px;color:var(--muted-2);text-align:center;margin:0 0 10px 0;"><span style="color:var(--accent);">On call</span> \u00b7 <span style="color:var(--amber);">On leave</span> \u00b7 <span style="background:var(--red-dim);padding:1px 4px;border-radius:3px;">Bank holiday</span></p>';
 
   var firstDay = new Date(year, month, 1);
   var startWeekday = (firstDay.getDay() + 6) % 7;
@@ -1797,8 +1933,13 @@ function renderCalloutRota(c){
     var dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     var entries = state.rota.filter(function(r){ return r.date===dateStr; });
     var who = entries.map(function(e){ var p = engById(e.engineerId); return p ? (p.code || initials(p.name)) : '?'; }).join(' ');
-    html += '<button class="vs-rota-day'+(dateStr===todayStr?' today':'')+'" onclick="VS.'+(admin?'openRotaDay':'viewRotaDay')+'(\''+dateStr+'\')">'+
-      '<span class="daynum">'+d+'</span>'+(who ? '<span class="who">'+who+'</span>' : '')+
+    var onLeave = state.catalog.engineers.filter(function(e){ return personOnLeave(e, dateStr); });
+    var leaveWho = onLeave.map(function(p){ return p.code || initials(p.name); }).join(' ');
+    var bh = UK_BANK_HOLIDAYS[dateStr];
+    html += '<button class="vs-rota-day'+(dateStr===todayStr?' today':'')+'" style="'+(bh?'background:var(--red-dim);border-color:var(--red);':'')+'" onclick="VS.'+(admin?'openRotaDay':'viewRotaDay')+'(\''+dateStr+'\')" title="'+(bh?escapeAttr(bh):'')+'">'+
+      '<span class="daynum">'+d+'</span>'+
+      (who ? '<span class="who">'+who+'</span>' : '')+
+      (leaveWho ? '<span class="who" style="color:var(--amber);">'+leaveWho+'</span>' : '')+
     '</button>';
   }
   html += '</div>';
@@ -1810,6 +1951,40 @@ function renderCalloutRota(c){
     html += '<button class="vs-btn small primary" style="margin-top:8px;" onclick="VS.bulkImportRota()">Import</button>';
   }
   c.innerHTML = html;
+}
+
+function renderDateSelectionCalendar(dates, selectClass){
+  if(dates.length===0) return '<p style="font-size:12.5px;color:var(--muted-2);">No upcoming dates.</p>';
+  var byMonth = {}, monthOrder = [];
+  dates.forEach(function(dateStr){
+    var key = dateStr.slice(0,7);
+    if(!byMonth[key]){ byMonth[key]=[]; monthOrder.push(key); }
+    byMonth[key].push(dateStr);
+  });
+  var html = '';
+  monthOrder.forEach(function(key){
+    var parts = key.split('-');
+    var year = parseInt(parts[0],10), month = parseInt(parts[1],10)-1;
+    var monthLabel = new Date(year,month,1).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+    var firstDay = new Date(year, month, 1);
+    var startWeekday = (firstDay.getDay()+6)%7;
+    var daysInMonth = new Date(year, month+1, 0).getDate();
+    var activeDates = byMonth[key];
+    html += '<div style="font-family:\'Archivo\';font-weight:700;font-size:12.5px;color:var(--muted);margin:10px 0 6px 0;">'+monthLabel+'</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;font-size:9px;color:var(--muted-2);text-align:center;margin-bottom:4px;">'+['M','T','W','T','F','S','S'].map(function(d){ return '<div>'+d+'</div>'; }).join('')+'</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
+    for(var i=0;i<startWeekday;i++) html += '<div></div>';
+    for(var d=1; d<=daysInMonth; d++){
+      var dateStr = key+'-'+String(d).padStart(2,'0');
+      if(activeDates.indexOf(dateStr)!==-1){
+        html += '<button type="button" class="vs-date-chip '+selectClass+'" data-date="'+dateStr+'" onclick="this.classList.toggle(\'selected\')">'+d+'</button>';
+      } else {
+        html += '<div></div>';
+      }
+    }
+    html += '</div>';
+  });
+  return html;
 }
 
 function renderRequestSwap(c){
@@ -1824,10 +1999,7 @@ function renderRequestSwap(c){
   if(myDates.length===0){
     html += '<div class="vs-empty">You don\u2019t have any upcoming on-call dates.</div>';
   } else {
-    html += '<div class="vs-field"><label>Which date(s) of yours?</label>'+
-      myDates.map(function(r){
-        return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="cover-date-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
-      }).join('') + '</div>';
+    html += '<div class="vs-field"><label>Which date(s) of yours?</label>'+renderDateSelectionCalendar(myDates.map(function(r){ return r.date; }), 'cover-date-chip')+'</div>';
     html += '<div class="vs-field"><label>Ask</label><select id="cover-target">'+others.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+'</select></div>';
     html += '<button class="vs-btn primary" onclick="VS.submitCoverRequest()">Send request</button>';
   }
@@ -1836,10 +2008,7 @@ function renderRequestSwap(c){
   if(myDates.length===0){
     html += '<div class="vs-empty">You don\u2019t have any upcoming on-call dates to offer in a swap.</div>';
   } else {
-    html += '<div class="vs-field"><label>Which date(s) of yours?</label>'+
-      myDates.map(function(r){
-        return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="swapx-my-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
-      }).join('') + '</div>';
+    html += '<div class="vs-field"><label>Which date(s) of yours?</label>'+renderDateSelectionCalendar(myDates.map(function(r){ return r.date; }), 'swapx-my-chip')+'</div>';
     html += '<div class="vs-field"><label>Swap with</label><select id="swapx-target" onchange="VS.onSwapTargetChange()">'+others.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+'</select></div>';
     html += '<div class="vs-field"><label>For which of their date(s)?</label><div id="swapx-target-dates"></div></div>';
     html += '<button class="vs-btn primary" onclick="VS.submitSwapDates()">Send swap request</button>';
@@ -1900,9 +2069,7 @@ function populateSwapTargetDates(targetId){
     el.innerHTML = '<p style="font-size:12.5px;color:var(--muted-2);margin:4px 0;">This person has no upcoming on-call dates.</p>';
     return;
   }
-  el.innerHTML = theirDates.map(function(r){
-    return '<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;padding:6px 0;"><input type="checkbox" class="swapx-target-check" value="'+r.date+'" style="width:auto;">'+fmtLeaveDate(r.date)+'</label>';
-  }).join('');
+  el.innerHTML = renderDateSelectionCalendar(theirDates.map(function(r){ return r.date; }), 'swapx-target-chip');
 }
 
 // ---------- Manuals ----------
@@ -2305,6 +2472,44 @@ var STANDARD_HAZARDS = [
   { name:'Other trades on site', controls:'Coordination through site manager and toolbox talks' }
 ];
 var STANDARD_PPE = ['Hi-visibility clothing','Safety boots','Hard hat','Gloves','Safety glasses','Hearing protection'];
+
+// England & Wales bank holidays, per GOV.UK. Covers 2026-2027 — the government
+// publishes these roughly 2 years ahead, so this list needs extending when
+// 2028's dates are confirmed.
+var UK_BANK_HOLIDAYS = {
+  '2026-01-01':'New Year\u2019s Day', '2026-04-03':'Good Friday', '2026-04-06':'Easter Monday',
+  '2026-05-04':'Early May Bank Holiday', '2026-05-25':'Spring Bank Holiday', '2026-08-31':'Summer Bank Holiday',
+  '2026-12-25':'Christmas Day', '2026-12-28':'Boxing Day (substitute)',
+  '2027-01-01':'New Year\u2019s Day', '2027-03-26':'Good Friday', '2027-03-29':'Easter Monday',
+  '2027-05-03':'Early May Bank Holiday', '2027-05-31':'Spring Bank Holiday', '2027-08-30':'Summer Bank Holiday',
+  '2027-12-27':'Christmas Day (substitute)', '2027-12-28':'Boxing Day (substitute)'
+};
+function isBankHoliday(dateStr){ return !!UK_BANK_HOLIDAYS[dateStr]; }
+function isWeekendStr(dateStr){ var dow = new Date(dateStr+'T00:00:00').getDay(); return dow===0 || dow===6; }
+
+function leaveRequestDayCount(r){
+  var start = new Date(r.startDate+'T00:00:00');
+  var end = new Date(r.endDate+'T00:00:00');
+  var count = 0;
+  var d = new Date(start);
+  while(d <= end){
+    var dStr = d.toISOString().slice(0,10);
+    if(!isWeekendStr(dStr) && !isBankHoliday(dStr)){
+      var dayVal = 1;
+      if(dStr===r.startDate && r.startHalf==='pm') dayVal -= 0.5;
+      if(dStr===r.endDate && r.endHalf==='am') dayVal -= 0.5;
+      count += dayVal;
+    }
+    d.setDate(d.getDate()+1);
+  }
+  return count;
+}
+
+function leaveTakenForPerson(personId, year){
+  return state.leaveRequests.filter(function(r){
+    return r.requesterId===personId && (r.status==='approved' || r.status==='approved_conditions') && r.startDate.slice(0,4)===String(year);
+  }).reduce(function(sum,r){ return sum + leaveRequestDayCount(r); }, 0);
+}
 
 var DEFAULT_SURVEY_ROOMS = ['Front Door','Hallway','Lounge','Dining Room','Sitting Room','Kitchen','Utility Room','Back Door','Landing','Master Bedroom','Bedroom 2','Bedroom 3','Bedroom 4','Study','Office','Garage','Bifold Doors'];
 var SDP_ZONE_NUMBERS = (function(){ var a=[]; for(var i=1;i<=128;i++){ a.push(String(i)); } return a; })();
@@ -4480,7 +4685,7 @@ function doAddPerson(){
   var id = 'p_'+uid();
   state.catalog.engineers.push({ id:id, name:name, hasVan: role==='van', pin:pin, isAdmin:admin });
   saveCatalog();
-  closeModal(); render();
+  closeModal(); renderHRScreen();
   toast('Added '+name+' to the team');
 }
 
@@ -4659,6 +4864,33 @@ var VS = {
     toast('Removed');
   },
   enterFollowUps:enterFollowUps,
+  enterHR:enterHR,
+  setHRTab:function(t){ state.hrTab=t; renderHRScreen(); },
+  submitOvertime:function(){
+    var date = document.getElementById('ot-date').value;
+    if(!date){ toast('Enter a date'); return; }
+    var hours = document.getElementById('ot-hours').value;
+    var location = document.getElementById('ot-location').value.trim();
+    if(!location){ toast('Enter where the work was'); return; }
+    var work = document.getElementById('ot-work').value.trim();
+    if(!work){ toast('Enter what work was carried out'); return; }
+    var me = currentPerson();
+    state.overtime.push({
+      id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
+      date: date, hours: hours, location: location, work: work,
+      submittedAt: new Date().toISOString()
+    });
+    saveOvertime();
+    toast('Overtime submitted');
+    renderHRScreen();
+  },
+  deleteOvertime:function(id){
+    if(!confirm('Delete this overtime entry?')) return;
+    state.overtime = (state.overtime||[]).filter(function(o){ return o.id!==id; });
+    saveOvertime();
+    renderHRScreen();
+    toast('Deleted');
+  },
   viewFollowUp:function(id){
     var f = (state.followUps||[]).filter(function(x){ return x.id===id; })[0];
     if(!f) return;
@@ -5475,8 +5707,8 @@ var VS = {
     toast(added+' day(s) imported'+(errors.length ? ', '+errors.length+' skipped' : ''));
   },
   submitCoverRequest:function(){
-    var checks = document.querySelectorAll('.cover-date-check:checked');
-    var dates = Array.prototype.map.call(checks, function(cb){ return cb.value; });
+    var chips = document.querySelectorAll('.cover-date-chip.selected');
+    var dates = Array.prototype.map.call(chips, function(el){ return el.getAttribute('data-date'); });
     if(dates.length===0){ toast('Select at least one date'); return; }
     var targetId = document.getElementById('cover-target').value;
     var target = engById(targetId);
@@ -5496,14 +5728,14 @@ var VS = {
     if(sel) populateSwapTargetDates(sel.value);
   },
   submitSwapDates:function(){
-    var myChecks = document.querySelectorAll('.swapx-my-check:checked');
-    var myDates = Array.prototype.map.call(myChecks, function(cb){ return cb.value; });
+    var myChips = document.querySelectorAll('.swapx-my-chip.selected');
+    var myDates = Array.prototype.map.call(myChips, function(el){ return el.getAttribute('data-date'); });
     if(myDates.length===0){ toast('Select at least one of your dates'); return; }
     var targetId = document.getElementById('swapx-target').value;
     var target = engById(targetId);
     if(!target){ toast('Choose who to swap with'); return; }
-    var targetChecks = document.querySelectorAll('.swapx-target-check:checked');
-    var targetDates = Array.prototype.map.call(targetChecks, function(cb){ return cb.value; });
+    var targetChips = document.querySelectorAll('.swapx-target-chip.selected');
+    var targetDates = Array.prototype.map.call(targetChips, function(el){ return el.getAttribute('data-date'); });
     if(targetDates.length===0){ toast('Select at least one of their dates'); return; }
     var me = currentPerson();
     state.swapRequests.push({
@@ -5747,7 +5979,7 @@ var VS = {
   renameEngineer:function(id, name){
     var e = engById(id); if(!e) return;
     e.name = name.trim() || e.name;
-    saveCatalog(); render();
+    saveCatalog(); renderHRScreen();
     toast('Saved');
   },
   setPersonRole:function(id, role){
@@ -5758,38 +5990,50 @@ var VS = {
       var vh = state.catalog.engineers.filter(personHasVan);
       state.activeVan = vh.length ? vh[0].id : null;
     }
-    saveCatalog(); render();
+    saveCatalog(); renderHRScreen();
     toast('Saved');
   },
   setPersonPinLive:function(id, pin){
     var e = engById(id); if(!e) return;
     e.pin = pin.trim();
-    saveCatalog(); render();
+    saveCatalog(); renderHRScreen();
     toast('Saved');
   },
   setPersonCode:function(id, code){
     var e = engById(id); if(!e) return;
     e.code = code.trim().toUpperCase();
-    saveCatalog(); render();
+    saveCatalog(); renderHRScreen();
     toast('Saved');
   },
   setPersonServiceM8Name:function(id, name){
     var e = engById(id); if(!e) return;
     e.servicem8Name = name.trim();
-    saveCatalog(); render();
+    saveCatalog(); renderHRScreen();
+    toast('Saved');
+  },
+  setPersonRegistration:function(id, reg){
+    var e = engById(id); if(!e) return;
+    e.registration = reg.trim().toUpperCase();
+    saveCatalog(); renderHRScreen();
+    toast('Saved');
+  },
+  setPersonLeaveAllowance:function(id, days){
+    var e = engById(id); if(!e) return;
+    e.leaveAllowanceDays = Math.max(0, parseFloat(days)||0);
+    saveCatalog(); renderHRScreen();
     toast('Saved');
   },
   toggleSectionAccess:function(id, key, checked){
     var e = engById(id); if(!e) return;
     if(!e.sectionAccess) e.sectionAccess = {};
     e.sectionAccess[key] = checked;
-    saveCatalog(); render();
+    saveCatalog(); renderHRScreen();
     toast('Saved');
   },
   setPersonAdmin:function(id, isAdminChecked){
     var e = engById(id); if(!e) return;
     e.isAdmin = !!isAdminChecked;
-    saveCatalog(); render();
+    saveCatalog(); renderHRScreen();
     toast('Saved');
   },
   removePerson:function(id){
@@ -5800,7 +6044,7 @@ var VS = {
       var vh = state.catalog.engineers.filter(personHasVan);
       state.activeVan = vh.length ? vh[0].id : null;
     }
-    saveCatalog(); saveStock(); render();
+    saveCatalog(); saveStock(); renderHRScreen();
     toast('Removed from team');
   },
   editItem:function(id, field, value){
