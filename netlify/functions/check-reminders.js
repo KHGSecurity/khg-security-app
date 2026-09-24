@@ -35,11 +35,12 @@ exports.handler = async function () {
   webpush.setVapidDetails('mailto:office@khgsecurity.com', vapidPublic, vapidPrivate);
 
   try {
-    const [catalog, followUps, vehicles, subsMap] = await Promise.all([
+    const [catalog, followUps, vehicles, subsMap, rota] = await Promise.all([
       firestoreGetDoc('shared/catalog'),
       firestoreGetDoc('shared/follow-ups'),
       firestoreGetDoc('shared/vehicles'),
-      firestoreGetDoc('shared/push-subscriptions')
+      firestoreGetDoc('shared/push-subscriptions'),
+      firestoreGetDoc('shared/rota')
     ]);
 
     const engineers = (catalog && catalog.engineers) || [];
@@ -81,6 +82,38 @@ exports.handler = async function () {
         officeOrAdminIds.forEach(function (id) { queue(id, 'Vehicle reminder', body, '/'); });
       }
     });
+
+    // Monthly on-call report: fires on the 25th, covering the WHOLE month
+    // (1st to last day), including days still to come — not just to date.
+    const now = new Date();
+    if (now.getUTCDate() === 25) {
+      const year = now.getUTCFullYear(), month = now.getUTCMonth();
+      const monthStart = year + '-' + String(month + 1).padStart(2, '0') + '-01';
+      const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      const monthEnd = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(lastDay).padStart(2, '0');
+      const monthLabel = new Date(Date.UTC(year, month, 1)).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+      const counts = {}; // engineerId -> { weekday, weekend }
+      (rota || []).forEach(function (r) {
+        if (r.date < monthStart || r.date > monthEnd) return;
+        if (!counts[r.engineerId]) counts[r.engineerId] = { weekday: 0, weekend: 0 };
+        const dow = new Date(r.date + 'T00:00:00Z').getUTCDay();
+        if (dow === 0 || dow === 6) counts[r.engineerId].weekend++;
+        else counts[r.engineerId].weekday++;
+      });
+
+      var summaryLines = engineers
+        .filter(function (e) { return counts[e.id]; })
+        .map(function (e) {
+          var c = counts[e.id];
+          return e.name + ': ' + c.weekday + ' weekday, ' + c.weekend + ' weekend';
+        });
+
+      if (summaryLines.length) {
+        var reportBody = monthLabel + ' \u2014 ' + summaryLines.join(' | ');
+        officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly on-call report', reportBody, '/'); });
+      }
+    }
 
     let sent = 0, failed = 0;
     for (const personId of Object.keys(toNotify)) {
