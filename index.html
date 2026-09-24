@@ -5287,7 +5287,11 @@ var VS = {
     };
     reader.onerror = function(){
       var reason = (reader.error && reader.error.name) ? reader.error.name : 'unknown error';
-      toast('Could not read that file (' + reason + ') \u2014 try again, or pick it from local storage rather than iCloud/cloud storage');
+      openModal('<h3>Couldn\u2019t read that file</h3>'+
+        '<p style="font-size:13.5px;color:var(--text);margin:0 0 12px 0;">This usually happens when a file is stored in OneDrive, iCloud, or Google Drive with \u201cFiles On-Demand\u201d \u2014 it shows up in the folder but hasn\u2019t actually downloaded to the device yet, so the browser can\u2019t read it.</p>'+
+        '<p style="font-size:13.5px;color:var(--text);margin:0 0 12px 0;"><b>To fix it:</b> in File Explorer, right-click the file and choose \u201cAlways keep on this device\u201d (or just open the file once in Word first), then try uploading again.</p>'+
+        '<p style="font-size:11px;color:var(--muted-2);margin:0;">Technical detail: '+escapeAttr(reason)+'</p>'+
+        '<div class="vs-modal-actions"><button class="vs-btn primary" onclick="VS.closeModal()">Got it</button></div>');
     };
     reader.readAsDataURL(file);
   },
