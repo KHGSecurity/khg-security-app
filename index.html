@@ -5317,13 +5317,51 @@ var VS = {
   },
   downloadHRDoc:function(id){
     var d = (state.hrDocuments||[]).filter(function(x){ return x.id===id; })[0];
-    if(!d) return;
-    var a = document.createElement('a');
-    a.href = d.fileData;
-    a.download = d.fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    if(!d || !d.fileData) return;
+    var blob;
+    try{
+      var parts = d.fileData.split(',');
+      var mimeMatch = parts[0].match(/:(.*?);/);
+      var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+      var binStr = atob(parts[1]);
+      var len = binStr.length;
+      var arr = new Uint8Array(len);
+      for(var i=0;i<len;i++){ arr[i] = binStr.charCodeAt(i); }
+      blob = new Blob([arr], { type: mime });
+    }catch(e){
+      toast('Could not open that file — please try again');
+      return;
+    }
+    var isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if(isMobile){
+      try{
+        var file = new File([blob], d.fileName, { type: blob.type });
+        if(navigator.canShare && navigator.canShare({ files:[file] })){
+          navigator.share({ files:[file] }).catch(function(){});
+          return;
+        }
+      }catch(e){}
+    }
+    try{
+      var blobUrl = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = blobUrl; a.download = d.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 30000);
+    }catch(e){
+      try{
+        var a2 = document.createElement('a');
+        a2.href = d.fileData;
+        a2.download = d.fileName;
+        document.body.appendChild(a2);
+        a2.click();
+        document.body.removeChild(a2);
+      }catch(e2){
+        toast('Could not download that file');
+      }
+    }
   },
   deleteHRDoc:function(id){
     if(!confirm('Delete this document?')) return;
