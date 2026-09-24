@@ -272,6 +272,12 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
 .vs-home-tile{
   background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px 14px; text-align:left;
   cursor:pointer; color:var(--text); display:flex; flex-direction:column; gap:10px; transition:border-color .15s, transform .1s;
+  position:relative;
+}
+.vs-tile-badge{
+  position:absolute; top:10px; right:10px; background:var(--red); color:#fff;
+  font-family:'Archivo'; font-weight:800; font-size:11px; min-width:20px; height:20px; line-height:20px;
+  border-radius:10px; text-align:center; padding:0 5px;
 }
 .vs-home-tile:hover{ border-color:var(--accent); }
 .vs-home-tile:active{ transform:scale(0.98); }
@@ -528,7 +534,7 @@ function isAdminPerson(person){ return !!(person && person.isAdmin); }
 
 var HOME_TILES = [
   { key:'stock', label:'Stock', sub:'Van &amp; stores stock', onclick:'VS.enterStock()', icon:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>' },
-  { key:'leave', label:'Leave &amp; Rota', sub:'', onclick:'VS.enterLeave()', icon:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>' },
+  { key:'leave', label:'Leave &amp; Rota', sub:'', onclick:'VS.enterLeave()', icon:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>', badgeFn: leaveRotaSectionBadgeCount },
   { key:'jobs', label:'Jobs', sub:'Live from ServiceM8', onclick:'VS.enterJobs()', icon:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/><path d="M7 13h4M7 16h7"/>' },
   { key:'training', label:'Training', sub:'', onclick:"window.open('https://skillsondemand.co.uk/#/login','_blank')", icon:'<path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/>' },
   { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
@@ -552,7 +558,9 @@ function renderHomeTiles(){
   if(!el) return;
   var me = currentPerson();
   el.innerHTML = HOME_TILES.filter(function(t){ return personCanSeeSection(me, t.key); }).map(function(t){
+    var count = t.badgeFn ? t.badgeFn() : 0;
     return '<button class="vs-home-tile" onclick="'+t.onclick+'"'+(t.fullWidth?' style="grid-column:1 / -1;"':'')+'>'+
+      (count>0 ? '<span class="vs-tile-badge">'+count+'</span>' : '')+
       '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">'+t.icon+'</svg>'+
       '<span class="vs-home-tile-label">'+t.label+'</span>'+
       (t.sub ? '<span class="vs-home-tile-sub">'+t.sub+'</span>' : '')+
@@ -650,6 +658,34 @@ function refreshAppScreen(){
     renderHomeNotifications();
     renderNotificationPermissionPrompt();
   }
+}
+
+function myLeaveUnseenCount(){
+  var me = currentPerson();
+  if(!me) return 0;
+  return state.leaveRequests.filter(function(r){ return r.requesterId===me.id && r.seenByRequester===false; }).length;
+}
+function mySwapUnseenCount(){
+  var me = currentPerson();
+  if(!me) return 0;
+  var pendingForMe = state.swapRequests.filter(function(s){ return s.targetId===me.id && s.status==='pending'; }).length;
+  var unseenSent = state.swapRequests.filter(function(s){ return s.requesterId===me.id && s.seenByRequester===false; }).length;
+  return pendingForMe + unseenSent;
+}
+function myOvertimeUnseenCount(){
+  var me = currentPerson();
+  if(!me) return 0;
+  return (state.overtime||[]).filter(function(o){ return o.personId===me.id && o.seenByRequester===false; }).length;
+}
+function leaveApprovalsPendingCount(){
+  return isAdminPerson(currentPerson()) ? state.leaveRequests.filter(function(r){ return r.status==='pending'; }).length : 0;
+}
+function overtimePendingCount(){
+  return isAdminPerson(currentPerson()) ? (state.overtime||[]).filter(function(o){ return (o.status||'pending')==='pending'; }).length : 0;
+}
+function leaveRotaSectionBadgeCount(){
+  if(!state.leaveRequests || !state.swapRequests || !state.overtime) return 0;
+  return myLeaveUnseenCount() + mySwapUnseenCount() + myOvertimeUnseenCount() + leaveApprovalsPendingCount() + overtimePendingCount();
 }
 
 function computeAlertCounts(){
@@ -1663,7 +1699,6 @@ function renderHRScreen(){
   var c = document.getElementById('vs-hr-content');
   if(!c || !state.catalog) return;
   if(state.hrTab==='team') return renderHRTeam(c);
-  if(state.hrTab==='overtime') return renderHROvertime(c);
   return renderHRMenu(c);
 }
 
@@ -1678,12 +1713,10 @@ function renderHRMenu(c){
       '<span class="vs-home-tile-sub">People, access &amp; leave allowance</span>'+
     '</button>';
   }
-  html += '<button class="vs-home-tile" onclick="VS.setHRTab(\'overtime\')">'+
-    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>'+
-    '<span class="vs-home-tile-label">Overtime</span>'+
-    '<span class="vs-home-tile-sub">Submit and view overtime</span>'+
-  '</button>';
   html += '</div>';
+  if(!admin){
+    html += '<div class="vs-empty">Nothing here for you right now. Overtime has moved to Leave &amp; Rota.</div>';
+  }
   c.innerHTML = html;
 }
 
@@ -1742,8 +1775,8 @@ function renderHRTeam(c){
 
 var OVERTIME_HOURS_OPTIONS = (function(){ var a=[]; for(var h=0.5; h<=12; h+=0.5){ a.push(h.toFixed(1)); } return a; })();
 
-var OVERTIME_STATUS_LABEL = {pending:'Pending', approved:'Approved', queried:'Queried'};
-var OVERTIME_STATUS_CLASS = {pending:'low', approved:'ok', queried:'out'};
+var OVERTIME_STATUS_LABEL = {pending:'Pending', approved:'Approved', queried:'Queried', declined:'Declined'};
+var OVERTIME_STATUS_CLASS = {pending:'low', approved:'ok', queried:'out', declined:'out'};
 
 function overtimeRowHtml(o, showName){
   var statusClass = OVERTIME_STATUS_CLASS[o.status||'pending'];
@@ -1757,9 +1790,9 @@ function overtimeRowHtml(o, showName){
   return html;
 }
 
-function renderHROvertime(c){
+function renderMyOvertime(c){
   var me = currentPerson();
-  var html = hrBackLink();
+  var html = leaveBackLink();
   html += sectionHead('Submit overtime');
   html += '<div class="vs-field"><label>Date</label><input type="date" id="ot-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
   html += '<div class="vs-field"><label>Hours</label><select id="ot-hours">'+OVERTIME_HOURS_OPTIONS.map(function(h){ return '<option value="'+h+'">'+h+'</option>'; }).join('')+'</select></div>';
@@ -1775,6 +1808,9 @@ function renderHROvertime(c){
     html += '<div class="vs-cards">'+mine.map(function(o){ return overtimeRowHtml(o, false); }).join('')+'</div>';
   }
   c.innerHTML = html;
+  var changed = false;
+  mine.forEach(function(o){ if(o.seenByRequester===false){ o.seenByRequester = true; changed = true; } });
+  if(changed) saveOvertime();
 }
 
 // ---------- Leave, Callout Rota, and Swap requests ----------
@@ -1791,12 +1827,14 @@ function renderLeaveScreen(){
   if(state.leaveTab==='swap') return renderRequestSwap(c);
   if(state.leaveTab==='approvals' && isAdminPerson(currentPerson())) return renderLeaveApprovals(c);
   if(state.leaveTab==='overtime_admin' && isAdminPerson(currentPerson())) return renderOvertimeAdmin(c);
+  if(state.leaveTab==='overtime') return renderMyOvertime(c);
   if(state.leaveTab==='request') return renderLeaveRequestForm(c);
   return renderLeaveMenu(c);
 }
 
-function leaveMenuTile(tab, label, sub, svgPaths){
+function leaveMenuTile(tab, label, sub, svgPaths, badgeCount){
   return '<button class="vs-home-tile" onclick="VS.setLeaveTab(\''+tab+'\')">'+
+    (badgeCount>0 ? '<span class="vs-tile-badge">'+badgeCount+'</span>' : '')+
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8">'+svgPaths+'</svg>'+
     '<span class="vs-home-tile-label">'+label+'</span>'+
     '<span class="vs-home-tile-sub">'+sub+'</span>'+
@@ -1809,16 +1847,15 @@ function leaveBackLink(){
 
 function renderLeaveMenu(c){
   var admin = isAdminPerson(currentPerson());
-  var pendingCount = admin ? state.leaveRequests.filter(function(r){ return r.status==='pending'; }).length : 0;
   var html = '<div class="vs-home-grid">';
   html += leaveMenuTile('request', 'Request Leave', 'Ask for time off', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><path d="M8.5 15l2 2 4.5-4.5"/>');
-  html += leaveMenuTile('mine', 'My Requests', 'Status of your requests', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h10M7 17h6"/>');
+  html += leaveMenuTile('mine', 'My Requests', 'Status of your requests', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4M7 13h10M7 17h6"/>', myLeaveUnseenCount());
   html += leaveMenuTile('rota', 'Calendar', 'On call, leave & bank holidays', '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/><circle cx="8" cy="14" r="1"/><circle cx="12" cy="14" r="1"/><circle cx="16" cy="14" r="1"/>');
-  html += leaveMenuTile('swap', 'Cover / Swap', 'Hand over or trade dates', '<path d="M7 3L3 7l4 4"/><path d="M3 7h13a4 4 0 0 1 4 4v1"/><path d="M17 21l4-4-4-4"/><path d="M21 17H8a4 4 0 0 1-4-4v-1"/>');
+  html += leaveMenuTile('swap', 'Cover / Swap', 'Hand over or trade dates', '<path d="M7 3L3 7l4 4"/><path d="M3 7h13a4 4 0 0 1 4 4v1"/><path d="M17 21l4-4-4-4"/><path d="M21 17H8a4 4 0 0 1-4-4v-1"/>', mySwapUnseenCount());
+  html += leaveMenuTile('overtime', 'Overtime', 'Submit and view your overtime', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', myOvertimeUnseenCount());
   if(admin){
-    html += leaveMenuTile('approvals', 'Approvals'+(pendingCount?' ('+pendingCount+')':''), 'Review pending requests', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
-    var pendingOT = (state.overtime||[]).filter(function(o){ return (o.status||'pending')==='pending'; }).length;
-    html += leaveMenuTile('overtime_admin', 'Overtime Submissions'+(pendingOT?' ('+pendingOT+')':''), 'Approve or query overtime', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>');
+    html += leaveMenuTile('approvals', 'Approvals', 'Review pending requests', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', leaveApprovalsPendingCount());
+    html += leaveMenuTile('overtime_admin', 'Overtime Submissions', 'Approve, decline or query', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', overtimePendingCount());
   }
   html += '</div>';
   c.innerHTML = html;
@@ -1903,7 +1940,8 @@ function renderOvertimeAdmin(c){
       return overtimeRowHtml(o, true) +
         '<div style="display:flex;gap:8px;margin:8px 0 16px 0;flex-wrap:wrap;">'+
           '<button class="vs-btn small primary" onclick="VS.decideOvertime(\''+o.id+'\',\'approved\')">Approved</button>'+
-          '<button class="vs-btn small danger" onclick="VS.openQueryOvertime(\''+o.id+'\')">Query</button>'+
+          '<button class="vs-btn small danger" onclick="VS.openDeclineOvertime(\''+o.id+'\')">Decline</button>'+
+          '<button class="vs-btn small" onclick="VS.openQueryOvertime(\''+o.id+'\')">Query</button>'+
         '</div>';
     }).join('');
   }
@@ -2097,6 +2135,11 @@ function renderRequestSwap(c){
 
   c.innerHTML = html;
   if(myDates.length>0) onSwapTargetChangeInit();
+  var changed = false;
+  state.swapRequests.forEach(function(s){
+    if(s.requesterId===me.id && s.seenByRequester===false){ s.seenByRequester = true; changed = true; }
+  });
+  if(changed) saveSwapRequests();
 }
 
 function onSwapTargetChangeInit(){
@@ -4921,7 +4964,7 @@ var VS = {
     state.overtime.push({
       id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
       date: date, hours: hours, location: location, work: work,
-      status: 'pending', adminComment: '',
+      status: 'pending', adminComment: '', seenByRequester: true,
       submittedAt: new Date().toISOString()
     });
     saveOvertime();
@@ -5662,11 +5705,26 @@ var VS = {
     var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
     if(!o) return;
     o.status = status;
+    o.seenByRequester = false;
     saveOvertime();
     closeModal();
     renderLeaveScreen();
     if(o.personId) sendPushNotification([o.personId], 'Overtime '+status, fmtLeaveDate(o.date)+' \u2014 '+o.hours+'h marked '+status);
     toast('Decision saved');
+  },
+  openDeclineOvertime:function(id){
+    var html = '<h3>Decline overtime</h3>'+
+      '<div class="vs-field"><label>Reason</label><input id="ot-decline-text" placeholder="Reason for declining"></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmDeclineOvertime(\''+id+'\')">Decline</button></div>';
+    openModal(html);
+  },
+  confirmDeclineOvertime:function(id){
+    var text = document.getElementById('ot-decline-text').value.trim();
+    if(!text){ toast('Enter a reason'); return; }
+    var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
+    if(!o) return;
+    o.adminComment = text;
+    this.decideOvertime(id, 'declined');
   },
   openQueryOvertime:function(id){
     var html = '<h3>Query overtime</h3>'+
@@ -5829,7 +5887,7 @@ var VS = {
     var me = currentPerson();
     state.swapRequests.push({
       id:uid(), type:'cover', requesterId:me.id, requesterName:me.name, targetId:targetId, targetName:target.name,
-      dates:dates, targetDates:[], status:'pending', createdAt:new Date().toISOString(), decidedAt:null
+      dates:dates, targetDates:[], status:'pending', createdAt:new Date().toISOString(), decidedAt:null, seenByRequester:true
     });
     saveSwapRequests();
     sendPushNotification([targetId], 'Cover request', me.name+' has asked you to cover '+dates.length+' date(s)');
@@ -5853,7 +5911,7 @@ var VS = {
     var me = currentPerson();
     state.swapRequests.push({
       id:uid(), type:'swap', requesterId:me.id, requesterName:me.name, targetId:targetId, targetName:target.name,
-      dates:myDates, targetDates:targetDates, status:'pending', createdAt:new Date().toISOString(), decidedAt:null
+      dates:myDates, targetDates:targetDates, status:'pending', createdAt:new Date().toISOString(), decidedAt:null, seenByRequester:true
     });
     saveSwapRequests();
     sendPushNotification([targetId], 'Swap request', me.name+' has proposed a date swap with you');
@@ -5865,6 +5923,7 @@ var VS = {
     if(!s) return;
     s.status = agreed ? 'agreed' : 'declined';
     s.decidedAt = new Date().toISOString();
+    s.seenByRequester = false;
     if(agreed){
       s.dates.forEach(function(d){
         state.rota = state.rota.filter(function(r){ return r.date!==d; });
