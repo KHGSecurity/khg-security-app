@@ -1925,7 +1925,8 @@ function renderHRDocuments(c){
     html += '<div class="vs-field"><label>Title</label><input id="hrdoc-title" placeholder="e.g. Employment Contract"></div>';
     html += '<div class="vs-field"><label>Visibility</label><select id="hrdoc-visibility" onchange="document.getElementById(\'hrdoc-assignee-wrap\').style.display=(this.value===\'private\'?\'block\':\'none\')"><option value="private" selected>Private \u2014 one person only</option><option value="public">Public \u2014 everyone can see it</option></select></div>';
     html += '<div id="hrdoc-assignee-wrap" class="vs-field"><label>Assign to</label><select id="hrdoc-assignee">'+state.catalog.engineers.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+'</select></div>';
-    html += '<div class="vs-field"><label>File</label><input type="file" id="hrdoc-file"></div>';
+    html += '<div class="vs-field"><label>File</label><input type="file" id="hrdoc-file" accept="application/pdf,.pdf"></div>';
+    html += '<p style="font-size:11px;color:var(--muted-2);margin:-10px 0 12px 0;"><b>PDF only</b> \u2014 this lets everyone view documents in the app without downloading. Please convert Word/other files to PDF before uploading.</p>';
     html += '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text);margin:0 0 14px 0;"><input type="checkbox" id="hrdoc-requires-accept" style="margin-top:3px;width:auto;flex-shrink:0;">Require the recipient(s) to confirm they\u2019ve read and understood this before it counts as seen</label>';
     html += '<p style="font-size:11px;color:var(--muted-2);margin:-6px 0 12px 0;">Keep files under about 700KB \u2014 documents are stored directly in the app\u2019s database rather than separate file storage, so very large scanned PDFs won\u2019t fit.</p>';
     html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitHRDoc()">Upload</button>';
@@ -1964,7 +1965,8 @@ function renderHRDocuments(c){
       }
       row += '</div></div>';
       row += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;flex-wrap:wrap;">'+
-        '<button class="vs-btn small primary" onclick="VS.downloadHRDoc(\''+d.id+'\')">Download</button>'+
+        '<button class="vs-btn small primary" onclick="VS.viewHRDoc(\''+d.id+'\')">View</button>'+
+        '<button class="vs-btn small" onclick="VS.downloadHRDoc(\''+d.id+'\')">Download</button>'+
         (needsMyAccept ? '<button class="vs-btn small" onclick="VS.openAcceptDoc(\''+d.id+'\')">Accept</button>' : '')+
         (canManage?'<button class="vs-btn small danger" onclick="VS.deleteHRDoc(\''+d.id+'\')">Delete</button>':'')+
       '</div>';
@@ -3831,6 +3833,17 @@ function formSubmissionRowHtml(s){
 // inside the exact tab that created them, so they go dead the instant
 // they're shared or copied out — this uses the real Share Sheet with the
 // actual file attached instead, falling back to a normal download.
+function dataUrlToBlob(dataUrl){
+  var parts = dataUrl.split(',');
+  var mimeMatch = parts[0].match(/:(.*?);/);
+  var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+  var binStr = atob(parts[1]);
+  var len = binStr.length;
+  var arr = new Uint8Array(len);
+  for(var i=0;i<len;i++){ arr[i] = binStr.charCodeAt(i); }
+  return new Blob([arr], { type: mime });
+}
+
 function sharePdf(doc, filename){
   var blob;
   try{ blob = doc.output('blob'); }catch(e){ doc.save(filename); return; }
@@ -5283,6 +5296,8 @@ var VS = {
     var fileInput = document.getElementById('hrdoc-file');
     var file = fileInput.files[0];
     if(!file){ toast('Choose a file'); return; }
+    var isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if(!isPdf){ toast('PDF files only \u2014 please convert this to PDF first'); return; }
     if(file.size > 750000){ toast('That file is too large \u2014 keep it under about 700KB'); return; }
     var me = currentPerson();
     var reader = new FileReader();
@@ -5315,20 +5330,30 @@ var VS = {
     };
     reader.readAsDataURL(file);
   },
+  viewHRDoc:function(id){
+    var d = (state.hrDocuments||[]).filter(function(x){ return x.id===id; })[0];
+    if(!d || !d.fileData) return;
+    var isPdf = /\.pdf$/i.test(d.fileName) || d.fileData.indexOf('data:application/pdf')===0;
+    if(!isPdf){ toast('This file can’t be viewed in the app — use Download instead'); return; }
+    var blob;
+    try{ blob = dataUrlToBlob(d.fileData); }catch(e){
+      toast('Could not open that file — please try again');
+      return;
+    }
+    try{
+      var blobUrl = URL.createObjectURL(blob);
+      var win = window.open(blobUrl, '_blank');
+      if(!win){ toast('Please allow pop-ups to view documents in the app'); }
+      setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 60000);
+    }catch(e){
+      toast('Could not open that file');
+    }
+  },
   downloadHRDoc:function(id){
     var d = (state.hrDocuments||[]).filter(function(x){ return x.id===id; })[0];
     if(!d || !d.fileData) return;
     var blob;
-    try{
-      var parts = d.fileData.split(',');
-      var mimeMatch = parts[0].match(/:(.*?);/);
-      var mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
-      var binStr = atob(parts[1]);
-      var len = binStr.length;
-      var arr = new Uint8Array(len);
-      for(var i=0;i<len;i++){ arr[i] = binStr.charCodeAt(i); }
-      blob = new Blob([arr], { type: mime });
-    }catch(e){
+    try{ blob = dataUrlToBlob(d.fileData); }catch(e){
       toast('Could not open that file — please try again');
       return;
     }
