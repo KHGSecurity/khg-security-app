@@ -481,6 +481,20 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   <main id="vs-hr-content"></main>
 </div>
 
+<div id="vs-help-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
+        <h1>Help</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+    </div>
+    <div class="vs-who-badge" id="vs-help-who-badge"></div>
+  </div>
+  <main id="vs-help-content"></main>
+</div>
+
 <div id="vs-feedback-link" onclick="VS.openFeedback()" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;font-size:11px;color:var(--muted-2);background:var(--bg);border-top:1px solid var(--line);padding:6px 10px calc(6px + env(safe-area-inset-bottom));cursor:pointer;">Feedback / feature requests</div>
 
 <div id="vs-modal-root"></div>
@@ -544,7 +558,8 @@ var HOME_TILES = [
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
   { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
   { key:'hr', label:'HR', sub:'', onclick:'VS.enterHR()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>', badgeFn: hrSectionBadgeCount },
-  { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', fullWidth:true }
+  { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', fullWidth:true },
+  { key:'help', label:'Help', sub:'How to use the app', onclick:'VS.enterHelp()', icon:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-1.5 2-2.2 2.7-.4.4-.6.9-.6 1.3"/><circle cx="12" cy="16.5" r="0.9"/>' }
 ];
 
 // Admins always see every section. Everyone else defaults to seeing everything
@@ -584,7 +599,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap','vs-hr-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap','vs-hr-wrap','vs-help-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -606,6 +621,7 @@ function enterForms(){ appView = 'forms'; refreshAppScreen(); }
 function enterVehicles(){ appView = 'vehicles'; refreshAppScreen(); }
 function enterFollowUps(){ appView = 'followups'; refreshAppScreen(); }
 function enterHR(){ appView = 'hr'; refreshAppScreen(); }
+function enterHelp(){ appView = 'help'; refreshAppScreen(); }
 
 // Decides what's on screen right now: connecting, first-run setup, the PIN
 // gate, or (once logged in) whichever app view is currently active.
@@ -655,6 +671,9 @@ function refreshAppScreen(){
   } else if(appView==='hr'){
     document.getElementById('vs-hr-wrap').style.display = 'block';
     renderHRScreen();
+  } else if(appView==='help'){
+    document.getElementById('vs-help-wrap').style.display = 'block';
+    renderHelpScreen();
   } else if(appView==='placeholder'){
     document.getElementById('vs-placeholder-wrap').style.display = 'flex';
   } else {
@@ -993,7 +1012,7 @@ function renderWhoBadge(){
     '<div class="vs-welcome-title">Welcome '+escapeAttr(p.name)+'</div>'+
     '<div class="vs-welcome-sub">Not '+escapeAttr(p.name)+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge','vs-help-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -1758,6 +1777,86 @@ function hrBackLink(){
   return '<button class="vs-back-link" onclick="VS.setHRTab(\'menu\')" style="margin-bottom:16px;">&larr; HR</button>';
 }
 
+function helpSection(title, bodyHtml){
+  return '<div style="margin-bottom:22px;">'+
+    '<div style="font-family:\'Archivo\';font-weight:800;font-size:15px;color:var(--accent);margin-bottom:6px;">'+title+'</div>'+
+    '<div style="font-size:13.5px;line-height:1.55;color:var(--text);">'+bodyHtml+'</div>'+
+  '</div>';
+}
+function helpItem(name, text){
+  return '<p style="margin:0 0 10px 0;"><b>'+name+'</b> \u2014 '+text+'</p>';
+}
+
+function renderHelpScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-help-content');
+  if(!c) return;
+  var html = '';
+
+  html += helpSection('Getting started', ''+
+    '<p style="margin:0 0 10px 0;">Log in with your name and PIN. If you ever forget your PIN, ask an admin to check or reset it in HR &rarr; Team.</p>'+
+    '<p style="margin:0;">Whichever screen you\u2019re on, a small <b>Feedback / feature requests</b> link sits at the very bottom \u2014 tap it any time to send a note straight to admin, along with which screen you were on when you sent it.</p>'
+  );
+
+  html += helpSection('Home screen &amp; notifications', ''+
+    '<p style="margin:0 0 10px 0;">The Home screen is your starting point, with a tile for each section. A number badge on a tile means something in there needs your attention \u2014 a decided leave request, a swap reply, an overtime decision, or (for admins) something waiting to be reviewed. Badges clear automatically once you open the screen they belong to.</p>'+
+    '<p style="margin:0;">A banner above the tiles also summarises anything outstanding across the whole app \u2014 low stock, requests to approve, vehicles due for MOT/service, and so on.</p>'
+  );
+
+  html += helpSection('Stock', ''+
+    helpItem('Dashboard', 'a quick overview of stock levels across the company.')+
+    helpItem('Vans', 'each engineer\u2019s own van stock. Use the +/&minus; steppers to adjust quantities, or tap \u201cScan to Restock\u201d to use your camera to scan a barcode and add stock quickly.')+
+    helpItem('Stores', 'the warehouse/office stock, same controls as Vans.')+
+    helpItem('History', 'a log of every stock movement. Non-admins see their own activity only.')+
+    helpItem('Items', 'the item catalog \u2014 admins can add, edit, reorder (drag the handle), or remove items, and set minimum stock levels for vans and stores separately.')+
+    helpItem('Show low stock only', 'a button in Vans and Stores that filters the list down to just what\u2019s low or out, so you can see what needs restocking at a glance.')+
+    helpItem('Transfer &amp; ServiceM8', 'stock can be transferred from Stores to a van, and material used on a job can be logged straight to that job in ServiceM8.')
+  );
+
+  html += helpSection('Leave &amp; Rota', ''+
+    helpItem('Request Leave', 'pick your dates (half-days supported), confirm the two checks, and submit. UK bank holidays and weekends never count against your allowance.')+
+    helpItem('My Requests', 'shows your leave history and a running total of days taken, days left, and your annual allowance for the year.')+
+    helpItem('Calendar', 'one month view combining who\u2019s on call, who\u2019s on approved leave, and UK bank holidays (highlighted). Admins can tap a day to set who\u2019s on call, or bulk-import a rota from a list of dates.')+
+    helpItem('Cover / Swap', 'ask someone to cover one of your on-call dates, or offer a swap. Tap the highlighted dates on the mini-calendar to pick them \u2014 no typing needed.')+
+    helpItem('Overtime', 'log overtime you\u2019ve worked \u2014 date, hours (in half-hour steps), where, and what you did. If admin queries or declines it, that entry becomes tappable so you can add more information and re-submit \u2014 the whole back-and-forth stays visible on the entry.')+
+    helpItem('Approvals (admin only)', 'review and decide on pending leave requests, with the option to approve, approve with conditions, or reject with a reason. Even an already-approved request can be amended or deleted later if plans change.')+
+    helpItem('Overtime Submissions (admin only)', 'review everyone\u2019s overtime and mark it Approved, Declined (with a reason), or Query (with a comment, which the person can then reply to and re-submit).')
+  );
+
+  html += helpSection('Jobs', ''+
+    '<p style="margin:0;">A monthly calendar of jobs pulled live from ServiceM8. Non-admins only see their own jobs. Tap a day to see the jobs on it, and tap a job to jump straight into filling out a form for it.</p>'
+  );
+
+  html += helpSection('Forms', ''+
+    '<p style="margin:0 0 10px 0;">Every completed form is saved in \u201cMy Submitted Reports\u201d, generates a branded KHG PDF, and can be shared or downloaded. Available forms include:</p>'+
+    '<p style="margin:0 0 10px 0;">Service Report, Risk Assessment (RAMS), Pod Commissioning Checklist, Pod Client Handover, Pod &amp; General Terms and Conditions, Additional Works / Variation, Disconnection Authorisation, and the full Alarm System Survey (SDP) \u2014 which can be saved as a Proposal, then later promoted to a Specification or As Fitted document without starting again.</p>'+
+    '<p style="margin:0;">A Disconnection Authorisation automatically creates an entry in Follow Up so the repair doesn\u2019t get forgotten. You can delete any submitted report from the list if it was made in error.</p>'
+  );
+
+  html += helpSection('Vehicles', ''+
+    helpItem('My Vehicle', 'shows the vehicle registered to you, including MOT and service dates.')+
+    helpItem('Report Issue', 'flag a problem with your vehicle \u2014 admin and office are notified straight away.')+
+    helpItem('Health Checklist', 'a quick daily/weekly/monthly OK-or-issue check, with an \u201cAll OK\u201d shortcut when everything\u2019s fine.')+
+    helpItem('Manage Vehicles (admin only)', 'add and edit vehicles, assign registrations to people, and track MOT/service dates \u2014 you\u2019ll get a push reminder automatically as those dates approach.')
+  );
+
+  html += helpSection('Follow Up', ''+
+    '<p style="margin:0;">Tracks disconnection repairs that still need finishing. Colour-coded by urgency (red = overdue, amber = due soon, green = resolved), with a link back to the original signed form. Admin and office see everything; engineers see their own.</p>'
+  );
+
+  html += helpSection('HR', ''+
+    helpItem('Team (admin only)', 'add or remove people, set PINs, roles, callout codes, ServiceM8 names, van registrations, leave allowances, and who has admin or HR Documents access. Also controls which Home screen sections each person can see.')+
+    helpItem('Feedback (admin only)', 'every feedback/feature request submitted from the link at the bottom of the app, newest first. Tap one to read it in full, and delete it once actioned.')+
+    helpItem('Documents', 'policies and other documents. Anyone with HR Documents access (set in Team) can upload a file, mark it Public (everyone can see it) or Private (one named person only), and optionally require the recipient to actively confirm they\u2019ve read it \u2014 which sends a confirmation back to admin and is tracked with who accepted and when. Everyone else just sees their own private documents plus anything public.')
+  );
+
+  html += helpSection('Notifications', ''+
+    '<p style="margin:0;">If you allow notifications when prompted, you\u2019ll get a push alert the moment something needs you \u2014 a cover request, a decision on your leave or overtime, a new document, a vehicle issue, and more \u2014 even when the app isn\u2019t open.</p>'
+  );
+
+  c.innerHTML = html;
+}
+
 function renderHRScreen(){
   renderWhoBadge();
   var c = document.getElementById('vs-hr-content');
@@ -1808,6 +1907,7 @@ function renderHRDocuments(c){
     html += '<div class="vs-field"><label>Visibility</label><select id="hrdoc-visibility" onchange="document.getElementById(\'hrdoc-assignee-wrap\').style.display=(this.value===\'private\'?\'block\':\'none\')"><option value="private" selected>Private \u2014 one person only</option><option value="public">Public \u2014 everyone can see it</option></select></div>';
     html += '<div id="hrdoc-assignee-wrap" class="vs-field"><label>Assign to</label><select id="hrdoc-assignee">'+state.catalog.engineers.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+'</select></div>';
     html += '<div class="vs-field"><label>File</label><input type="file" id="hrdoc-file"></div>';
+    html += '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--text);margin:0 0 14px 0;"><input type="checkbox" id="hrdoc-requires-accept" style="margin-top:3px;width:auto;flex-shrink:0;">Require the recipient(s) to confirm they\u2019ve read and understood this before it counts as seen</label>';
     html += '<p style="font-size:11px;color:var(--muted-2);margin:-6px 0 12px 0;">Keep files under about 700KB \u2014 documents are stored directly in the app\u2019s database rather than separate file storage, so very large scanned PDFs won\u2019t fit.</p>';
     html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitHRDoc()">Upload</button>';
   }
@@ -1826,14 +1926,30 @@ function renderHRDocuments(c){
       var assigneeName = '';
       if(d.visibility==='private'){ var p = engById(d.assignedToId); assigneeName = p?p.name:'Unknown'; }
       var badgeText = d.visibility==='public' ? 'PUBLIC' : ('PRIVATE'+(canManage?': '+escapeAttr(assigneeName):''));
-      return '<div class="vs-item-row"><div class="vs-item-info">'+
+      var acceptances = d.acceptances || [];
+      var myAcceptance = me ? acceptances.filter(function(a){ return a.personId===me.id; })[0] : null;
+      var needsMyAccept = d.requiresAcceptance && !myAcceptance && me && (d.visibility==='public' || d.assignedToId===me.id);
+
+      var row = '<div class="vs-item-row'+(needsMyAccept?' low':'')+'"><div class="vs-item-info">'+
         '<div class="vs-item-name">'+escapeAttr(d.title)+'<span class="vs-stock-badge '+(d.visibility==='public'?'ok':'low')+'">'+badgeText+'</span></div>'+
-        '<div class="vs-item-meta">'+escapeAttr(d.fileName)+' \u00b7 Uploaded by '+escapeAttr(d.uploadedBy)+' \u00b7 '+new Date(d.uploadedAt).toLocaleDateString()+'</div>'+
-      '</div></div>'+
-      '<div style="display:flex;gap:8px;margin:8px 0 16px 0;">'+
+        '<div class="vs-item-meta">'+escapeAttr(d.fileName)+' \u00b7 Uploaded by '+escapeAttr(d.uploadedBy)+' \u00b7 '+new Date(d.uploadedAt).toLocaleDateString()+'</div>';
+      if(myAcceptance) row += '<div class="vs-item-meta">You confirmed you\u2019ve read this on '+new Date(myAcceptance.acceptedAt).toLocaleDateString()+'</div>';
+      if(canManage && d.requiresAcceptance){
+        if(d.visibility==='private'){
+          var theirAccept = acceptances[0];
+          row += '<div class="vs-item-meta">'+(theirAccept ? 'Accepted '+new Date(theirAccept.acceptedAt).toLocaleString() : 'Not yet accepted')+'</div>';
+        } else {
+          var names = acceptances.map(function(a){ return a.personName+' ('+new Date(a.acceptedAt).toLocaleDateString()+')'; }).join(', ');
+          row += '<div class="vs-item-meta">Accepted by '+acceptances.length+' of '+state.catalog.engineers.length+(names?': '+escapeAttr(names):'')+'</div>';
+        }
+      }
+      row += '</div></div>';
+      row += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;flex-wrap:wrap;">'+
         '<button class="vs-btn small primary" onclick="VS.downloadHRDoc(\''+d.id+'\')">Download</button>'+
+        (needsMyAccept ? '<button class="vs-btn small" onclick="VS.openAcceptDoc(\''+d.id+'\')">Accept</button>' : '')+
         (canManage?'<button class="vs-btn small danger" onclick="VS.deleteHRDoc(\''+d.id+'\')">Delete</button>':'')+
       '</div>';
+      return row;
     }).join('')+'</div>';
   }
   c.innerHTML = html;
@@ -1847,12 +1963,11 @@ function renderHRFeedback(c){
     html += '<div class="vs-empty">No feedback submitted yet.</div>';
   } else {
     html += '<div class="vs-cards">'+items.map(function(f){
-      return '<div class="vs-item-row'+(f.read?'':' low')+'"><div class="vs-item-info">'+
+      return '<div class="vs-item-row'+(f.read?'':' low')+'" style="cursor:pointer;" onclick="VS.viewFeedback(\''+f.id+'\')"><div class="vs-item-info">'+
         '<div class="vs-item-name">'+escapeAttr(f.personName)+(f.read?'':'<span class="vs-stock-badge low">NEW</span>')+'</div>'+
         '<div class="vs-item-meta">'+escapeAttr(f.screen)+' \u00b7 '+new Date(f.submittedAt).toLocaleString()+'</div>'+
-        '<div class="vs-item-meta">'+escapeAttr(f.text)+'</div>'+
-      '</div></div>'+
-      '<div style="margin:8px 0 16px 0;"><button class="vs-btn small danger" onclick="VS.deleteFeedback(\''+f.id+'\')">Delete</button></div>';
+        '<div class="vs-item-meta">'+escapeAttr(f.text.length>80?f.text.slice(0,80)+'\u2026':f.text)+'</div>'+
+      '</div></div>';
     }).join('')+'</div>';
   }
   c.innerHTML = html;
@@ -5121,10 +5236,20 @@ var VS = {
     closeModal();
     toast('Thanks \u2014 sent to admin');
   },
+  viewFeedback:function(id){
+    var f = (state.feedback||[]).filter(function(x){ return x.id===id; })[0];
+    if(!f) return;
+    var html = '<h3>'+escapeAttr(f.personName)+'</h3>'+
+      '<p style="font-size:12px;color:var(--muted-2);margin:0 0 12px 0;">'+escapeAttr(f.screen)+' \u00b7 '+new Date(f.submittedAt).toLocaleString()+'</p>'+
+      '<p style="font-size:14px;color:var(--text);white-space:pre-wrap;line-height:1.5;margin:0 0 16px 0;">'+escapeAttr(f.text)+'</p>'+
+      '<div class="vs-modal-actions"><button class="vs-btn danger" onclick="VS.deleteFeedback(\''+id+'\')">Delete</button><button class="vs-btn primary" onclick="VS.closeModal()">Close</button></div>';
+    openModal(html);
+  },
   deleteFeedback:function(id){
     if(!confirm('Delete this feedback?')) return;
     state.feedback = (state.feedback||[]).filter(function(f){ return f.id!==id; });
     saveFeedback();
+    closeModal();
     renderHRScreen();
     toast('Deleted');
   },
@@ -5134,6 +5259,7 @@ var VS = {
     var visibility = document.getElementById('hrdoc-visibility').value;
     var assignedToId = visibility==='private' ? document.getElementById('hrdoc-assignee').value : null;
     if(visibility==='private' && !assignedToId){ toast('Choose who this is for'); return; }
+    var requiresAcceptance = document.getElementById('hrdoc-requires-accept').checked;
     var fileInput = document.getElementById('hrdoc-file');
     var file = fileInput.files[0];
     if(!file){ toast('Choose a file'); return; }
@@ -5141,9 +5267,14 @@ var VS = {
     var me = currentPerson();
     var reader = new FileReader();
     reader.onload = function(){
+      if(!reader.result || typeof reader.result !== 'string' || reader.result.indexOf('base64,')===-1){
+        toast('That file didn\u2019t load correctly \u2014 please try again');
+        return;
+      }
       if(!state.hrDocuments) state.hrDocuments = [];
       state.hrDocuments.push({
         id: uid(), title: title, visibility: visibility, assignedToId: assignedToId,
+        requiresAcceptance: requiresAcceptance, acceptances: [],
         fileName: file.name, fileData: reader.result,
         uploadedBy: me?me.name:'Unknown', uploadedById: me?me.id:null, uploadedAt: new Date().toISOString()
       });
@@ -5151,10 +5282,13 @@ var VS = {
       toast('Document uploaded');
       renderHRScreen();
       if(visibility==='private' && assignedToId){
-        sendPushNotification([assignedToId], 'New document', title+' has been added for you in HR');
+        sendPushNotification([assignedToId], 'New document', title+' has been added for you in HR'+(requiresAcceptance?' \u2014 please read and confirm':''));
       }
     };
-    reader.onerror = function(){ toast('Could not read that file'); };
+    reader.onerror = function(){
+      var reason = (reader.error && reader.error.name) ? reader.error.name : 'unknown error';
+      toast('Could not read that file (' + reason + ') \u2014 try again, or pick it from local storage rather than iCloud/cloud storage');
+    };
     reader.readAsDataURL(file);
   },
   downloadHRDoc:function(id){
@@ -5173,6 +5307,30 @@ var VS = {
     saveHRDocuments();
     renderHRScreen();
     toast('Deleted');
+  },
+  openAcceptDoc:function(id){
+    var d = (state.hrDocuments||[]).filter(function(x){ return x.id===id; })[0];
+    if(!d) return;
+    var html = '<h3>Confirm</h3>'+
+      '<p style="font-size:14px;color:var(--text);margin:0 0 16px 0;">I confirm that I have read and understood \u201c'+escapeAttr(d.title)+'\u201d.</p>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.confirmAcceptDoc(\''+id+'\')">Submit</button></div>';
+    openModal(html);
+  },
+  confirmAcceptDoc:function(id){
+    var d = (state.hrDocuments||[]).filter(function(x){ return x.id===id; })[0];
+    if(!d) return;
+    var me = currentPerson();
+    if(!me) return;
+    if(!d.acceptances) d.acceptances = [];
+    if(!d.acceptances.some(function(a){ return a.personId===me.id; })){
+      d.acceptances.push({ personId: me.id, personName: me.name, acceptedAt: new Date().toISOString() });
+    }
+    saveHRDocuments();
+    closeModal();
+    renderHRScreen();
+    var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
+    sendPushNotification(adminIds, 'Policy accepted', me.name+' has confirmed: '+d.title);
+    toast('Thank you \u2014 confirmed');
   },
   setHRTab:function(t){ state.hrTab=t; renderHRScreen(); },
   submitOvertime:function(){
