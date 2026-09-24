@@ -338,7 +338,8 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   <div class="vs-lock-card">
     <img class="vs-brand-logo" src="icon-180.png" alt="KHG Security" style="width:56px;height:56px;">
     <h1>KHG Security</h1>
-    <p>Enter your PIN to continue</p>
+    <p>Enter your name and PIN to continue</p>
+    <input id="vs-lock-name" type="text" placeholder="Name" autocomplete="off" autocapitalize="words" onkeydown="if(event.key==='Enter') document.getElementById('vs-lock-input').focus()" style="margin-bottom:8px;">
     <input id="vs-lock-input" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" onkeydown="if(event.key==='Enter') VS.tryPinLogin()">
     <button onclick="VS.tryPinLogin()">Log in</button>
     <div class="vs-lock-err" id="vs-lock-err"></div>
@@ -844,6 +845,7 @@ function setPinLockoutState(s){
 
 function tryPinLogin(){
   var input = document.getElementById('vs-lock-input');
+  var nameInput = document.getElementById('vs-lock-name');
   var errEl = document.getElementById('vs-lock-err');
   var lockout = getPinLockoutState();
   var now = Date.now();
@@ -856,8 +858,11 @@ function tryPinLogin(){
     errEl.textContent = 'Still connecting — try again in a moment';
     return;
   }
+  var name = nameInput.value.trim();
   var pin = input.value.trim();
-  var person = pin ? state.catalog.engineers.filter(function(e){ return e.pin && e.pin===pin; })[0] : null;
+  var person = (name && pin) ? state.catalog.engineers.filter(function(e){
+    return e.pin && e.pin===pin && e.name && e.name.trim().toLowerCase()===name.toLowerCase();
+  })[0] : null;
   if(person){
     setPinLockoutState({ fails:0, lockedUntil:0 });
     state.currentUser = person.id;
@@ -872,7 +877,7 @@ function tryPinLogin(){
       lockout.lockedUntil = now + lockoutSeconds*1000;
       errEl.textContent = 'Too many incorrect attempts \u2014 try again in '+lockoutSeconds+'s';
     } else {
-      errEl.textContent = 'Incorrect PIN';
+      errEl.textContent = 'Name or PIN not recognised';
     }
     setPinLockoutState(lockout);
     input.value = '';
@@ -1737,9 +1742,23 @@ function renderHRTeam(c){
 
 var OVERTIME_HOURS_OPTIONS = (function(){ var a=[]; for(var h=0.5; h<=12; h+=0.5){ a.push(h.toFixed(1)); } return a; })();
 
+var OVERTIME_STATUS_LABEL = {pending:'Pending', approved:'Approved', queried:'Queried'};
+var OVERTIME_STATUS_CLASS = {pending:'low', approved:'ok', queried:'out'};
+
+function overtimeRowHtml(o, showName){
+  var statusClass = OVERTIME_STATUS_CLASS[o.status||'pending'];
+  var statusLabel = OVERTIME_STATUS_LABEL[o.status||'pending'];
+  var html = '<div class="vs-item-row '+statusClass+'"><div class="vs-item-info">'+
+    '<div class="vs-item-name">'+(showName?escapeAttr(o.personName)+' \u2014 ':'')+fmtLeaveDate(o.date)+'<span class="vs-stock-badge '+statusClass+'">'+statusLabel.toUpperCase()+'</span></div>'+
+    '<div class="vs-item-meta">'+o.hours+'h \u2014 '+escapeAttr(o.location)+'</div>'+
+    '<div class="vs-item-meta">'+escapeAttr(o.work)+'</div>';
+  if(o.adminComment) html += '<div class="vs-item-meta">Admin: '+escapeAttr(o.adminComment)+'</div>';
+  html += '</div></div>';
+  return html;
+}
+
 function renderHROvertime(c){
   var me = currentPerson();
-  var admin = isAdminPerson(me);
   var html = hrBackLink();
   html += sectionHead('Submit overtime');
   html += '<div class="vs-field"><label>Date</label><input type="date" id="ot-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
@@ -1749,19 +1768,11 @@ function renderHROvertime(c){
   html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.submitOvertime()">Submit</button>';
 
   var mine = (state.overtime||[]).filter(function(o){ return o.personId===me.id; }).slice().reverse();
-  html += sectionHead(admin ? 'All overtime' : 'My overtime');
-  var list = admin ? (state.overtime||[]).slice().reverse() : mine;
-  if(list.length===0){
+  html += sectionHead('My overtime');
+  if(mine.length===0){
     html += '<div class="vs-empty">No overtime submitted yet.</div>';
   } else {
-    html += '<div class="vs-cards">'+list.map(function(o){
-      return '<div class="vs-item-row"><div class="vs-item-info">'+
-        '<div class="vs-item-name">'+(admin?escapeAttr(o.personName)+' \u2014 ':'')+fmtLeaveDate(o.date)+'<span class="vs-stock-badge ok">'+o.hours+'h</span></div>'+
-        '<div class="vs-item-meta">'+escapeAttr(o.location)+'</div>'+
-        '<div class="vs-item-meta">'+escapeAttr(o.work)+'</div>'+
-      '</div></div>'+
-      (admin?'<div style="margin:8px 0 16px 0;"><button class="vs-btn small danger" onclick="VS.deleteOvertime(\''+o.id+'\')">Delete</button></div>':'');
-    }).join('')+'</div>';
+    html += '<div class="vs-cards">'+mine.map(function(o){ return overtimeRowHtml(o, false); }).join('')+'</div>';
   }
   c.innerHTML = html;
 }
@@ -1778,7 +1789,8 @@ function renderLeaveScreen(){
   if(state.leaveTab==='mine') return renderMyLeaveRequests(c);
   if(state.leaveTab==='rota') return renderCalloutRota(c);
   if(state.leaveTab==='swap') return renderRequestSwap(c);
-  if(state.leaveTab==='approvals') return renderLeaveApprovals(c);
+  if(state.leaveTab==='approvals' && isAdminPerson(currentPerson())) return renderLeaveApprovals(c);
+  if(state.leaveTab==='overtime_admin' && isAdminPerson(currentPerson())) return renderOvertimeAdmin(c);
   if(state.leaveTab==='request') return renderLeaveRequestForm(c);
   return renderLeaveMenu(c);
 }
@@ -1805,6 +1817,8 @@ function renderLeaveMenu(c){
   html += leaveMenuTile('swap', 'Cover / Swap', 'Hand over or trade dates', '<path d="M7 3L3 7l4 4"/><path d="M3 7h13a4 4 0 0 1 4 4v1"/><path d="M17 21l4-4-4-4"/><path d="M21 17H8a4 4 0 0 1-4-4v-1"/>');
   if(admin){
     html += leaveMenuTile('approvals', 'Approvals'+(pendingCount?' ('+pendingCount+')':''), 'Review pending requests', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
+    var pendingOT = (state.overtime||[]).filter(function(o){ return (o.status||'pending')==='pending'; }).length;
+    html += leaveMenuTile('overtime_admin', 'Overtime Submissions'+(pendingOT?' ('+pendingOT+')':''), 'Approve or query overtime', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>');
   }
   html += '</div>';
   c.innerHTML = html;
@@ -1829,6 +1843,10 @@ function leaveRequestRowHtml(r, showName){
   if(r.notes) html += '<div class="vs-item-meta">Note: '+escapeAttr(r.notes)+'</div>';
   if(r.adminNote) html += '<div class="vs-item-meta">Admin: '+escapeAttr(r.adminNote)+'</div>';
   html += '</div></div>';
+  html += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;">'+
+    '<button class="vs-btn small" onclick="VS.openAmendLeave(\''+r.id+'\')">Amend</button>'+
+    '<button class="vs-btn small danger" onclick="VS.deleteLeaveRequest(\''+r.id+'\')">Delete</button>'+
+  '</div>';
   return html;
 }
 
@@ -1871,6 +1889,31 @@ function renderMyLeaveRequests(c){
   var changed = false;
   mine.forEach(function(r){ if(!r.seenByRequester){ r.seenByRequester = true; changed = true; } });
   if(changed) saveLeaveRequests();
+}
+
+function renderOvertimeAdmin(c){
+  var pending = (state.overtime||[]).filter(function(o){ return (o.status||'pending')==='pending'; }).slice().reverse();
+  var decided = (state.overtime||[]).filter(function(o){ return (o.status||'pending')!=='pending'; }).slice().reverse();
+  var html = leaveBackLink();
+  html += sectionHead('Pending overtime');
+  if(pending.length===0){
+    html += '<div class="vs-empty">Nothing waiting on you.</div>';
+  } else {
+    html += pending.map(function(o){
+      return overtimeRowHtml(o, true) +
+        '<div style="display:flex;gap:8px;margin:8px 0 16px 0;flex-wrap:wrap;">'+
+          '<button class="vs-btn small primary" onclick="VS.decideOvertime(\''+o.id+'\',\'approved\')">Approved</button>'+
+          '<button class="vs-btn small danger" onclick="VS.openQueryOvertime(\''+o.id+'\')">Query</button>'+
+        '</div>';
+    }).join('');
+  }
+  html += sectionHead('Decided');
+  if(decided.length===0){
+    html += '<div class="vs-empty">No decisions yet.</div>';
+  } else {
+    html += '<div class="vs-cards">'+decided.map(function(o){ return overtimeRowHtml(o, true); }).join('')+'</div>';
+  }
+  c.innerHTML = html;
 }
 
 function renderLeaveApprovals(c){
@@ -4878,9 +4921,12 @@ var VS = {
     state.overtime.push({
       id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
       date: date, hours: hours, location: location, work: work,
+      status: 'pending', adminComment: '',
       submittedAt: new Date().toISOString()
     });
     saveOvertime();
+    var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
+    sendPushNotification(adminIds, 'Overtime submitted', (me?me.name:'Someone')+' \u2014 '+hours+'h on '+fmtLeaveDate(date));
     toast('Overtime submitted');
     renderHRScreen();
   },
@@ -5612,6 +5658,30 @@ var VS = {
     state.leaveTab = 'mine';
     renderLeaveScreen();
   },
+  decideOvertime:function(id, status){
+    var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
+    if(!o) return;
+    o.status = status;
+    saveOvertime();
+    closeModal();
+    renderLeaveScreen();
+    if(o.personId) sendPushNotification([o.personId], 'Overtime '+status, fmtLeaveDate(o.date)+' \u2014 '+o.hours+'h marked '+status);
+    toast('Decision saved');
+  },
+  openQueryOvertime:function(id){
+    var html = '<h3>Query overtime</h3>'+
+      '<div class="vs-field"><label>Comment</label><input id="ot-query-text" placeholder="What needs clarifying?"></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmQueryOvertime(\''+id+'\')">Query</button></div>';
+    openModal(html);
+  },
+  confirmQueryOvertime:function(id){
+    var text = document.getElementById('ot-query-text').value.trim();
+    if(!text){ toast('Enter a comment'); return; }
+    var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
+    if(!o) return;
+    o.adminComment = text;
+    this.decideOvertime(id, 'queried');
+  },
   decideLeave:function(id, status){
     var r = state.leaveRequests.filter(function(x){ return x.id===id; })[0];
     if(!r) return;
@@ -5651,6 +5721,49 @@ var VS = {
     if(!r) return;
     r.adminNote = text;
     this.decideLeave(id, 'rejected');
+  },
+  deleteLeaveRequest:function(id){
+    if(!confirm('Delete this leave request? This can\u2019t be undone.')) return;
+    state.leaveRequests = state.leaveRequests.filter(function(r){ return r.id!==id; });
+    saveLeaveRequests();
+    renderLeaveScreen();
+    toast('Deleted');
+  },
+  openAmendLeave:function(id){
+    var r = state.leaveRequests.filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    var wasApproved = (r.status==='approved' || r.status==='approved_conditions');
+    var html = '<h3>Amend leave request</h3>'+
+      '<div class="vs-field"><label>Start date</label><input type="date" id="am-start" value="'+r.startDate+'"></div>'+
+      '<div class="vs-field"><label>Start day</label><select id="am-start-half"><option value="full" '+(r.startHalf!=='pm'?'selected':'')+'>Full day</option><option value="pm" '+(r.startHalf==='pm'?'selected':'')+'>Half day (afternoon only)</option></select></div>'+
+      '<div class="vs-field"><label>End date</label><input type="date" id="am-end" value="'+r.endDate+'"></div>'+
+      '<div class="vs-field"><label>End day</label><select id="am-end-half"><option value="full" '+(r.endHalf!=='am'?'selected':'')+'>Full day</option><option value="am" '+(r.endHalf==='am'?'selected':'')+'>Half day (morning only)</option></select></div>'+
+      '<div class="vs-field"><label>Notes</label><input id="am-notes" value="'+escapeAttr(r.notes||'')+'"></div>'+
+      (wasApproved ? '<p style="font-size:12px;color:var(--amber);margin:0 0 10px 0;">This request is already approved \u2014 amending it will put it back to Pending for re-approval.</p>' : '')+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.confirmAmendLeave(\''+id+'\')">Save</button></div>';
+    openModal(html);
+  },
+  confirmAmendLeave:function(id){
+    var r = state.leaveRequests.filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    var start = document.getElementById('am-start').value;
+    var end = document.getElementById('am-end').value;
+    if(!start || !end){ toast('Enter both dates'); return; }
+    if(end<start){ toast('End date must be on or after start date'); return; }
+    r.startDate = start;
+    r.endDate = end;
+    r.startHalf = document.getElementById('am-start-half').value;
+    r.endHalf = document.getElementById('am-end-half').value;
+    r.notes = document.getElementById('am-notes').value.trim();
+    var wasApproved = (r.status==='approved' || r.status==='approved_conditions');
+    if(wasApproved){
+      r.status = 'pending';
+      r.seenByRequester = false;
+    }
+    saveLeaveRequests();
+    closeModal();
+    renderLeaveScreen();
+    toast(wasApproved ? 'Amended \u2014 back to pending for approval' : 'Amended');
   },
   rotaMonthShift:function(delta){
     rotaViewMonth.setMonth(rotaViewMonth.getMonth()+delta);
