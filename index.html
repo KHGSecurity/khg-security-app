@@ -233,6 +233,11 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   padding:11px 12px; font-size:16px; text-align:center; letter-spacing:0.08em; font-family:'Inter'; margin-bottom:10px;
 }
 .vs-lock-card input:focus{ outline:none; border-color:var(--accent); }
+.vs-lock-card select{
+  width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px;
+  padding:11px 12px; font-size:15px; text-align:center; font-family:'Inter'; margin-bottom:10px;
+}
+.vs-lock-card select:focus{ outline:none; border-color:var(--accent); }
 .vs-lock-card button{
   width:100%; background:var(--accent); border:1px solid var(--accent); color:var(--bg); font-family:'Inter'; font-weight:700;
   font-size:14px; padding:10px; border-radius:6px; cursor:pointer;
@@ -346,7 +351,7 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
     <img class="vs-brand-logo" src="icon-180.png" alt="KHG Security" style="width:56px;height:56px;">
     <h1>KHG Security</h1>
     <p>Enter your name and PIN to continue</p>
-    <input id="vs-lock-name" type="text" placeholder="Name" autocomplete="off" autocapitalize="words" onkeydown="if(event.key==='Enter') document.getElementById('vs-lock-input').focus()" style="margin-bottom:8px;">
+    <select id="vs-lock-name" style="margin-bottom:8px;" onchange="if(this.value) document.getElementById('vs-lock-input').focus()"><option value="">Select your name…</option></select>
     <input id="vs-lock-input" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" onkeydown="if(event.key==='Enter') VS.tryPinLogin()">
     <button onclick="VS.tryPinLogin()">Log in</button>
     <div class="vs-lock-err" id="vs-lock-err"></div>
@@ -642,6 +647,7 @@ function refreshAppScreen(){
   if(!state.currentUser){
     document.getElementById('vs-lock-wrap').style.display = 'flex';
     document.getElementById('vs-lock-err').textContent = '';
+    populateLockNameDropdown();
     var input = document.getElementById('vs-lock-input');
     if(input){ input.value = ''; input.focus(); }
     return;
@@ -939,6 +945,18 @@ function getPinLockoutState(){
 }
 function setPinLockoutState(s){
   try{ window.localStorage.setItem('vs-pin-lockout', JSON.stringify(s)); }catch(e){}
+}
+
+function populateLockNameDropdown(){
+  var sel = document.getElementById('vs-lock-name');
+  if(!sel || !state.catalog || !state.catalog.engineers) return;
+  var prevValue = sel.value;
+  var names = state.catalog.engineers.map(function(e){ return e.name; }).sort(function(a,b){ return a.localeCompare(b); });
+  var opts = '<option value="">Select your name\u2026</option>' + names.map(function(n){
+    return '<option value="'+escapeAttr(n)+'">'+escapeAttr(n)+'</option>';
+  }).join('');
+  if(sel.innerHTML !== opts) sel.innerHTML = opts;
+  if(prevValue && names.indexOf(prevValue)!==-1) sel.value = prevValue;
 }
 
 function tryPinLogin(){
@@ -1282,6 +1300,7 @@ function onSharedUpdate(changedKey){
   if(changedKey==='catalog'){
     if(state.authResolved && state.currentUser){ checkStillAuthorized(); }
     if(!state.currentUser){ var w = document.getElementById('vs-setup-wrap'); if(w && w.style.display==='flex') renderSetupScreen(); }
+    if(!state.currentUser) populateLockNameDropdown();
   }
   if(appView==='home' && ['catalog','leave','swaps','overtime','feedback'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
   if(appView==='hr' && ['catalog','feedback','hrDocuments'].indexOf(changedKey)!==-1){ renderHRScreen(); }
