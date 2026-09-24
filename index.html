@@ -169,9 +169,10 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
 .vs-field{ margin-bottom:12px; }
 .vs-field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600; }
 .vs-field input, .vs-field select, .vs-field textarea{
-  width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:9px 10px; font-size:14px; font-family:'Inter';
+  width:100%; max-width:100%; min-width:0; box-sizing:border-box; background:var(--panel-2); border:1px solid var(--line); color:var(--text); border-radius:6px; padding:9px 10px; font-size:14px; font-family:'Inter';
 }
 .vs-field textarea{ resize:vertical; min-height:60px; }
+.vs-field input[type="date"]{ -webkit-appearance:none; appearance:none; }
 .vs-field input:focus, .vs-field select:focus, .vs-field textarea:focus{ outline:none; border-color:var(--accent); }
 .vs-modal-actions{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
 .vs-toast{
@@ -698,6 +699,10 @@ function computeAlertCounts(){
   var totalLow = lowVan.length + lowWh.length;
   var pendingApprovals = admin ? (state.leaveRequests||[]).filter(function(r){ return r.status==='pending'; }).length : 0;
   var pendingSwaps = me ? (state.swapRequests||[]).filter(function(s){ return s.targetId===me.id && s.status==='pending'; }).length : 0;
+  var myLeaveUnseen = myLeaveUnseenCount();
+  var mySwapUnseenSent = me ? (state.swapRequests||[]).filter(function(s){ return s.requesterId===me.id && s.seenByRequester===false; }).length : 0;
+  var myOvertimeUnseen = myOvertimeUnseenCount();
+  var pendingOvertime = overtimePendingCount();
 
   var vehiclesDue = 0, openIssues = 0;
   if(officeOrAdmin){
@@ -715,7 +720,9 @@ function computeAlertCounts(){
   return {
     noStock: noStock.length, totalLow: totalLow, pendingApprovals: pendingApprovals, pendingSwaps: pendingSwaps,
     vehiclesDue: vehiclesDue, openIssues: openIssues, openFollowUps: openFollowUps,
+    myLeaveUnseen: myLeaveUnseen, mySwapUnseenSent: mySwapUnseenSent, myOvertimeUnseen: myOvertimeUnseen, pendingOvertime: pendingOvertime,
     total: noStock.length + totalLow + pendingApprovals + pendingSwaps + vehiclesDue + openIssues + openFollowUps
+      + myLeaveUnseen + mySwapUnseenSent + myOvertimeUnseen + pendingOvertime
   };
 }
 
@@ -798,7 +805,11 @@ function renderHomeNotifications(){
 
   var pendingApprovals = counts.pendingApprovals;
   var pendingSwaps = counts.pendingSwaps;
-  var leaveAlerts = pendingApprovals>0 || pendingSwaps>0;
+  var myLeaveUnseen = counts.myLeaveUnseen;
+  var mySwapUnseenSent = counts.mySwapUnseenSent;
+  var myOvertimeUnseen = counts.myOvertimeUnseen;
+  var pendingOvertime = counts.pendingOvertime;
+  var leaveAlerts = pendingApprovals>0 || pendingSwaps>0 || myLeaveUnseen>0 || mySwapUnseenSent>0 || myOvertimeUnseen>0 || pendingOvertime>0;
   var vehiclesDue = counts.vehiclesDue;
   var openIssues = counts.openIssues;
   var vehicleAlerts = vehiclesDue>0 || openIssues>0;
@@ -810,6 +821,10 @@ function renderHomeNotifications(){
   if(totalLow) parts.push(totalLow+' item'+(totalLow===1?'':'s')+' below minimum');
   if(pendingApprovals) parts.push(pendingApprovals+' leave request'+(pendingApprovals===1?'':'s')+' to approve');
   if(pendingSwaps) parts.push(pendingSwaps+' swap request'+(pendingSwaps===1?'':'s')+' waiting on you');
+  if(myLeaveUnseen) parts.push(myLeaveUnseen+' leave decision'+(myLeaveUnseen===1?'':'s')+' for you to see');
+  if(mySwapUnseenSent) parts.push(mySwapUnseenSent+' swap/cover reply'+(mySwapUnseenSent===1?'':'ies')+' for you to see');
+  if(myOvertimeUnseen) parts.push(myOvertimeUnseen+' overtime decision'+(myOvertimeUnseen===1?'':'s')+' for you to see');
+  if(pendingOvertime) parts.push(pendingOvertime+' overtime submission'+(pendingOvertime===1?'':'s')+' to review');
   if(vehiclesDue) parts.push(vehiclesDue+' vehicle MOT/service due soon');
   if(openIssues) parts.push(openIssues+' vehicle issue'+(openIssues===1?'':'s')+' reported');
   if(openFollowUps) parts.push(openFollowUps+' follow-up'+(openFollowUps===1?'':'s')+' outstanding');
@@ -1211,10 +1226,10 @@ function onSharedUpdate(changedKey){
     if(state.authResolved && state.currentUser){ checkStillAuthorized(); }
     if(!state.currentUser){ var w = document.getElementById('vs-setup-wrap'); if(w && w.style.display==='flex') renderSetupScreen(); }
   }
-  if(appView==='home' && changedKey==='catalog'){ renderHomeTiles(); }
-  if(appView==='home' && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
-  else if(state.currentUser && ['catalog','stock','leave','swaps'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
-  if(appView==='leave' && ['catalog','leave','rota','swaps'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
+  if(appView==='home' && ['catalog','leave','swaps','overtime'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
+  if(appView==='home' && ['catalog','stock','leave','swaps','overtime'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
+  else if(state.currentUser && ['catalog','stock','leave','swaps','overtime'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
+  if(appView==='leave' && ['catalog','leave','rota','swaps','overtime'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
   if(appView==='forms' && changedKey==='forms'){ renderFormsScreen(); }
   if(appView==='vehicles' && ['vehicles','vehicleIssues','vehicleChecks','catalog'].indexOf(changedKey)!==-1){ renderVehiclesScreen(); }
@@ -1781,11 +1796,15 @@ var OVERTIME_STATUS_CLASS = {pending:'low', approved:'ok', queried:'out', declin
 function overtimeRowHtml(o, showName){
   var statusClass = OVERTIME_STATUS_CLASS[o.status||'pending'];
   var statusLabel = OVERTIME_STATUS_LABEL[o.status||'pending'];
-  var html = '<div class="vs-item-row '+statusClass+'"><div class="vs-item-info">'+
+  var canReply = !showName && (o.status==='queried' || o.status==='declined');
+  var html = '<div class="vs-item-row '+statusClass+'"'+(canReply?' style="cursor:pointer;" onclick="VS.openOvertimeReply(\''+o.id+'\')"':'')+'><div class="vs-item-info">'+
     '<div class="vs-item-name">'+(showName?escapeAttr(o.personName)+' \u2014 ':'')+fmtLeaveDate(o.date)+'<span class="vs-stock-badge '+statusClass+'">'+statusLabel.toUpperCase()+'</span></div>'+
     '<div class="vs-item-meta">'+o.hours+'h \u2014 '+escapeAttr(o.location)+'</div>'+
     '<div class="vs-item-meta">'+escapeAttr(o.work)+'</div>';
-  if(o.adminComment) html += '<div class="vs-item-meta">Admin: '+escapeAttr(o.adminComment)+'</div>';
+  (o.replies||[]).forEach(function(r){
+    html += '<div class="vs-item-meta">'+escapeAttr(r.by)+': '+escapeAttr(r.text)+'</div>';
+  });
+  if(canReply) html += '<div class="vs-item-meta" style="color:var(--accent);">Tap to reply and re-submit</div>';
   html += '</div></div>';
   return html;
 }
@@ -4964,7 +4983,7 @@ var VS = {
     state.overtime.push({
       id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
       date: date, hours: hours, location: location, work: work,
-      status: 'pending', adminComment: '', seenByRequester: true,
+      status: 'pending', adminComment: '', replies: [], seenByRequester: true,
       submittedAt: new Date().toISOString()
     });
     saveOvertime();
@@ -5723,7 +5742,8 @@ var VS = {
     if(!text){ toast('Enter a reason'); return; }
     var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
     if(!o) return;
-    o.adminComment = text;
+    if(!o.replies) o.replies = [];
+    o.replies.push({ by:'Admin', text:text, at:new Date().toISOString() });
     this.decideOvertime(id, 'declined');
   },
   openQueryOvertime:function(id){
@@ -5732,12 +5752,42 @@ var VS = {
       '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmQueryOvertime(\''+id+'\')">Query</button></div>';
     openModal(html);
   },
+  openOvertimeReply:function(id){
+    var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
+    if(!o) return;
+    var html = '<h3>'+fmtLeaveDate(o.date)+' \u2014 '+o.hours+'h</h3>'+
+      '<p style="font-size:13px;color:var(--muted);margin:0 0 10px 0;">'+escapeAttr(o.location)+'<br>'+escapeAttr(o.work)+'</p>';
+    (o.replies||[]).forEach(function(r){
+      html += '<p style="font-size:12.5px;color:var(--text);margin:0 0 6px 0;"><b>'+escapeAttr(r.by)+':</b> '+escapeAttr(r.text)+'</p>';
+    });
+    html += '<div class="vs-field"><label>Add more information</label><textarea id="ot-reply-text" rows="3" placeholder="Reply to the admin\u2019s comment above"></textarea></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.confirmOvertimeReply(\''+id+'\')">Re-submit</button></div>';
+    openModal(html);
+  },
+  confirmOvertimeReply:function(id){
+    var text = document.getElementById('ot-reply-text').value.trim();
+    if(!text){ toast('Add some information before re-submitting'); return; }
+    var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
+    if(!o) return;
+    var me = currentPerson();
+    if(!o.replies) o.replies = [];
+    o.replies.push({ by: me?me.name:'You', text:text, at:new Date().toISOString() });
+    o.status = 'pending';
+    o.seenByRequester = true;
+    saveOvertime();
+    closeModal();
+    renderLeaveScreen();
+    var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
+    sendPushNotification(adminIds, 'Overtime re-submitted', (me?me.name:'Someone')+' replied on '+fmtLeaveDate(o.date));
+    toast('Re-submitted');
+  },
   confirmQueryOvertime:function(id){
     var text = document.getElementById('ot-query-text').value.trim();
     if(!text){ toast('Enter a comment'); return; }
     var o = (state.overtime||[]).filter(function(x){ return x.id===id; })[0];
     if(!o) return;
-    o.adminComment = text;
+    if(!o.replies) o.replies = [];
+    o.replies.push({ by:'Admin', text:text, at:new Date().toISOString() });
     this.decideOvertime(id, 'queried');
   },
   decideLeave:function(id, status){
