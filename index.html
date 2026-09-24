@@ -481,6 +481,8 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   <main id="vs-hr-content"></main>
 </div>
 
+<div id="vs-feedback-link" onclick="VS.openFeedback()" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:60;text-align:center;font-size:11px;color:var(--muted-2);background:var(--bg);border-top:1px solid var(--line);padding:6px 10px calc(6px + env(safe-area-inset-bottom));cursor:pointer;">Feedback / feature requests</div>
+
 <div id="vs-modal-root"></div>
 
 
@@ -528,7 +530,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu' };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu', feedback:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -609,6 +611,8 @@ function enterHR(){ appView = 'hr'; refreshAppScreen(); }
 // gate, or (once logged in) whichever app view is currently active.
 function refreshAppScreen(){
   hideAllScreens();
+  var fbLink = document.getElementById('vs-feedback-link');
+  if(fbLink) fbLink.style.display = 'none';
   if(!state.authResolved){
     document.getElementById('vs-lock-wrap').style.display = 'flex';
     document.getElementById('vs-lock-err').textContent = 'Connecting…';
@@ -626,6 +630,7 @@ function refreshAppScreen(){
     if(input){ input.value = ''; input.focus(); }
     return;
   }
+  if(fbLink) fbLink.style.display = 'block';
   if(appView==='stock'){
     document.getElementById('vs-root').style.display = 'block';
     render();
@@ -687,6 +692,21 @@ function overtimePendingCount(){
 function leaveRotaSectionBadgeCount(){
   if(!state.leaveRequests || !state.swapRequests || !state.overtime) return 0;
   return myLeaveUnseenCount() + mySwapUnseenCount() + myOvertimeUnseenCount() + leaveApprovalsPendingCount() + overtimePendingCount();
+}
+
+function currentScreenLabel(){
+  var labels = {
+    home:'Home', stock:'Stock', leave:'Leave & Rota', manuals:'Manuals', jobs:'Jobs',
+    forms:'Forms', vehicles:'Vehicles', followups:'Follow Up', hr:'HR', placeholder:'Coming Soon'
+  };
+  var top = labels[appView] || appView;
+  var sub = '';
+  if(appView==='stock') sub = state.tab;
+  else if(appView==='leave') sub = state.leaveTab;
+  else if(appView==='forms') sub = state.formsTab;
+  else if(appView==='vehicles') sub = state.vehiclesTab;
+  else if(appView==='hr') sub = state.hrTab;
+  return (sub && sub!=='menu') ? (top+' \u2192 '+sub) : top;
 }
 
 function computeAlertCounts(){
@@ -1108,7 +1128,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false, overtime:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false, overtime:false, feedback:false };
 
 function startLiveSync(){
   if(!db){
@@ -1187,6 +1207,11 @@ function startLiveSync(){
     liveLoaded.overtime = true;
     onSharedUpdate('overtime');
   });
+  subscribeShared('feedback', function(value, exists){
+    state.feedback = exists ? JSON.parse(value) : [];
+    liveLoaded.feedback = true;
+    onSharedUpdate('feedback');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -1211,7 +1236,7 @@ var TAB_DEPENDS_ON = {
 };
 
 function allCoreLoaded(){
-  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps && liveLoaded.pushSubs && liveLoaded.overtime;
+  return liveLoaded.catalog && liveLoaded.stock && liveLoaded.history && liveLoaded.leave && liveLoaded.rota && liveLoaded.swaps && liveLoaded.manuals && liveLoaded.forms && liveLoaded.vehicles && liveLoaded.vehicleIssues && liveLoaded.vehicleChecks && liveLoaded.followUps && liveLoaded.pushSubs && liveLoaded.overtime && liveLoaded.feedback;
 }
 
 function onSharedUpdate(changedKey){
@@ -1304,6 +1329,11 @@ function saveFollowUps(){
 function saveOvertime(){
   trackSave(function(){
     return storageSet('overtime', JSON.stringify(state.overtime), true);
+  });
+}
+function saveFeedback(){
+  trackSave(function(){
+    return storageSet('feedback', JSON.stringify(state.feedback), true);
   });
 }
 function savePushSubscriptions(){
@@ -4970,6 +5000,30 @@ var VS = {
   },
   enterFollowUps:enterFollowUps,
   enterHR:enterHR,
+  openFeedback:function(){
+    var screen = currentScreenLabel();
+    var html = '<h3>Feedback / Feature Request</h3>'+
+      '<p style="font-size:12px;color:var(--muted-2);margin:0 0 12px 0;">Screen: '+escapeAttr(screen)+'</p>'+
+      '<div class="vs-field"><label>Please provide feedback or feature requests here</label><textarea id="fb-text" rows="5"></textarea></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.submitFeedback()">Submit</button></div>';
+    openModal(html);
+  },
+  submitFeedback:function(){
+    var text = document.getElementById('fb-text').value.trim();
+    if(!text){ toast('Enter your feedback first'); return; }
+    var me = currentPerson();
+    var screen = currentScreenLabel();
+    if(!state.feedback) state.feedback = [];
+    state.feedback.push({
+      id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
+      screen: screen, text: text, submittedAt: new Date().toISOString()
+    });
+    saveFeedback();
+    var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
+    sendPushNotification(adminIds, 'Feedback submitted', (me?me.name:'Someone')+' on '+screen+': '+text.slice(0,80));
+    closeModal();
+    toast('Thanks \u2014 sent to admin');
+  },
   setHRTab:function(t){ state.hrTab=t; renderHRScreen(); },
   submitOvertime:function(){
     var date = document.getElementById('ot-date').value;
