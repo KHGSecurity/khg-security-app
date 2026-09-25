@@ -2194,15 +2194,11 @@ function renderMonthlyReports(c){
   } else {
     html += '<div class="vs-cards">'+reports.map(function(r){
       var typeLabel = r.type==='overtime' ? 'OVERTIME' : 'ON-CALL';
-      var row = '<div class="vs-item-row'+(r.read?'':' low')+'"><div class="vs-item-info">'+
+      return '<div class="vs-item-row'+(r.read?'':' low')+'" style="cursor:pointer;" onclick="VS.viewMonthlyReport(\''+r.id+'\')"><div class="vs-item-info">'+
         '<div class="vs-item-name">'+escapeAttr(r.label)+(r.read?'':'<span class="vs-stock-badge low">NEW</span>')+'<span class="vs-stock-badge '+(r.type==='overtime'?'ok':'low')+'">'+typeLabel+'</span></div>'+
         '<div style="font-size:13px;color:#fff;margin-top:4px;line-height:1.5;">'+escapeAttr(r.body)+'</div>'+
-        '<div class="vs-item-meta">'+new Date(r.generatedAt).toLocaleString()+'</div>';
-      row += '</div></div>';
-      if(admin){
-        row += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;flex-wrap:wrap;"><button class="vs-btn small danger" onclick="VS.deleteMonthlyReport(\''+r.id+'\')">Delete</button></div>';
-      }
-      return row;
+        '<div class="vs-item-meta">'+new Date(r.generatedAt).toLocaleString()+'</div>'+
+      '</div></div>';
     }).join('')+'</div>';
   }
   c.innerHTML = html;
@@ -5354,10 +5350,22 @@ var VS = {
     renderHRScreen();
     toast('Deleted');
   },
+  viewMonthlyReport:function(id){
+    var r = (state.monthlyReports||[]).filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    var typeLabel = r.type==='overtime' ? 'Overtime report' : 'On-call report';
+    var admin = isAdminPerson(currentPerson());
+    var html = '<h3 style="color:#fff;">'+escapeAttr(r.label)+'</h3>'+
+      '<p style="font-size:12px;color:#fff;opacity:0.7;margin:0 0 12px 0;">'+typeLabel+' · '+new Date(r.generatedAt).toLocaleString()+(r.manual?' · run manually':'')+'</p>'+
+      '<p style="font-size:14px;color:#fff;white-space:pre-wrap;line-height:1.5;margin:0 0 16px 0;">'+escapeAttr(r.body)+'</p>'+
+      '<div class="vs-modal-actions">'+(admin?'<button class="vs-btn danger" onclick="VS.deleteMonthlyReport(\''+id+'\')">Delete</button>':'')+'<button class="vs-btn primary" onclick="VS.closeModal()">Close</button></div>';
+    openModal(html);
+  },
   deleteMonthlyReport:function(id){
     if(!confirm('Delete this report?')) return;
     state.monthlyReports = (state.monthlyReports||[]).filter(function(r){ return r.id!==id; });
     saveMonthlyReports();
+    closeModal();
     renderLeaveScreen();
     toast('Deleted');
   },
