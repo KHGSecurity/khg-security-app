@@ -1401,7 +1401,7 @@ function saveOvertime(){
   });
 }
 function saveFeedback(){
-  trackSave(function(){
+  return trackSave(function(){
     return storageSet('feedback', JSON.stringify(state.feedback), true);
   });
 }
@@ -5423,15 +5423,27 @@ var VS = {
     var me = currentPerson();
     var screen = currentScreenLabel();
     if(!state.feedback) state.feedback = [];
-    state.feedback.push({
+    var entry = {
       id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
       screen: screen, text: text, read: false, submittedAt: new Date().toISOString()
+    };
+    state.feedback.push(entry);
+    var submitBtn = document.querySelector('.vs-modal-actions .vs-btn.primary');
+    if(submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Sending\u2026'; }
+    saveFeedback().then(function(res){
+      if(!res){
+        // Save genuinely failed (e.g. no connection) \u2014 don't claim success and
+        // don't fire a push notification for something that was never stored.
+        state.feedback = (state.feedback||[]).filter(function(f){ return f.id!==entry.id; });
+        if(submitBtn){ submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+        toast('Could not send \u2014 check your connection and try again');
+        return;
+      }
+      var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
+      sendPushNotification(adminIds, 'Feedback submitted', (me?me.name:'Someone')+' on '+screen+': '+text.slice(0,80));
+      closeModal();
+      toast('Thanks \u2014 sent to admin');
     });
-    saveFeedback();
-    var adminIds = (state.catalog.engineers||[]).filter(isAdminPerson).map(function(e){ return e.id; });
-    sendPushNotification(adminIds, 'Feedback submitted', (me?me.name:'Someone')+' on '+screen+': '+text.slice(0,80));
-    closeModal();
-    toast('Thanks \u2014 sent to admin');
   },
   viewFeedback:function(id){
     var f = (state.feedback||[]).filter(function(x){ return x.id===id; })[0];
