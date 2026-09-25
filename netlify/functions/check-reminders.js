@@ -134,18 +134,18 @@ exports.handler = async function () {
         else counts[r.engineerId].weekday++;
       });
 
-      const summaryLines = engineers
-        .filter(function (e) { return counts[e.id]; })
-        .map(function (e) {
-          const c = counts[e.id];
-          return e.name + ': ' + c.weekday + ' weekday, ' + c.weekend + ' weekend';
-        });
+      const onCallEngineers = engineers.filter(function (e) { return counts[e.id]; });
+      const summaryLines = onCallEngineers.map(function (e) {
+        const c = counts[e.id];
+        return e.name + ': ' + c.weekday + ' weekday, ' + c.weekend + ' weekend';
+      });
 
       if (summaryLines.length) {
         const reportBody = monthLabel + ' \u2014 ' + summaryLines.join(' | ');
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly on-call report', reportBody, '/'); });
+        const details = onCallEngineers.map(function (e) { return { name: e.name, weekday: counts[e.id].weekday, weekend: counts[e.id].weekend }; });
         const reports = (monthlyReportsExisting || []).slice();
-        reports.push({ id: genId(), type: 'oncall', label: 'On-call \u2014 ' + monthLabel, body: reportBody, from: monthStart, to: monthEnd, generatedAt: new Date().toISOString() });
+        reports.push({ id: genId(), type: 'oncall', label: 'On-call \u2014 ' + monthLabel, body: reportBody, rangeLabel: monthLabel, details: details, generatedAt: new Date().toISOString() });
         while (reports.length > 60) reports.shift();
         await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log on-call report', e); });
       }
@@ -175,8 +175,9 @@ exports.handler = async function () {
       if (otLines.length) {
         const reportBody = monthLabel + ' to 25th \u2014 ' + otLines.join(' | ');
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly overtime report', reportBody, '/'); });
+        const otDetails = Object.keys(totals).map(function (id) { const t = totals[id]; return { name: t.name, hours: t.hours, count: t.count }; });
         const reports = (monthlyReportsExisting || []).slice();
-        reports.push({ id: genId(), type: 'overtime', label: 'Overtime \u2014 ' + monthLabel, body: reportBody, from: monthStart, to: cutoff, generatedAt: new Date().toISOString() });
+        reports.push({ id: genId(), type: 'overtime', label: 'Overtime \u2014 ' + monthLabel, body: reportBody, rangeLabel: monthLabel + ' to 25th', details: otDetails, generatedAt: new Date().toISOString() });
         while (reports.length > 60) reports.shift();
         await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log overtime report', e); });
       }
