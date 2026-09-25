@@ -716,7 +716,15 @@ function overtimePendingCount(){
 }
 function leaveRotaSectionBadgeCount(){
   if(!state.leaveRequests || !state.swapRequests || !state.overtime) return 0;
-  return myLeaveUnseenCount() + mySwapUnseenCount() + myOvertimeUnseenCount() + leaveApprovalsPendingCount() + overtimePendingCount();
+  return myLeaveUnseenCount() + mySwapUnseenCount() + myOvertimeUnseenCount() + leaveApprovalsPendingCount() + overtimePendingCount() + monthlyReportsUnreadCount();
+}
+
+function isOfficeOrAdmin(person){
+  return !!(person && (isAdminPerson(person) || !personHasVan(person)));
+}
+function monthlyReportsUnreadCount(){
+  if(!isOfficeOrAdmin(currentPerson())) return 0;
+  return (state.monthlyReports||[]).filter(function(r){ return !r.read; }).length;
 }
 
 function feedbackUnreadCount(){
@@ -756,6 +764,7 @@ function computeAlertCounts(){
   var mySwapUnseenSent = me ? (state.swapRequests||[]).filter(function(s){ return s.requesterId===me.id && s.seenByRequester===false; }).length : 0;
   var myOvertimeUnseen = myOvertimeUnseenCount();
   var pendingOvertime = overtimePendingCount();
+  var monthlyReportsUnread = monthlyReportsUnreadCount();
 
   var vehiclesDue = 0, openIssues = 0;
   if(officeOrAdmin){
@@ -774,8 +783,9 @@ function computeAlertCounts(){
     noStock: noStock.length, totalLow: totalLow, pendingApprovals: pendingApprovals, pendingSwaps: pendingSwaps,
     vehiclesDue: vehiclesDue, openIssues: openIssues, openFollowUps: openFollowUps,
     myLeaveUnseen: myLeaveUnseen, mySwapUnseenSent: mySwapUnseenSent, myOvertimeUnseen: myOvertimeUnseen, pendingOvertime: pendingOvertime,
+    monthlyReportsUnread: monthlyReportsUnread,
     total: noStock.length + totalLow + pendingApprovals + pendingSwaps + vehiclesDue + openIssues + openFollowUps
-      + myLeaveUnseen + mySwapUnseenSent + myOvertimeUnseen + pendingOvertime
+      + myLeaveUnseen + mySwapUnseenSent + myOvertimeUnseen + pendingOvertime + monthlyReportsUnread
   };
 }
 
@@ -862,7 +872,8 @@ function renderHomeNotifications(){
   var mySwapUnseenSent = counts.mySwapUnseenSent;
   var myOvertimeUnseen = counts.myOvertimeUnseen;
   var pendingOvertime = counts.pendingOvertime;
-  var leaveAlerts = pendingApprovals>0 || pendingSwaps>0 || myLeaveUnseen>0 || mySwapUnseenSent>0 || myOvertimeUnseen>0 || pendingOvertime>0;
+  var monthlyReportsUnread = counts.monthlyReportsUnread;
+  var leaveAlerts = pendingApprovals>0 || pendingSwaps>0 || myLeaveUnseen>0 || mySwapUnseenSent>0 || myOvertimeUnseen>0 || pendingOvertime>0 || monthlyReportsUnread>0;
   var vehiclesDue = counts.vehiclesDue;
   var openIssues = counts.openIssues;
   var vehicleAlerts = vehiclesDue>0 || openIssues>0;
@@ -878,6 +889,7 @@ function renderHomeNotifications(){
   if(mySwapUnseenSent) parts.push(mySwapUnseenSent+' swap/cover reply'+(mySwapUnseenSent===1?'':'ies')+' for you to see');
   if(myOvertimeUnseen) parts.push(myOvertimeUnseen+' overtime decision'+(myOvertimeUnseen===1?'':'s')+' for you to see');
   if(pendingOvertime) parts.push(pendingOvertime+' overtime submission'+(pendingOvertime===1?'':'s')+' to review');
+  if(monthlyReportsUnread) parts.push(monthlyReportsUnread+' new report'+(monthlyReportsUnread===1?'':'s'));
   if(vehiclesDue) parts.push(vehiclesDue+' vehicle MOT/service due soon');
   if(openIssues) parts.push(openIssues+' vehicle issue'+(openIssues===1?'':'s')+' reported');
   if(openFollowUps) parts.push(openFollowUps+' follow-up'+(openFollowUps===1?'':'s')+' outstanding');
@@ -1262,6 +1274,11 @@ function startLiveSync(){
     liveLoaded.hrDocuments = true;
     onSharedUpdate('hrDocuments');
   });
+  subscribeShared('monthly-reports', function(value, exists){
+    state.monthlyReports = exists ? JSON.parse(value) : [];
+    liveLoaded.monthlyReports = true;
+    onSharedUpdate('monthlyReports');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -1302,11 +1319,11 @@ function onSharedUpdate(changedKey){
     if(!state.currentUser){ var w = document.getElementById('vs-setup-wrap'); if(w && w.style.display==='flex') renderSetupScreen(); }
     if(!state.currentUser) populateLockNameDropdown();
   }
-  if(appView==='home' && ['catalog','leave','swaps','overtime','feedback'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
+  if(appView==='home' && ['catalog','leave','swaps','overtime','feedback','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
   if(appView==='hr' && ['catalog','feedback','hrDocuments'].indexOf(changedKey)!==-1){ renderHRScreen(); }
-  if(appView==='home' && ['catalog','stock','leave','swaps','overtime'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
-  else if(state.currentUser && ['catalog','stock','leave','swaps','overtime'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
-  if(appView==='leave' && ['catalog','leave','rota','swaps','overtime'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
+  if(appView==='home' && ['catalog','stock','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
+  else if(state.currentUser && ['catalog','stock','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
+  if(appView==='leave' && ['catalog','leave','rota','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
   if(appView==='forms' && changedKey==='forms'){ renderFormsScreen(); }
   if(appView==='vehicles' && ['vehicles','vehicleIssues','vehicleChecks','catalog'].indexOf(changedKey)!==-1){ renderVehiclesScreen(); }
@@ -1391,6 +1408,11 @@ function saveFeedback(){
 function saveHRDocuments(){
   trackSave(function(){
     return storageSet('hr-documents', JSON.stringify(state.hrDocuments), true);
+  });
+}
+function saveMonthlyReports(){
+  trackSave(function(){
+    return storageSet('monthly-reports', JSON.stringify(state.monthlyReports), true);
   });
 }
 function savePushSubscriptions(){
@@ -2110,6 +2132,7 @@ function renderLeaveScreen(){
   if(state.leaveTab==='approvals' && isAdminPerson(currentPerson())) return renderLeaveApprovals(c);
   if(state.leaveTab==='overtime_admin' && isAdminPerson(currentPerson())) return renderOvertimeAdmin(c);
   if(state.leaveTab==='overtime') return renderMyOvertime(c);
+  if(state.leaveTab==='reports' && isOfficeOrAdmin(currentPerson())) return renderMonthlyReports(c);
   if(state.leaveTab==='request') return renderLeaveRequestForm(c);
   return renderLeaveMenu(c);
 }
@@ -2139,8 +2162,39 @@ function renderLeaveMenu(c){
     html += leaveMenuTile('approvals', 'Approvals', 'Review pending requests', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>', leaveApprovalsPendingCount());
     html += leaveMenuTile('overtime_admin', 'Overtime Submissions', 'Approve, decline or query', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', overtimePendingCount());
   }
+  if(isOfficeOrAdmin(currentPerson())){
+    html += leaveMenuTile('reports', 'Reports', 'Monthly on-call & overtime reports', '<path d="M4 19V5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>', monthlyReportsUnreadCount());
+  }
   html += '</div>';
   c.innerHTML = html;
+}
+
+function renderMonthlyReports(c){
+  var admin = isAdminPerson(currentPerson());
+  var html = leaveBackLink();
+  html += sectionHead('Reports');
+  html += '<p style="font-size:12px;color:var(--muted-2);margin:-8px 0 16px 0;">The monthly on-call report (25th, 7am) and overtime report (25th, 9am) are logged here as well as sent by push notification, so they’re not lost if a notification is missed.</p>';
+  var reports = (state.monthlyReports||[]).slice().reverse();
+  if(reports.length===0){
+    html += '<div class="vs-empty">No reports yet — the first will appear after the next monthly run.</div>';
+  } else {
+    html += '<div class="vs-cards">'+reports.map(function(r){
+      var typeLabel = r.type==='overtime' ? 'OVERTIME' : 'ON-CALL';
+      var row = '<div class="vs-item-row'+(r.read?'':' low')+'"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+escapeAttr(r.label)+(r.read?'':'<span class="vs-stock-badge low">NEW</span>')+'<span class="vs-stock-badge '+(r.type==='overtime'?'ok':'low')+'">'+typeLabel+'</span></div>'+
+        '<div class="vs-item-meta">'+escapeAttr(r.body)+'</div>'+
+        '<div class="vs-item-meta">'+new Date(r.generatedAt).toLocaleString()+'</div>';
+      row += '</div></div>';
+      if(admin){
+        row += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;flex-wrap:wrap;"><button class="vs-btn small danger" onclick="VS.deleteMonthlyReport(\''+r.id+'\')">Delete</button></div>';
+      }
+      return row;
+    }).join('')+'</div>';
+  }
+  c.innerHTML = html;
+  var changed = false;
+  (state.monthlyReports||[]).forEach(function(r){ if(!r.read){ r.read = true; changed = true; } });
+  if(changed) saveMonthlyReports();
 }
 
 function fmtLeaveDate(d){
@@ -5284,6 +5338,13 @@ var VS = {
     saveFeedback();
     closeModal();
     renderHRScreen();
+    toast('Deleted');
+  },
+  deleteMonthlyReport:function(id){
+    if(!confirm('Delete this report?')) return;
+    state.monthlyReports = (state.monthlyReports||[]).filter(function(r){ return r.id!==id; });
+    saveMonthlyReports();
+    renderLeaveScreen();
     toast('Deleted');
   },
   submitHRDoc:function(){
