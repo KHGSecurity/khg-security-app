@@ -18,6 +18,20 @@ async function firestoreGetDoc(path) {
   return value ? JSON.parse(value) : null;
 }
 
+async function firestoreSetDoc(path, valueObj) {
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/${path}?updateMask.fieldPaths=value`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: { value: { stringValue: JSON.stringify(valueObj) } } })
+  });
+  if (!res.ok) throw new Error(`Firestore write failed (${path}): ${res.status}`);
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const target = new Date(dateStr + 'T00:00:00Z');
@@ -49,13 +63,14 @@ exports.handler = async function () {
   const uk = ukNow();
 
   try {
-    const [catalog, followUps, vehicles, subsMap, rota, overtime] = await Promise.all([
+    const [catalog, followUps, vehicles, subsMap, rota, overtime, monthlyReportsExisting] = await Promise.all([
       firestoreGetDoc('shared/catalog'),
       firestoreGetDoc('shared/follow-ups'),
       firestoreGetDoc('shared/vehicles'),
       firestoreGetDoc('shared/push-subscriptions'),
-      firestoreGetDoc('shared/rota'),
-      firestoreGetDoc('shared/overtime')
+      firestoreGetDoc('shared/callout-rota'),
+      firestoreGetDoc('shared/overtime'),
+      firestoreGetDoc('shared/monthly-reports')
     ]);
 
     const engineers = (catalog && catalog.engineers) || [];
@@ -129,6 +144,10 @@ exports.handler = async function () {
       if (summaryLines.length) {
         const reportBody = monthLabel + ' \u2014 ' + summaryLines.join(' | ');
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly on-call report', reportBody, '/'); });
+        const reports = (monthlyReportsExisting || []).slice();
+        reports.push({ id: genId(), type: 'oncall', label: 'On-call \u2014 ' + monthLabel, body: reportBody, generatedAt: new Date().toISOString() });
+        while (reports.length > 60) reports.shift();
+        await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log on-call report', e); });
       }
     }
 
@@ -156,6 +175,10 @@ exports.handler = async function () {
       if (otLines.length) {
         const reportBody = monthLabel + ' to 25th \u2014 ' + otLines.join(' | ');
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly overtime report', reportBody, '/'); });
+        const reports = (monthlyReportsExisting || []).slice();
+        reports.push({ id: genId(), type: 'overtime', label: 'Overtime \u2014 ' + monthLabel, body: reportBody, generatedAt: new Date().toISOString() });
+        while (reports.length > 60) reports.shift();
+        await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log overtime report', e); });
       }
     }
 
