@@ -204,6 +204,12 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   font-size:12px; font-family:'Inter'; cursor:pointer;
 }
 .vs-date-chip.selected{ background:var(--accent); border-color:var(--accent); color:var(--bg); font-weight:700; }
+.vs-date-chip.on-call-highlight{ background:var(--amber-dim); border-color:var(--amber); color:var(--amber); font-weight:700; }
+.vs-date-chip.on-call-highlight.selected{ background:var(--accent); border-color:var(--accent); color:var(--bg); }
+.vs-date-cell-muted{
+  aspect-ratio:1; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-family:'Inter'; color:var(--muted-2);
+}
 .vs-rota-day{
   aspect-ratio:1; background:var(--panel); border:1px solid var(--line); border-radius:6px; display:flex; flex-direction:column;
   align-items:center; justify-content:center; gap:2px; cursor:pointer; color:var(--text); font-family:'Inter'; padding:2px; min-width:0;
@@ -2388,7 +2394,7 @@ function renderDateSelectionCalendar(dates, selectClass){
     if(!byMonth[key]){ byMonth[key]=[]; monthOrder.push(key); }
     byMonth[key].push(dateStr);
   });
-  var html = '';
+  var html = '<p style="font-size:11px;color:var(--muted-2);margin:0 0 6px 0;"><span class="vs-date-chip on-call-highlight" style="display:inline-block;width:14px;height:14px;aspect-ratio:unset;vertical-align:middle;margin-right:4px;"></span>On call — tap to select</p>';
   monthOrder.forEach(function(key){
     var parts = key.split('-');
     var year = parseInt(parts[0],10), month = parseInt(parts[1],10)-1;
@@ -2404,9 +2410,9 @@ function renderDateSelectionCalendar(dates, selectClass){
     for(var d=1; d<=daysInMonth; d++){
       var dateStr = key+'-'+String(d).padStart(2,'0');
       if(activeDates.indexOf(dateStr)!==-1){
-        html += '<button type="button" class="vs-date-chip '+selectClass+'" data-date="'+dateStr+'" onclick="this.classList.toggle(\'selected\')">'+d+'</button>';
+        html += '<button type="button" class="vs-date-chip on-call-highlight '+selectClass+'" data-date="'+dateStr+'" onclick="this.classList.toggle(\'selected\')">'+d+'</button>';
       } else {
-        html += '<div></div>';
+        html += '<div class="vs-date-cell-muted">'+d+'</div>';
       }
     }
     html += '</div>';
