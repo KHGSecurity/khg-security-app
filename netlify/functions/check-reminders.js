@@ -145,7 +145,7 @@ exports.handler = async function () {
         const reportBody = monthLabel + ' \u2014 ' + summaryLines.join(' | ');
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly on-call report', reportBody, '/'); });
         const reports = (monthlyReportsExisting || []).slice();
-        reports.push({ id: genId(), type: 'oncall', label: 'On-call \u2014 ' + monthLabel, body: reportBody, generatedAt: new Date().toISOString() });
+        reports.push({ id: genId(), type: 'oncall', label: 'On-call \u2014 ' + monthLabel, body: reportBody, from: monthStart, to: monthEnd, generatedAt: new Date().toISOString() });
         while (reports.length > 60) reports.shift();
         await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log on-call report', e); });
       }
@@ -176,7 +176,7 @@ exports.handler = async function () {
         const reportBody = monthLabel + ' to 25th \u2014 ' + otLines.join(' | ');
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly overtime report', reportBody, '/'); });
         const reports = (monthlyReportsExisting || []).slice();
-        reports.push({ id: genId(), type: 'overtime', label: 'Overtime \u2014 ' + monthLabel, body: reportBody, generatedAt: new Date().toISOString() });
+        reports.push({ id: genId(), type: 'overtime', label: 'Overtime \u2014 ' + monthLabel, body: reportBody, from: monthStart, to: cutoff, generatedAt: new Date().toISOString() });
         while (reports.length > 60) reports.shift();
         await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log overtime report', e); });
       }
