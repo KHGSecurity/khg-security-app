@@ -2194,7 +2194,7 @@ function renderMonthlyReports(c){
   } else {
     html += '<div class="vs-cards">'+reports.map(function(r){
       var typeLabel = r.type==='overtime' ? 'OVERTIME' : 'ON-CALL';
-      var row = '<div class="vs-item-row'+(r.read?'':' low')+'"><div class="vs-item-info">'+
+      var row = '<div class="vs-item-row'+(r.read?'':' low')+'" style="cursor:pointer;" onclick="VS.openReport(\''+r.id+'\')"><div class="vs-item-info">'+
         '<div class="vs-item-name">'+escapeAttr(r.label)+(r.read?'':'<span class="vs-stock-badge low">NEW</span>')+'<span class="vs-stock-badge '+(r.type==='overtime'?'ok':'low')+'">'+typeLabel+'</span></div>'+
         '<div class="vs-item-meta">'+escapeAttr(r.body)+'</div>'+
         '<div class="vs-item-meta">'+new Date(r.generatedAt).toLocaleString()+'</div>';
@@ -2209,6 +2209,203 @@ function renderMonthlyReports(c){
   var changed = false;
   (state.monthlyReports||[]).forEach(function(r){ if(!r.read){ r.read = true; changed = true; } });
   if(changed) saveMonthlyReports();
+}
+
+// ---------- On-call & overtime report detail (tap a report to view) ----------
+var ONCALL_RATE_WEEKDAY = 25;
+var ONCALL_RATE_WEEKEND = 50;
+var ONCALL_RATE_BANKHOL = 50;
+var REPORT_DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var REPORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function reportDate(d){
+  var dt = new Date(d+'T00:00:00Z');
+  return REPORT_DAYS[dt.getUTCDay()]+' '+dt.getUTCDate()+' '+REPORT_MONTHS[dt.getUTCMonth()]+' '+dt.getUTCFullYear();
+}
+function reportMoney(n){ return '£'+(Math.round(n*100)/100).toLocaleString('en-GB',{minimumFractionDigits:0,maximumFractionDigits:2}); }
+function reportPad(n){ return (n<10?'0':'')+n; }
+
+// Reports logged before date ranges were stored: work the range out from
+// when the report was generated (on-call = whole month, overtime = 1st–25th).
+function reportRange(r){
+  if(r.from && r.to) return { from:r.from, to:r.to };
+  var g = new Date(r.generatedAt);
+  var ukDate = g.toLocaleDateString('en-CA',{timeZone:'Europe/London'}); // YYYY-MM-DD
+  var y = parseInt(ukDate.slice(0,4),10), m = parseInt(ukDate.slice(5,7),10);
+  var start = y+'-'+reportPad(m)+'-01';
+  if(r.type==='overtime') return { from:start, to:y+'-'+reportPad(m)+'-25' };
+  var last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from:start, to:y+'-'+reportPad(m)+'-'+reportPad(last) };
+}
+
+function reportPersonName(id, fallback){
+  var p = (state.catalog && state.catalog.engineers || []).filter(function(e){ return e.id===id; })[0];
+  return p ? p.name : (fallback || 'Unknown');
+}
+function reportByName(a, b){ return a.name.localeCompare(b.name); }
+
+function buildOnCallReportData(from, to){
+  var byEng = {};
+  (state.rota||[]).filter(function(r){ return r.date>=from && r.date<=to; }).forEach(function(r){
+    if(!byEng[r.engineerId]) byEng[r.engineerId] = { name: reportPersonName(r.engineerId), weekday:[], weekend:[], bankHoliday:[] };
+    var e = byEng[r.engineerId];
+    var bh = UK_BANK_HOLIDAYS[r.date];
+    var dow = new Date(r.date+'T00:00:00Z').getUTCDay();
+    if(bh) e.bankHoliday.push({ date:r.date, name:bh });
+    else if(dow===0 || dow===6) e.weekend.push({ date:r.date });
+    else e.weekday.push({ date:r.date });
+  });
+  var totals = { weekday:0, weekend:0, bankHoliday:0, pay:0 };
+  var engineers = Object.keys(byEng).map(function(id){
+    var e = byEng[id];
+    ['weekday','weekend','bankHoliday'].forEach(function(k){ e[k].sort(function(a,b){ return a.date<b.date?-1:1; }); });
+    e.pay = e.weekday.length*ONCALL_RATE_WEEKDAY + e.weekend.length*ONCALL_RATE_WEEKEND + e.bankHoliday.length*ONCALL_RATE_BANKHOL;
+    totals.weekday += e.weekday.length; totals.weekend += e.weekend.length; totals.bankHoliday += e.bankHoliday.length; totals.pay += e.pay;
+    return e;
+  }).sort(reportByName);
+  return { engineers:engineers, totals:totals };
+}
+
+function buildOvertimeReportData(from, to){
+  var byEng = {};
+  (state.overtime||[]).filter(function(o){ return o.status==='approved' && o.date>=from && o.date<=to; }).forEach(function(o){
+    var key = o.personId || o.personName;
+    if(!byEng[key]) byEng[key] = { name: reportPersonName(o.personId, o.personName), entries:[], hours:0 };
+    byEng[key].entries.push(o);
+    byEng[key].hours += parseFloat(o.hours) || 0;
+  });
+  var totalHours = 0, totalEntries = 0;
+  var engineers = Object.keys(byEng).map(function(k){
+    var e = byEng[k];
+    e.entries.sort(function(a,b){ return a.date<b.date?-1:1; });
+    totalHours += e.hours; totalEntries += e.entries.length;
+    return e;
+  }).sort(reportByName);
+  return { engineers:engineers, totalHours:totalHours, totalEntries:totalEntries };
+}
+
+// Structured lines shared by the copy-paste text and the PDF.
+// kind: title | range | heading | sub | item | total | rule | grand
+function buildReportLines(r){
+  var range = reportRange(r);
+  var L = [];
+  var rangeText = reportDate(range.from)+' – '+reportDate(range.to);
+  function countLine(label, n, rate){ return label+': '+n+' × '+reportMoney(rate)+' = '+reportMoney(n*rate); }
+  if(r.type==='overtime'){
+    var ot = buildOvertimeReportData(range.from, range.to);
+    L.push({kind:'title', text:'OVERTIME REPORT (APPROVED)'});
+    L.push({kind:'range', text:rangeText});
+    if(!ot.engineers.length){ L.push({kind:'item', text:'No approved overtime in this period.'}); return L; }
+    ot.engineers.forEach(function(e){
+      L.push({kind:'heading', text:e.name.toUpperCase()});
+      e.entries.forEach(function(o){
+        L.push({kind:'item', text:reportDate(o.date)+' – '+(parseFloat(o.hours)||0)+'h – '+(o.location||'-')+(o.work?' – '+o.work:'')});
+      });
+      L.push({kind:'total', text:'Total: '+e.hours+'h ('+e.entries.length+' '+(e.entries.length===1?'entry':'entries')+')'});
+    });
+    L.push({kind:'rule'});
+    L.push({kind:'heading', text:'SUMMARY'});
+    ot.engineers.forEach(function(e){ L.push({kind:'item', text:e.name+': '+e.hours+'h'}); });
+    L.push({kind:'grand', text:'TOTAL: '+ot.totalHours+'h ('+ot.totalEntries+' '+(ot.totalEntries===1?'entry':'entries')+')'});
+    return L;
+  }
+  var oc = buildOnCallReportData(range.from, range.to);
+  L.push({kind:'title', text:'ON-CALL REPORT'});
+  L.push({kind:'range', text:rangeText});
+  if(!oc.engineers.length){ L.push({kind:'item', text:'No on-call entries in this period.'}); return L; }
+  oc.engineers.forEach(function(e){
+    L.push({kind:'heading', text:e.name.toUpperCase()});
+    if(e.weekday.length){
+      L.push({kind:'sub', text:'Weekdays ('+e.weekday.length+')'});
+      e.weekday.forEach(function(d){ L.push({kind:'item', text:reportDate(d.date)}); });
+    }
+    if(e.weekend.length){
+      L.push({kind:'sub', text:'Weekends ('+e.weekend.length+')'});
+      e.weekend.forEach(function(d){ L.push({kind:'item', text:reportDate(d.date)}); });
+    }
+    if(e.bankHoliday.length){
+      L.push({kind:'sub', text:'Bank holidays ('+e.bankHoliday.length+')'});
+      e.bankHoliday.forEach(function(d){ L.push({kind:'item', text:reportDate(d.date)+' – '+d.name}); });
+    }
+    L.push({kind:'item', text:countLine('Weekdays', e.weekday.length, ONCALL_RATE_WEEKDAY)});
+    L.push({kind:'item', text:countLine('Weekends', e.weekend.length, ONCALL_RATE_WEEKEND)});
+    if(e.bankHoliday.length) L.push({kind:'item', text:countLine('Bank holidays', e.bankHoliday.length, ONCALL_RATE_BANKHOL)});
+    L.push({kind:'total', text:'Total: '+reportMoney(e.pay)});
+  });
+  L.push({kind:'rule'});
+  L.push({kind:'heading', text:'SUMMARY'});
+  oc.engineers.forEach(function(e){ L.push({kind:'item', text:e.name+': '+reportMoney(e.pay)}); });
+  L.push({kind:'item', text:''});
+  L.push({kind:'item', text:countLine('Weekdays', oc.totals.weekday, ONCALL_RATE_WEEKDAY)});
+  L.push({kind:'item', text:countLine('Weekends', oc.totals.weekend, ONCALL_RATE_WEEKEND)});
+  L.push({kind:'item', text:countLine('Bank holidays', oc.totals.bankHoliday, ONCALL_RATE_BANKHOL)});
+  L.push({kind:'grand', text:'TOTAL TO PAY: '+reportMoney(oc.totals.pay)});
+  return L;
+}
+
+function reportLinesToText(L){
+  var out = [];
+  L.forEach(function(l, i){
+    if(l.kind==='heading' && i>0) out.push('');
+    if(l.kind==='rule'){ out.push(''); out.push('--------------------'); return; }
+    out.push(l.text);
+    if(l.kind==='range') out.push('');
+  });
+  return out.join('\n').replace(/\n{3,}/g,'\n\n');
+}
+
+function reportFilename(r){
+  var range = reportRange(r);
+  return 'KHG-'+(r.type==='overtime'?'Overtime':'On-Call')+'-Report_'+range.from+'_to_'+range.to+'.pdf';
+}
+
+function generateReportPDF(r){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection and try again'); return; }
+  var L = buildReportLines(r);
+  var doc = new window.jspdf.jsPDF();
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var margin = 18, y = margin, page = 1;
+  var navy = [23, 34, 66];
+  var footerLabel = 'KHG Security Ltd — '+(r.type==='overtime'?'Overtime':'On-Call')+' Report';
+  function drawFooter(){
+    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(120,120,120);
+    doc.text(footerLabel, margin, pageHeight-10);
+    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
+  }
+  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); page++; y = margin; } }
+  try{
+    var logoW = 55, logoH = 55*126/700;
+    doc.addImage('data:image/jpeg;base64,'+KHG_LOGO_B64, 'JPEG', margin, y, logoW, logoH);
+    y += logoH + 8;
+  }catch(e){ y += 8; }
+  doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(1);
+  doc.line(margin, y, pageWidth-margin, y);
+  y += 10;
+  L.forEach(function(l){
+    var size = 10, bold = false, color = [30,30,30], before = 0, lh = 5.5, indent = 0;
+    if(l.kind==='title'){ size = 16; bold = true; color = navy; lh = 8; }
+    else if(l.kind==='range'){ size = 11; color = [90,90,90]; lh = 6; }
+    else if(l.kind==='heading'){ size = 12; bold = true; color = navy; before = 6; lh = 7; }
+    else if(l.kind==='sub'){ bold = true; before = 1.5; }
+    else if(l.kind==='item'){ indent = 4; }
+    else if(l.kind==='total'){ bold = true; indent = 4; before = 1; }
+    else if(l.kind==='grand'){ size = 12; bold = true; color = navy; before = 3; lh = 7; }
+    if(l.kind==='rule'){
+      ensureSpace(10); y += 4;
+      doc.setDrawColor(200,200,200); doc.setLineWidth(0.3);
+      doc.line(margin, y, pageWidth-margin, y); y += 4; return;
+    }
+    doc.setFont(undefined, bold?'bold':'normal'); doc.setFontSize(size); doc.setTextColor(color[0],color[1],color[2]);
+    var wrapped = doc.splitTextToSize(l.text || ' ', pageWidth-margin*2-indent);
+    ensureSpace(before + wrapped.length*lh);
+    y += before;
+    doc.text(wrapped, margin+indent, y);
+    y += wrapped.length*lh;
+    if(l.kind==='range') y += 2;
+  });
+  drawFooter();
+  sharePdf(doc, reportFilename(r));
 }
 
 function fmtLeaveDate(d){
@@ -2918,7 +3115,10 @@ var UK_BANK_HOLIDAYS = {
   '2026-12-25':'Christmas Day', '2026-12-28':'Boxing Day (substitute)',
   '2027-01-01':'New Year\u2019s Day', '2027-03-26':'Good Friday', '2027-03-29':'Easter Monday',
   '2027-05-03':'Early May Bank Holiday', '2027-05-31':'Spring Bank Holiday', '2027-08-30':'Summer Bank Holiday',
-  '2027-12-27':'Christmas Day (substitute)', '2027-12-28':'Boxing Day (substitute)'
+  '2027-12-27':'Christmas Day (substitute)', '2027-12-28':'Boxing Day (substitute)',
+  '2028-01-03':'New Year\u2019s Day (substitute)', '2028-04-14':'Good Friday', '2028-04-17':'Easter Monday',
+  '2028-05-01':'Early May Bank Holiday', '2028-05-29':'Spring Bank Holiday', '2028-08-28':'Summer Bank Holiday',
+  '2028-12-25':'Christmas Day', '2028-12-26':'Boxing Day'
 };
 function isBankHoliday(dateStr){ return !!UK_BANK_HOLIDAYS[dateStr]; }
 function isWeekendStr(dateStr){ var dow = new Date(dateStr+'T00:00:00').getDay(); return dow===0 || dow===6; }
@@ -5354,6 +5554,38 @@ var VS = {
     renderHRScreen();
     toast('Deleted');
   },
+  openReport:function(id){
+    var r = (state.monthlyReports||[]).filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    var text = reportLinesToText(buildReportLines(r));
+    var html = '<h3>'+escapeAttr(r.label)+'</h3>'+
+      '<pre id="report-text" style="white-space:pre-wrap;word-break:break-word;font-family:inherit;font-size:13px;line-height:1.5;background:var(--surface-2, rgba(127,127,127,0.08));border-radius:8px;padding:12px;max-height:55vh;overflow:auto;margin:0 0 12px 0;user-select:text;-webkit-user-select:text;">'+text.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>'+
+      '<div class="vs-modal-actions" style="flex-wrap:wrap;">'+
+        '<button class="vs-btn" onclick="VS.closeModal()">Close</button>'+
+        '<button class="vs-btn" onclick="VS.downloadReportPdf(\''+r.id+'\')">Download PDF</button>'+
+        '<button class="vs-btn primary" onclick="VS.copyReport()">Copy text</button>'+
+      '</div>';
+    openModal(html);
+  },
+  copyReport:function(){
+    var el = document.getElementById('report-text');
+    if(!el) return;
+    var text = el.textContent;
+    function fallback(){
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly',''); ta.style.position='fixed'; ta.style.opacity='0';
+      document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); toast('Copied \u2014 paste into your email'); }catch(e){ toast('Couldn\u2019t copy \u2014 select the text and copy manually'); }
+      document.body.removeChild(ta);
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ toast('Copied \u2014 paste into your email'); }, fallback);
+    } else fallback();
+  },
+  downloadReportPdf:function(id){
+    var r = (state.monthlyReports||[]).filter(function(x){ return x.id===id; })[0];
+    if(r) generateReportPDF(r);
+  },
   deleteMonthlyReport:function(id){
     if(!confirm('Delete this report?')) return;
     state.monthlyReports = (state.monthlyReports||[]).filter(function(r){ return r.id!==id; });
@@ -5382,11 +5614,13 @@ var VS = {
     var rangeLabel = fmtLeaveDate(from)+' – '+fmtLeaveDate(to);
     var reportBody = rangeLabel+' — '+summaryLines.join(' | ');
     if(!state.monthlyReports) state.monthlyReports = [];
-    state.monthlyReports.push({ id: uid(), type:'oncall', label:'On-call — '+rangeLabel, body: reportBody, generatedAt: new Date().toISOString(), manual:true });
+    var newReport = { id: uid(), type:'oncall', label:'On-call — '+rangeLabel, body: reportBody, from: from, to: to, generatedAt: new Date().toISOString(), manual:true };
+    state.monthlyReports.push(newReport);
     saveMonthlyReports();
     sendPushNotification(officeAndAdminIds(), 'Monthly on-call report', reportBody);
     renderLeaveScreen();
     toast('Report run and sent');
+    VS.openReport(newReport.id);
   },
   runOvertimeReport:function(){
     var from = document.getElementById('report-overtime-from').value;
@@ -5407,11 +5641,13 @@ var VS = {
     var rangeLabel = fmtLeaveDate(from)+' – '+fmtLeaveDate(to);
     var reportBody = rangeLabel+' — '+otLines.join(' | ');
     if(!state.monthlyReports) state.monthlyReports = [];
-    state.monthlyReports.push({ id: uid(), type:'overtime', label:'Overtime — '+rangeLabel, body: reportBody, generatedAt: new Date().toISOString(), manual:true });
+    var newReport = { id: uid(), type:'overtime', label:'Overtime — '+rangeLabel, body: reportBody, from: from, to: to, generatedAt: new Date().toISOString(), manual:true };
+    state.monthlyReports.push(newReport);
     saveMonthlyReports();
     sendPushNotification(officeAndAdminIds(), 'Monthly overtime report', reportBody);
     renderLeaveScreen();
     toast('Report run and sent');
+    VS.openReport(newReport.id);
   },
   submitHRDoc:function(){
     var title = document.getElementById('hrdoc-title').value.trim();
