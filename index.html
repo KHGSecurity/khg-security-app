@@ -2174,6 +2174,20 @@ function renderMonthlyReports(c){
   var html = leaveBackLink();
   html += sectionHead('Reports');
   html += '<p style="font-size:12px;color:var(--muted-2);margin:-8px 0 16px 0;">The monthly on-call report (25th, 7am) and overtime report (25th, 9am) are logged here as well as sent by push notification, so they’re not lost if a notification is missed.</p>';
+
+  if(admin){
+    html += sectionHead('Run a report manually');
+    html += '<p style="font-size:12px;color:var(--muted-2);margin:-8px 0 12px 0;">Choose a date range and run either report on demand. The result is logged here and sent by push notification to admin/office, just like the automatic ones.</p>';
+    html += '<div class="vs-field"><label>On-call report — date range</label>'+
+      '<div style="display:flex;gap:8px;"><input type="date" id="report-oncall-from" style="flex:1;"><input type="date" id="report-oncall-to" style="flex:1;"></div></div>'+
+      '<button class="vs-btn small primary" style="margin:0 0 20px 0;" onclick="VS.runOnCallReport()">Run on-call report</button>';
+    html += '<div class="vs-field"><label>Overtime report — date range</label>'+
+      '<div style="display:flex;gap:8px;"><input type="date" id="report-overtime-from" style="flex:1;"><input type="date" id="report-overtime-to" style="flex:1;"></div></div>'+
+      '<p style="font-size:11px;color:var(--muted-2);margin:-8px 0 12px 0;">Only approved overtime in the chosen range is included.</p>'+
+      '<button class="vs-btn small primary" style="margin:0 0 20px 0;" onclick="VS.runOvertimeReport()">Run overtime report</button>';
+  }
+
+  html += sectionHead('History');
   var reports = (state.monthlyReports||[]).slice().reverse();
   if(reports.length===0){
     html += '<div class="vs-empty">No reports yet — the first will appear after the next monthly run.</div>';
@@ -5346,6 +5360,58 @@ var VS = {
     saveMonthlyReports();
     renderLeaveScreen();
     toast('Deleted');
+  },
+  runOnCallReport:function(){
+    var from = document.getElementById('report-oncall-from').value;
+    var to = document.getElementById('report-oncall-to').value;
+    if(!from || !to){ toast('Choose a start and end date'); return; }
+    if(from > to){ toast('Start date must be before the end date'); return; }
+    var counts = {};
+    (state.rota||[]).forEach(function(r){
+      if(r.date < from || r.date > to) return;
+      if(!counts[r.engineerId]) counts[r.engineerId] = { weekday:0, weekend:0 };
+      var dow = new Date(r.date+'T00:00:00Z').getUTCDay();
+      if(dow===0 || dow===6) counts[r.engineerId].weekend++;
+      else counts[r.engineerId].weekday++;
+    });
+    var summaryLines = (state.catalog.engineers||[]).filter(function(e){ return counts[e.id]; }).map(function(e){
+      var c = counts[e.id];
+      return e.name+': '+c.weekday+' weekday, '+c.weekend+' weekend';
+    });
+    if(!summaryLines.length){ toast('No on-call entries in that range'); return; }
+    var rangeLabel = fmtLeaveDate(from)+' – '+fmtLeaveDate(to);
+    var reportBody = rangeLabel+' — '+summaryLines.join(' | ');
+    if(!state.monthlyReports) state.monthlyReports = [];
+    state.monthlyReports.push({ id: uid(), type:'oncall', label:'On-call — '+rangeLabel, body: reportBody, generatedAt: new Date().toISOString(), manual:true });
+    saveMonthlyReports();
+    sendPushNotification(officeAndAdminIds(), 'Monthly on-call report', reportBody);
+    renderLeaveScreen();
+    toast('Report run and sent');
+  },
+  runOvertimeReport:function(){
+    var from = document.getElementById('report-overtime-from').value;
+    var to = document.getElementById('report-overtime-to').value;
+    if(!from || !to){ toast('Choose a start and end date'); return; }
+    if(from > to){ toast('Start date must be before the end date'); return; }
+    var totals = {};
+    (state.overtime||[]).filter(function(o){ return o.status==='approved' && o.date>=from && o.date<=to; }).forEach(function(o){
+      if(!totals[o.personId]) totals[o.personId] = { name:o.personName, hours:0, count:0 };
+      totals[o.personId].hours += parseFloat(o.hours) || 0;
+      totals[o.personId].count += 1;
+    });
+    var otLines = Object.keys(totals).map(function(id){
+      var t = totals[id];
+      return t.name+': '+t.hours+'h ('+t.count+')';
+    });
+    if(!otLines.length){ toast('No approved overtime in that range'); return; }
+    var rangeLabel = fmtLeaveDate(from)+' – '+fmtLeaveDate(to);
+    var reportBody = rangeLabel+' — '+otLines.join(' | ');
+    if(!state.monthlyReports) state.monthlyReports = [];
+    state.monthlyReports.push({ id: uid(), type:'overtime', label:'Overtime — '+rangeLabel, body: reportBody, generatedAt: new Date().toISOString(), manual:true });
+    saveMonthlyReports();
+    sendPushNotification(officeAndAdminIds(), 'Monthly overtime report', reportBody);
+    renderLeaveScreen();
+    toast('Report run and sent');
   },
   submitHRDoc:function(){
     var title = document.getElementById('hrdoc-title').value.trim();
