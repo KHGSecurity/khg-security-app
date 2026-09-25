@@ -3932,42 +3932,102 @@ function sharePdf(doc, filename){
   }catch(e){ doc.save(filename); }
 }
 
+function copyTextFallback(text){
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Copied \u2014 paste into your email');
+  }catch(e){
+    toast('Could not copy \u2014 please select the text and copy manually');
+  }
+}
+
+// Builds the vertical, engineer-ordered, easy-to-paste-into-email version of
+// a monthly report. Used for the on-screen popup, the Copy button and the PDF,
+// so all three always show exactly the same figures.
+function monthlyReportPlainText(r){
+  var isOvertime = r.type==='overtime';
+  var lines = [];
+  lines.push((isOvertime?'Overtime Report':'On-call Report')+' \u2014 '+(r.rangeLabel||r.label));
+  lines.push('Generated '+new Date(r.generatedAt).toLocaleString()+(r.manual?' (run manually)':''));
+  lines.push('');
+
+  if(r.details && r.details.length){
+    var sorted = r.details.slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+    var totals = { weekday:0, weekend:0, bankHoliday:0, amount:0, hours:0, count:0 };
+    sorted.forEach(function(d){
+      lines.push(d.name);
+      if(isOvertime){
+        lines.push('Hours: '+d.hours+'h');
+        lines.push('Entries: '+d.count);
+        totals.hours += (parseFloat(d.hours)||0);
+        totals.count += (d.count||0);
+      } else {
+        var amount = d.amount!=null ? d.amount : (d.weekday*25 + d.weekend*50 + (d.bankHoliday||0)*50);
+        lines.push('Weekdays: '+d.weekday);
+        lines.push('Weekends: '+d.weekend);
+        lines.push('Bank holidays: '+(d.bankHoliday||0));
+        lines.push('Amount: \u00a3'+amount.toFixed(2));
+        totals.weekday += d.weekday; totals.weekend += d.weekend; totals.bankHoliday += (d.bankHoliday||0); totals.amount += amount;
+      }
+      lines.push('');
+    });
+    lines.push('TOTAL');
+    if(isOvertime){
+      lines.push('Hours: '+totals.hours+'h');
+      lines.push('Entries: '+totals.count);
+    } else {
+      lines.push('Weekdays: '+totals.weekday+' (\u00a3'+(totals.weekday*25).toFixed(2)+')');
+      lines.push('Weekends: '+totals.weekend+' (\u00a3'+(totals.weekend*50).toFixed(2)+')');
+      lines.push('Bank holidays: '+totals.bankHoliday+' (\u00a3'+(totals.bankHoliday*50).toFixed(2)+')');
+      lines.push('Total amount: \u00a3'+totals.amount.toFixed(2));
+    }
+  } else {
+    lines.push(r.body);
+  }
+  return lines.join('\n');
+}
+
+var MONTHLY_REPORT_FIELD_RE = /^(Weekdays|Weekends|Bank holidays|Amount|Total amount|Hours|Entries):/;
+
 function generateMonthlyReportPDF(r){
   if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
   var doc = new window.jspdf.jsPDF();
   var margin = 15;
   var y = margin;
   var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var lineHeight = 6.5;
   var isOvertime = r.type==='overtime';
 
-  doc.setFont(undefined,'bold'); doc.setFontSize(16);
-  doc.text('KHG Security \u2014 '+(isOvertime?'Overtime Report':'On-call Report'), margin, y); y += 9;
-  doc.setFont(undefined,'normal'); doc.setFontSize(10);
-  doc.text(r.rangeLabel || r.label, margin, y); y += 6;
-  doc.text('Generated '+new Date(r.generatedAt).toLocaleString()+(r.manual?' (run manually)':''), margin, y); y += 10;
-
-  if(r.details && r.details.length){
-    var col1 = margin, col2 = pageWidth-margin-40, col3 = pageWidth-margin-15;
-    doc.setFont(undefined,'bold'); doc.setFontSize(10);
-    doc.text('Name', col1, y);
-    if(isOvertime){ doc.text('Hours', col2, y, {align:'right'}); doc.text('Entries', col3, y, {align:'right'}); }
-    else { doc.text('Weekday', col2, y, {align:'right'}); doc.text('Weekend', col3, y, {align:'right'}); }
-    y += 3;
-    doc.setDrawColor(180,180,180);
-    doc.line(margin, y, pageWidth-margin, y);
-    y += 6;
-    doc.setFont(undefined,'normal');
-    r.details.forEach(function(d){
-      if(y > doc.internal.pageSize.getHeight()-margin){ doc.addPage(); y = margin; }
-      doc.text(String(d.name), col1, y);
-      if(isOvertime){ doc.text(d.hours+'h', col2, y, {align:'right'}); doc.text(String(d.count), col3, y, {align:'right'}); }
-      else { doc.text(String(d.weekday), col2, y, {align:'right'}); doc.text(String(d.weekend), col3, y, {align:'right'}); }
-      y += 7;
-    });
-  } else {
-    var wrapped = doc.splitTextToSize(r.body, pageWidth-margin*2);
-    doc.text(wrapped, margin, y);
+  function ensureSpace(needed){
+    if(y + needed > pageHeight - margin){ doc.addPage(); y = margin; }
   }
+
+  doc.setFont(undefined,'bold'); doc.setFontSize(16);
+  doc.text('KHG Security \u2014 '+(isOvertime?'Overtime Report':'On-call Report'), margin, y); y += 10;
+
+  var lines = monthlyReportPlainText(r).split('\n');
+  lines.forEach(function(lineText, idx){
+    if(lineText===''){ y += lineHeight*0.6; return; }
+    var isTotal = lineText==='TOTAL';
+    var isHeader = idx<2;
+    var isField = MONTHLY_REPORT_FIELD_RE.test(lineText);
+    var isName = !isHeader && !isField && !isTotal;
+    ensureSpace(lineHeight+2);
+    doc.setFont(undefined, (isHeader||isTotal||isName) ? 'bold' : 'normal');
+    doc.setFontSize(isHeader ? 11 : 10.5);
+    var wrapped = doc.splitTextToSize(lineText, pageWidth-margin*2-(isField?4:0));
+    doc.text(wrapped, margin+(isField?4:0), y);
+    y += wrapped.length*lineHeight;
+  });
 
   sharePdf(doc, (isOvertime?'Overtime-Report-':'On-call-Report-')+new Date(r.generatedAt).toISOString().slice(0,10)+'.pdf');
 }
@@ -5395,34 +5455,27 @@ var VS = {
     if(!r) return;
     var typeLabel = r.type==='overtime' ? 'Overtime report' : 'On-call report';
     var admin = isAdminPerson(currentPerson());
+    var text = monthlyReportPlainText(r);
     var html = '<h3 style="color:#fff;">'+escapeAttr(r.label)+'</h3>'+
-      '<p style="font-size:12px;color:#fff;opacity:0.7;margin:0 0 12px 0;">'+typeLabel+' · '+new Date(r.generatedAt).toLocaleString()+(r.manual?' · run manually':'')+'</p>';
-    if(r.details && r.details.length){
-      html += '<table style="width:100%;border-collapse:collapse;margin:0 0 16px 0;">'+
-        '<tr style="border-bottom:1px solid rgba(255,255,255,0.25);">'+
-          '<th style="text-align:left;font-size:12px;color:#fff;padding:4px 6px 4px 0;">Name</th>'+
-          (r.type==='overtime'
-            ? '<th style="text-align:right;font-size:12px;color:#fff;padding:4px 0;">Hours</th><th style="text-align:right;font-size:12px;color:#fff;padding:4px 0 4px 6px;">Entries</th>'
-            : '<th style="text-align:right;font-size:12px;color:#fff;padding:4px 0;">Weekday</th><th style="text-align:right;font-size:12px;color:#fff;padding:4px 0 4px 6px;">Weekend</th>')+
-        '</tr>'+
-        r.details.map(function(d){
-          return '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">'+
-            '<td style="font-size:13px;color:#fff;padding:5px 6px 5px 0;">'+escapeAttr(d.name)+'</td>'+
-            (r.type==='overtime'
-              ? '<td style="text-align:right;font-size:13px;color:#fff;padding:5px 0;">'+d.hours+'h</td><td style="text-align:right;font-size:13px;color:#fff;padding:5px 0 5px 6px;">'+d.count+'</td>'
-              : '<td style="text-align:right;font-size:13px;color:#fff;padding:5px 0;">'+d.weekday+'</td><td style="text-align:right;font-size:13px;color:#fff;padding:5px 0 5px 6px;">'+d.weekend+'</td>')+
-          '</tr>';
-        }).join('')+
-      '</table>';
-    } else {
-      html += '<p style="font-size:14px;color:#fff;white-space:pre-wrap;line-height:1.5;margin:0 0 16px 0;">'+escapeAttr(r.body)+'</p>';
-    }
-    html += '<div class="vs-modal-actions">'+
-      (admin?'<button class="vs-btn danger" onclick="VS.deleteMonthlyReport(\''+id+'\')">Delete</button>':'')+
-      '<button class="vs-btn" onclick="VS.downloadMonthlyReportPdf(\''+id+'\')">Download PDF</button>'+
-      '<button class="vs-btn primary" onclick="VS.closeModal()">Close</button>'+
-    '</div>';
+      '<p style="font-size:12px;color:#fff;opacity:0.7;margin:0 0 12px 0;">'+typeLabel+' · '+new Date(r.generatedAt).toLocaleString()+(r.manual?' · run manually':'')+'</p>'+
+      '<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;color:#fff;line-height:1.6;background:rgba(255,255,255,0.06);border-radius:6px;padding:12px;margin:0 0 16px 0;max-height:50vh;overflow:auto;">'+escapeAttr(text)+'</pre>'+
+      '<div class="vs-modal-actions">'+
+        (admin?'<button class="vs-btn danger" onclick="VS.deleteMonthlyReport(\''+id+'\')">Delete</button>':'')+
+        '<button class="vs-btn" onclick="VS.copyMonthlyReport(\''+id+'\')">Copy</button>'+
+        '<button class="vs-btn" onclick="VS.downloadMonthlyReportPdf(\''+id+'\')">Download PDF</button>'+
+        '<button class="vs-btn primary" onclick="VS.closeModal()">Close</button>'+
+      '</div>';
     openModal(html);
+  },
+  copyMonthlyReport:function(id){
+    var r = (state.monthlyReports||[]).filter(function(x){ return x.id===id; })[0];
+    if(!r) return;
+    var text = monthlyReportPlainText(r);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ toast('Copied — paste into your email'); }).catch(function(){ copyTextFallback(text); });
+    } else {
+      copyTextFallback(text);
+    }
   },
   downloadMonthlyReportPdf:function(id){
     var r = (state.monthlyReports||[]).filter(function(x){ return x.id===id; })[0];
@@ -5445,20 +5498,25 @@ var VS = {
     var counts = {};
     (state.rota||[]).forEach(function(r){
       if(r.date < from || r.date > to) return;
-      if(!counts[r.engineerId]) counts[r.engineerId] = { weekday:0, weekend:0 };
-      var dow = new Date(r.date+'T00:00:00Z').getUTCDay();
-      if(dow===0 || dow===6) counts[r.engineerId].weekend++;
+      if(!counts[r.engineerId]) counts[r.engineerId] = { weekday:0, weekend:0, bankHoliday:0 };
+      if(isBankHoliday(r.date)) counts[r.engineerId].bankHoliday++;
+      else if(isWeekendStr(r.date)) counts[r.engineerId].weekend++;
       else counts[r.engineerId].weekday++;
     });
     var oncallEngineers = (state.catalog.engineers||[]).filter(function(e){ return counts[e.id]; });
     var summaryLines = oncallEngineers.map(function(e){
       var c = counts[e.id];
-      return e.name+': '+c.weekday+' weekday, '+c.weekend+' weekend';
+      return e.name+': '+c.weekday+' weekday, '+c.weekend+' weekend, '+c.bankHoliday+' bank holiday';
     });
     if(!summaryLines.length){ toast('No on-call entries in that range'); return; }
-    var details = oncallEngineers.map(function(e){ return { name:e.name, weekday:counts[e.id].weekday, weekend:counts[e.id].weekend }; });
+    var details = oncallEngineers.map(function(e){
+      var c = counts[e.id];
+      var amount = c.weekday*25 + c.weekend*50 + c.bankHoliday*50;
+      return { name:e.name, weekday:c.weekday, weekend:c.weekend, bankHoliday:c.bankHoliday, amount:amount };
+    });
+    var totalAmount = details.reduce(function(sum,d){ return sum+d.amount; }, 0);
     var rangeLabel = fmtLeaveDate(from)+' – '+fmtLeaveDate(to);
-    var reportBody = rangeLabel+' — '+summaryLines.join(' | ');
+    var reportBody = rangeLabel+' — '+summaryLines.join(' | ')+' | Total: £'+totalAmount.toFixed(2);
     if(!state.monthlyReports) state.monthlyReports = [];
     state.monthlyReports.push({ id: uid(), type:'oncall', label:'On-call — '+rangeLabel, body: reportBody, rangeLabel: rangeLabel, details: details, generatedAt: new Date().toISOString(), manual:true });
     saveMonthlyReports();
