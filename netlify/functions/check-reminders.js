@@ -32,6 +32,18 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// Kept in sync with the UK_BANK_HOLIDAYS list in van-stock.html.
+const UK_BANK_HOLIDAYS = {
+  '2026-01-01': "New Year's Day", '2026-04-03': 'Good Friday', '2026-04-06': 'Easter Monday',
+  '2026-05-04': 'Early May Bank Holiday', '2026-05-25': 'Spring Bank Holiday', '2026-08-31': 'Summer Bank Holiday',
+  '2026-12-25': 'Christmas Day', '2026-12-28': 'Boxing Day (substitute)',
+  '2027-01-01': "New Year's Day", '2027-03-26': 'Good Friday', '2027-03-29': 'Easter Monday',
+  '2027-05-03': 'Early May Bank Holiday', '2027-05-31': 'Spring Bank Holiday', '2027-08-30': 'Summer Bank Holiday',
+  '2027-12-27': 'Christmas Day (substitute)', '2027-12-28': 'Boxing Day (substitute)'
+};
+function isBankHoliday(dateStr) { return !!UK_BANK_HOLIDAYS[dateStr]; }
+function isWeekendStr(dateStr) { const dow = new Date(dateStr + 'T00:00:00Z').getUTCDay(); return dow === 0 || dow === 6; }
+
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const target = new Date(dateStr + 'T00:00:00Z');
@@ -125,25 +137,30 @@ exports.handler = async function () {
       const monthEnd = uk.year + '-' + pad2(uk.month) + '-' + pad2(lastDay);
       const monthLabel = new Date(Date.UTC(uk.year, uk.month - 1, 1)).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
-      const counts = {}; // engineerId -> { weekday, weekend }
+      const counts = {}; // engineerId -> { weekday, weekend, bankHoliday }
       (rota || []).forEach(function (r) {
         if (r.date < monthStart || r.date > monthEnd) return;
-        if (!counts[r.engineerId]) counts[r.engineerId] = { weekday: 0, weekend: 0 };
-        const dow = new Date(r.date + 'T00:00:00Z').getUTCDay();
-        if (dow === 0 || dow === 6) counts[r.engineerId].weekend++;
+        if (!counts[r.engineerId]) counts[r.engineerId] = { weekday: 0, weekend: 0, bankHoliday: 0 };
+        if (isBankHoliday(r.date)) counts[r.engineerId].bankHoliday++;
+        else if (isWeekendStr(r.date)) counts[r.engineerId].weekend++;
         else counts[r.engineerId].weekday++;
       });
 
       const onCallEngineers = engineers.filter(function (e) { return counts[e.id]; });
       const summaryLines = onCallEngineers.map(function (e) {
         const c = counts[e.id];
-        return e.name + ': ' + c.weekday + ' weekday, ' + c.weekend + ' weekend';
+        return e.name + ': ' + c.weekday + ' weekday, ' + c.weekend + ' weekend, ' + c.bankHoliday + ' bank holiday';
       });
 
       if (summaryLines.length) {
-        const reportBody = monthLabel + ' \u2014 ' + summaryLines.join(' | ');
+        const details = onCallEngineers.map(function (e) {
+          const c = counts[e.id];
+          const amount = c.weekday * 25 + c.weekend * 50 + c.bankHoliday * 50;
+          return { name: e.name, weekday: c.weekday, weekend: c.weekend, bankHoliday: c.bankHoliday, amount: amount };
+        });
+        const totalAmount = details.reduce(function (sum, d) { return sum + d.amount; }, 0);
+        const reportBody = monthLabel + ' \u2014 ' + summaryLines.join(' | ') + ' | Total: \u00a3' + totalAmount.toFixed(2);
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly on-call report', reportBody, '/'); });
-        const details = onCallEngineers.map(function (e) { return { name: e.name, weekday: counts[e.id].weekday, weekend: counts[e.id].weekend }; });
         const reports = (monthlyReportsExisting || []).slice();
         reports.push({ id: genId(), type: 'oncall', label: 'On-call \u2014 ' + monthLabel, body: reportBody, rangeLabel: monthLabel, details: details, generatedAt: new Date().toISOString() });
         while (reports.length > 60) reports.shift();
