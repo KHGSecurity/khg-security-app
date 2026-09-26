@@ -163,8 +163,8 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
 .vs-hist-what{ color:var(--text); }
 .vs-hist-what b{ color:var(--accent); font-weight:700; }
 .vs-empty{ text-align:center; padding:30px 10px; color:var(--muted-2); font-size:13.5px; }
-.vs-modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; }
-.vs-modal{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; width:100%; max-width:380px; }
+.vs-modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; overflow-y:auto; }
+.vs-modal{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; width:100%; max-width:380px; max-height:calc(100vh - 40px); overflow-y:auto; box-sizing:border-box; }
 .vs-modal h3{ font-size:16px; margin:0 0 14px 0; font-weight:800; }
 .vs-field{ margin-bottom:12px; }
 .vs-field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600; }
@@ -2760,7 +2760,7 @@ function jobPickerModalHtml(){
       if(today.length===0){
         html += '<div class="vs-empty" style="margin-bottom:4px;">No jobs scheduled for you today — search above to find any other job.</div>';
       } else {
-        html += '<div class="vs-cards">'+today.map(jobPickerRowHtml).join('')+'</div>';
+        html += '<div class="vs-cards" style="max-height:45vh;overflow-y:auto;">'+today.map(jobPickerRowHtml).join('')+'</div>';
       }
     } else {
       var results = jobPickerSearchResults();
@@ -2768,7 +2768,7 @@ function jobPickerModalHtml(){
       if(results.length===0){
         html += '<div class="vs-empty">No matching jobs found.</div>';
       } else {
-        html += '<div class="vs-cards">'+results.map(jobPickerRowHtml).join('')+'</div>';
+        html += '<div class="vs-cards" style="max-height:45vh;overflow-y:auto;">'+results.map(jobPickerRowHtml).join('')+'</div>';
       }
     }
   }
