@@ -1854,6 +1854,31 @@ function initItemsSortable(admin){
 
 function escapeAttr(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
+// ---------- "Discard unsaved form?" guard ----------
+// A single flag, set by input/change events bubbling up from any field
+// inside the Leave & Rota, Forms, or HR content areas (delegated listeners
+// set up once in wireFormDirtyGuards, called at startup). Any navigation
+// away from those areas — the shared back-link functions, tab switches, or
+// the Home button — is routed through confirmDiscardIfDirty so a form with
+// real input in it (not just a prefilled default like today's date, since
+// that isn't a user edit) prompts before it's thrown away.
+var formDirty = false;
+function markFormDirty(){ formDirty = true; }
+function resetFormDirty(){ formDirty = false; }
+function wireFormDirtyGuards(){
+  ['vs-leave-content','vs-forms-content','vs-hr-content'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', markFormDirty);
+    el.addEventListener('change', markFormDirty);
+  });
+}
+function confirmDiscardIfDirty(navigateFn){
+  if(formDirty && !confirm('Discard this form? Anything you’ve entered will be lost.')) return;
+  resetFormDirty();
+  navigateFn();
+}
+
 // Re-renders a container's content, only restoring focus/cursor to a given
 // input if it was already focused beforehand — so a live-search box keeps
 // working while typing, without stealing the keyboard on first load.
@@ -2291,9 +2316,10 @@ function leaveRequestRowHtml(r, showName){
 function renderLeaveRequestForm(c){
   var html = leaveBackLink();
   html += sectionHead('Request leave');
-  html += '<div class="vs-field"><label>Start date</label><input type="date" id="lv-start"></div>';
+  var todayStr = new Date().toISOString().slice(0,10);
+  html += '<div class="vs-field"><label>Start date</label><input type="date" id="lv-start" value="'+todayStr+'"></div>';
   html += '<div class="vs-field"><label>Start day</label><select id="lv-start-half"><option value="full">Full day</option><option value="pm">Half day (afternoon only)</option></select></div>';
-  html += '<div class="vs-field"><label>End date</label><input type="date" id="lv-end"></div>';
+  html += '<div class="vs-field"><label>End date</label><input type="date" id="lv-end" value="'+todayStr+'"></div>';
   html += '<div class="vs-field"><label>End day</label><select id="lv-end-half"><option value="full">Full day</option><option value="am">Half day (morning only)</option></select></div>';
   html += '<div class="vs-field"><label>Notes (optional)</label><input id="lv-notes" placeholder="Anything the admin should know"></div>';
   html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:14px 0;">'+
@@ -5326,7 +5352,7 @@ function doAddItem(){
 // ---------- Actions exposed globally ----------
 
 var VS = {
-  showHome:showHome,
+  showHome:function(){ confirmDiscardIfDirty(showHome); },
   openPlaceholder:openPlaceholder,
   enterStock:enterStock,
   enterLeave:enterLeave,
@@ -5652,6 +5678,7 @@ var VS = {
         uploadedBy: me?me.name:'Unknown', uploadedById: me?me.id:null, uploadedAt: new Date().toISOString()
       });
       saveHRDocuments();
+      resetFormDirty();
       toast('Document uploaded');
       renderHRScreen();
       if(visibility==='private' && assignedToId){
@@ -5757,7 +5784,7 @@ var VS = {
     sendPushNotification(adminIds, 'Policy accepted', me.name+' has confirmed: '+d.title);
     toast('Thank you \u2014 confirmed');
   },
-  setHRTab:function(t){ state.hrTab=t; renderHRScreen(); },
+  setHRTab:function(t){ confirmDiscardIfDirty(function(){ state.hrTab=t; renderHRScreen(); }); },
   submitOvertime:function(){
     var date = document.getElementById('ot-date').value;
     if(!date){ toast('Enter a date'); return; }
@@ -5824,7 +5851,7 @@ var VS = {
     renderFollowUpsScreen();
     toast('Marked resolved');
   },
-  setFormsTab:function(t){ state.formsTab=t; renderFormsScreen(); },
+  setFormsTab:function(t){ confirmDiscardIfDirty(function(){ state.formsTab=t; renderFormsScreen(); }); },
   submitCommissioning:function(){
     var site = document.getElementById('cc-site').value.trim();
     if(!site){ toast('Enter the site name/address'); return; }
@@ -5851,6 +5878,7 @@ var VS = {
     saveFormSubmissions();
     toast('Commissioning checklist saved');
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
   },
   submitHandover:function(){
@@ -5882,6 +5910,7 @@ var VS = {
     saveFormSubmissions();
     toast('Handover form saved');
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
   },
   downloadTermsPDF:function(){ generateTermsPDF(); },
@@ -5941,6 +5970,7 @@ var VS = {
     saveFormSubmissions();
     toast('Terms acceptance saved');
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
   },
   submitVariation:function(){
@@ -5975,6 +6005,7 @@ var VS = {
     saveFormSubmissions();
     toast('Variation saved');
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
   },
   addDetectionZone:function(){
@@ -6107,6 +6138,7 @@ var VS = {
     state.editingSurveyId = null;
     state.editingDocStage = 'proposal';
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
   },
   editSurvey:function(id){
@@ -6170,6 +6202,7 @@ var VS = {
     state.editingSurveyId = id;
     state.editingDocStage = sub.docStage || 'proposal';
     state.formsTab = 'survey';
+    resetFormDirty();
     renderFormsScreen();
   },
   addSurveyListItem:function(field, inputId){
@@ -6242,6 +6275,7 @@ var VS = {
 
     toast('Disconnection form saved \u2014 follow-up reminder created');
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
   },
   submitRiskAssessment:function(){
@@ -6298,6 +6332,7 @@ var VS = {
     saveFormSubmissions();
     toast('Risk assessment saved');
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
   },
   submitServiceReport:function(){
@@ -6335,6 +6370,7 @@ var VS = {
     saveFormSubmissions();
     toast('Saved \u2014 sending to ServiceM8\u2026');
     state.formsTab = 'mine';
+    resetFormDirty();
     renderFormsScreen();
     this.syncFormSubmission(submission.id);
   },
@@ -6477,7 +6513,7 @@ var VS = {
     if(fbStorage && m.path){ fbStorage.ref().child(m.path).delete().catch(function(){}); }
     toast('Deleted');
   },
-  setLeaveTab:function(t){ state.leaveTab=t; renderLeaveScreen(); },
+  setLeaveTab:function(t){ confirmDiscardIfDirty(function(){ state.leaveTab=t; renderLeaveScreen(); }); },
   updateLeaveSubmitState:function(){
     var c1 = document.getElementById('lv-check1'), c2 = document.getElementById('lv-check2');
     var btn = document.getElementById('lv-submit-btn');
@@ -6505,6 +6541,7 @@ var VS = {
     sendPushNotification(adminIds, 'Leave request', me.name+' has requested leave from '+start+' to '+end);
     toast('Leave request submitted');
     state.leaveTab = 'mine';
+    resetFormDirty();
     renderLeaveScreen();
   },
   decideOvertime:function(id, status){
@@ -7092,6 +7129,7 @@ var VS = {
 };
 window.VS = VS;
 
+wireFormDirtyGuards();
 startLiveSync();
 
 })();
