@@ -2784,7 +2784,11 @@ function refreshJobPickerIfOpen(){
 
 // ---------- Customers (ServiceM8 companies, with an admin-editable overlay) ----------
 
-var MONITORING_TYPES = ['None', 'Monitored Intruder', 'Monitored Fire', 'Monitored Intruder + Fire', 'CCTV Monitoring', 'Keyholding', 'Other'];
+var MONITORING_KINDS = [
+  { key:'intruder', label:'Intruder' },
+  { key:'fire', label:'Fire' },
+  { key:'cctv', label:'CCTV' }
+];
 
 function customersCacheKey(){ return 'customers-cache'; }
 
@@ -2830,20 +2834,37 @@ function fetchCustomers(){
 }
 
 function customerInfoFor(uuid){
-  return (state.customerInfo && state.customerInfo[uuid]) || { maintained:false, renewalDate:'', monitoringType:'', notes:'' };
+  var stored = (state.customerInfo && state.customerInfo[uuid]) || {};
+  var monitoring = {};
+  MONITORING_KINDS.forEach(function(k){
+    var m = (stored.monitoring && stored.monitoring[k.key]) || {};
+    monitoring[k.key] = { active: !!m.active, renewalDate: m.renewalDate || '' };
+  });
+  return {
+    maintained: !!stored.maintained,
+    appConnected: !!stored.appConnected,
+    monitoring: monitoring,
+    notes: stored.notes || ''
+  };
 }
+
+function shortDate(d){ return new Date(d+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}); }
 
 function customerRowHtml(co){
   var info = customerInfoFor(co.uuid);
   var badges = '';
   if(info.maintained) badges += '<span class="vs-stock-badge ok">MAINTAINED</span>';
-  if(info.renewalDate){
-    var soon = new Date(info.renewalDate) <= new Date(Date.now()+30*86400000);
-    badges += '<span class="vs-stock-badge '+(soon?'low':'ok')+'">RENEWAL '+new Date(info.renewalDate+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'})+'</span>';
-  }
+  if(info.appConnected) badges += '<span class="vs-stock-badge ok">APP CONNECTED</span>';
+  MONITORING_KINDS.forEach(function(k){
+    var m = info.monitoring[k.key];
+    if(!m.active) return;
+    var label = k.label.toUpperCase()+(m.renewalDate?' '+shortDate(m.renewalDate):'');
+    var soon = m.renewalDate && new Date(m.renewalDate) <= new Date(Date.now()+30*86400000);
+    badges += '<span class="vs-stock-badge '+(soon?'low':'ok')+'">'+label+'</span>';
+  });
   return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.viewCustomer(\''+co.uuid+'\')">'+
     '<div class="vs-item-info"><div class="vs-item-name">'+escapeAttr(co.name)+badges+'</div>'+
-    '<div class="vs-item-meta">'+escapeAttr(co.address||'No address on file')+(info.monitoringType?' · '+escapeAttr(info.monitoringType):'')+'</div></div></div>';
+    '<div class="vs-item-meta">'+escapeAttr(co.address||'No address on file')+'</div></div></div>';
 }
 
 function renderCustomersScreen(){
@@ -6816,6 +6837,7 @@ var VS = {
     if(!co) return;
     var info = customerInfoFor(uuid);
     var admin = isAdminPerson(currentPerson());
+    var todayStr = new Date().toISOString().slice(0,10);
     var html = '<h3>'+escapeAttr(co.name)+'</h3>';
     html += '<p style="font-size:13px;color:var(--muted);margin:0 0 4px 0;">'+escapeAttr(co.address||'No address on file')+'</p>';
     if(co.phone) html += '<p style="font-size:12.5px;color:var(--muted);margin:0 0 4px 0;">'+escapeAttr(co.phone)+'</p>';
@@ -6823,14 +6845,27 @@ var VS = {
     html += '<div style="border-top:1px solid var(--line);margin:10px 0 14px 0;"></div>';
     if(admin){
       html += '<div class="vs-field"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="cust-maintained" '+(info.maintained?'checked':'')+' style="width:auto;">Maintained customer</label></div>';
-      html += '<div class="vs-field"><label>Maintenance renewal due</label><input type="date" id="cust-renewal" value="'+escapeAttr(info.renewalDate||'')+'"></div>';
-      html += '<div class="vs-field"><label>Monitoring type</label><select id="cust-monitoring">'+MONITORING_TYPES.map(function(t){ return '<option value="'+escapeAttr(t)+'" '+(info.monitoringType===t?'selected':'')+'>'+t+'</option>'; }).join('')+'</select></div>';
+      html += '<div class="vs-field"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="cust-appconnected" '+(info.appConnected?'checked':'')+' style="width:auto;">App connected</label></div>';
+      html += sectionHead('Monitoring');
+      MONITORING_KINDS.forEach(function(k){
+        var m = info.monitoring[k.key];
+        html += '<div class="vs-field">'+
+          '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="cust-mon-'+k.key+'" '+(m.active?'checked':'')+' onchange="document.getElementById(\'cust-mon-'+k.key+'-wrap\').style.display=this.checked?\'block\':\'none\'" style="width:auto;">'+k.label+' monitoring</label>'+
+          '<div id="cust-mon-'+k.key+'-wrap" style="display:'+(m.active?'block':'none')+';margin-top:6px;">'+
+            '<label style="font-size:11px;color:var(--muted-2);">Renewal date</label>'+
+            '<input type="date" id="cust-mon-'+k.key+'-date" value="'+escapeAttr(m.renewalDate||todayStr)+'">'+
+          '</div>'+
+        '</div>';
+      });
       html += '<div class="vs-field"><label>Notes (optional)</label><textarea id="cust-notes" rows="2">'+escapeAttr(info.notes||'')+'</textarea></div>';
       html += '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button><button class="vs-btn primary" onclick="VS.saveCustomerInfoFields(\''+uuid+'\')">Save</button></div>';
     } else {
       html += '<p style="font-size:13px;color:var(--text);margin:0 0 6px 0;"><b>Maintained:</b> '+(info.maintained?'Yes':'No')+'</p>';
-      html += '<p style="font-size:13px;color:var(--text);margin:0 0 6px 0;"><b>Renewal due:</b> '+(info.renewalDate?new Date(info.renewalDate+'T00:00:00').toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):'—')+'</p>';
-      html += '<p style="font-size:13px;color:var(--text);margin:0 0 6px 0;"><b>Monitoring:</b> '+escapeAttr(info.monitoringType||'—')+'</p>';
+      html += '<p style="font-size:13px;color:var(--text);margin:0 0 6px 0;"><b>App connected:</b> '+(info.appConnected?'Yes':'No')+'</p>';
+      MONITORING_KINDS.forEach(function(k){
+        var m = info.monitoring[k.key];
+        html += '<p style="font-size:13px;color:var(--text);margin:0 0 6px 0;"><b>'+k.label+':</b> '+(m.active ? ('Yes'+(m.renewalDate?' — renewal '+shortDate(m.renewalDate):'')) : 'No')+'</p>';
+      });
       if(info.notes) html += '<p style="font-size:13px;color:var(--text);margin:0 0 6px 0;"><b>Notes:</b> '+escapeAttr(info.notes)+'</p>';
       html += '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
     }
@@ -6839,10 +6874,19 @@ var VS = {
   saveCustomerInfoFields:function(uuid){
     if(!isAdminPerson(currentPerson())) return;
     if(!state.customerInfo) state.customerInfo = {};
+    var monitoring = {};
+    MONITORING_KINDS.forEach(function(k){
+      var activeEl = document.getElementById('cust-mon-'+k.key);
+      var dateEl = document.getElementById('cust-mon-'+k.key+'-date');
+      monitoring[k.key] = {
+        active: !!(activeEl && activeEl.checked),
+        renewalDate: dateEl ? dateEl.value : ''
+      };
+    });
     state.customerInfo[uuid] = {
       maintained: document.getElementById('cust-maintained').checked,
-      renewalDate: document.getElementById('cust-renewal').value,
-      monitoringType: document.getElementById('cust-monitoring').value,
+      appConnected: document.getElementById('cust-appconnected').checked,
+      monitoring: monitoring,
       notes: document.getElementById('cust-notes').value.trim()
     };
     saveCustomerInfo();
