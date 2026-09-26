@@ -760,9 +760,9 @@ function computeAlertCounts(){
   var me = currentPerson();
   var admin = isAdminPerson(me);
   var officeOrAdmin = admin || (me && !personHasVan(me));
-  var lowVan = lowStockList('van');
-  var lowWh = lowStockList('warehouse');
-  var noStock = noStockList();
+  var lowVan = unseenLowStockList('van');
+  var lowWh = unseenLowStockList('warehouse');
+  var noStock = unseenNoStockList();
   var totalLow = lowVan.length + lowWh.length;
   var pendingApprovals = admin ? (state.leaveRequests||[]).filter(function(r){ return r.status==='pending'; }).length : 0;
   var pendingSwaps = me ? (state.swapRequests||[]).filter(function(s){ return s.targetId===me.id && s.status==='pending'; }).length : 0;
@@ -790,7 +790,10 @@ function computeAlertCounts(){
     vehiclesDue: vehiclesDue, openIssues: openIssues, openFollowUps: openFollowUps,
     myLeaveUnseen: myLeaveUnseen, mySwapUnseenSent: mySwapUnseenSent, myOvertimeUnseen: myOvertimeUnseen, pendingOvertime: pendingOvertime,
     monthlyReportsUnread: monthlyReportsUnread,
-    total: noStock.length + totalLow + pendingApprovals + pendingSwaps + vehiclesDue + openIssues + openFollowUps
+    // Deliberately excludes noStock/totalLow: low/zero stock is shown in the
+    // in-app notifications banner but must never contribute to the phone's
+    // home-screen app icon badge, so it doesn't drown out other alerts there.
+    total: pendingApprovals + pendingSwaps + vehiclesDue + openIssues + openFollowUps
       + myLeaveUnseen + mySwapUnseenSent + myOvertimeUnseen + pendingOvertime + monthlyReportsUnread
   };
 }
@@ -1046,7 +1049,7 @@ function renderWhoBadge(){
   var p = currentPerson();
   var html = p ? (
     '<div class="vs-welcome-title">Welcome '+escapeAttr(p.name)+'</div>'+
-    '<div class="vs-welcome-sub">Not '+escapeAttr(p.name)+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.logout()">log out</button></div>'
+    '<div class="vs-welcome-sub">Not '+escapeAttr(p.name)+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.confirmLogout()">log out</button></div>'
   ) : '';
   ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge','vs-help-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
@@ -1285,6 +1288,11 @@ function startLiveSync(){
     liveLoaded.monthlyReports = true;
     onSharedUpdate('monthlyReports');
   });
+  subscribeShared('stock-alerts-seen', function(value, exists){
+    state.stockAlertsSeen = exists ? JSON.parse(value) : {};
+    liveLoaded.stockAlertsSeen = true;
+    onSharedUpdate('stockAlertsSeen');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -1327,8 +1335,8 @@ function onSharedUpdate(changedKey){
   }
   if(appView==='home' && ['catalog','leave','swaps','overtime','feedback','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
   if(appView==='hr' && ['catalog','feedback','hrDocuments'].indexOf(changedKey)!==-1){ renderHRScreen(); }
-  if(appView==='home' && ['catalog','stock','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
-  else if(state.currentUser && ['catalog','stock','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
+  if(appView==='home' && ['catalog','stock','stockAlertsSeen','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
+  else if(state.currentUser && ['catalog','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
   if(appView==='leave' && ['catalog','leave','rota','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
   if(appView==='forms' && changedKey==='forms'){ renderFormsScreen(); }
@@ -1419,6 +1427,11 @@ function saveHRDocuments(){
 function saveMonthlyReports(){
   trackSave(function(){
     return storageSet('monthly-reports', JSON.stringify(state.monthlyReports), true);
+  });
+}
+function saveStockAlertsSeen(){
+  trackSave(function(){
+    return storageSet('stock-alerts-seen', JSON.stringify(state.stockAlertsSeen||{}), true);
   });
 }
 function savePushSubscriptions(){
@@ -1512,6 +1525,38 @@ function lowStockList(location){
   return list;
 }
 
+// Stock alerts are "dismissed" per item+location by remembering the quantity
+// at the moment they were last read. The alert disappears from the top
+// notifications banner and the phone's home-screen icon badge once seen, but
+// comes back if the quantity changes again (e.g. topped up then run low a
+// second time) — it never silently hides a genuinely new shortage.
+function stockAlertKey(location, itemId, engId){
+  return location==='Stores' ? ('wh:'+itemId) : ('van:'+engId+':'+itemId);
+}
+function unseenLowStockList(location){
+  var seen = state.stockAlertsSeen||{};
+  return lowStockList(location).filter(function(x){
+    var key = stockAlertKey(x.location, x.item.id, x.engId);
+    return seen[key]===undefined || seen[key]!==x.qty;
+  });
+}
+function unseenNoStockList(){
+  var seen = state.stockAlertsSeen||{};
+  return noStockList().filter(function(x){
+    var key = stockAlertKey(x.location, x.item.id, x.engId);
+    return seen[key]===undefined || seen[key]!==x.qty;
+  });
+}
+function markStockAlertsSeen(){
+  var seen = {};
+  ['van','warehouse'].forEach(function(loc){
+    lowStockList(loc).forEach(function(x){ seen[stockAlertKey(x.location, x.item.id, x.engId)] = x.qty; });
+  });
+  noStockList().forEach(function(x){ seen[stockAlertKey(x.location, x.item.id, x.engId)] = x.qty; });
+  state.stockAlertsSeen = seen;
+  saveStockAlertsSeen();
+}
+
 // ---------- Rendering ----------
 
 function render(){
@@ -1569,10 +1614,14 @@ function renderDashboard(c){
   html += actionTile('Transfer Item', 'Stores \u2192 van or job', 'VS.openGeneralTransfer()');
   html += '</div>';
 
-  html += sectionHead('Needs attention');
+  var unseenCount = unseenLowStockList('van').length + unseenLowStockList('warehouse').length + unseenNoStockList().length;
+  html += sectionHead('Needs attention', unseenCount>0 ? '<button class="vs-btn small" onclick="VS.markStockAlertsSeen()">Read all</button>' : '');
   if(lowVan.length+lowWh.length===0){
     html += '<div class="vs-empty">Nothing below par right now.</div>';
   } else {
+    if(unseenCount===0){
+      html += '<p style="font-size:11px;color:var(--muted-2);margin:-8px 0 10px 0;">Read — the notification banner and app icon are clear until stock levels change again.</p>';
+    }
     html += '<div class="vs-cards">';
     lowWh.concat(lowVan).slice(0,8).forEach(function(row){
       html += '<div class="vs-item-row '+row.status+'"><div class="vs-item-info">'+
@@ -1608,13 +1657,13 @@ function noStockList(){
   state.catalog.items.forEach(function(it){
     if(!itemAppliesTo(it,'warehouse')) return;
     var qty = state.stock.warehouse[it.id]||0;
-    if(qty<=0) list.push({item:it, location:'Stores'});
+    if(qty<=0) list.push({item:it, qty:qty, location:'Stores'});
   });
   visibleVanHolders().forEach(function(eng){
     state.catalog.items.forEach(function(it){
       if(!itemAppliesTo(it,'van')) return;
       var qty = (state.stock.van[eng.id]||{})[it.id]||0;
-      if(qty<=0) list.push({item:it, location:eng.name});
+      if(qty<=0) list.push({item:it, qty:qty, location:eng.name, engId:eng.id});
     });
   });
   return list;
@@ -2425,7 +2474,7 @@ function renderRequestSwap(c){
   var admin = isAdminPerson(me);
   var todayStr = new Date().toISOString().slice(0,10);
   var myDates = state.rota.filter(function(r){ return r.engineerId===me.id && r.date>=todayStr; }).sort(function(a,b){ return a.date<b.date?-1:1; });
-  var others = state.catalog.engineers.filter(function(e){ return e.id!==me.id; });
+  var others = state.catalog.engineers.filter(function(e){ return e.id!==me.id && personHasVan(e) && !isAdminPerson(e); });
 
   var html = leaveBackLink();
   html += sectionHead('Ask someone to cover a date');
@@ -5415,6 +5464,13 @@ var VS = {
   enterFollowUps:enterFollowUps,
   enterHR:enterHR,
   enterHelp:enterHelp,
+  markStockAlertsSeen:function(){
+    markStockAlertsSeen();
+    render();
+    renderHomeNotifications();
+    updateAppBadge(computeAlertCounts().total);
+    toast('Marked as read');
+  },
   openFeedback:function(){
     var screen = currentScreenLabel();
     var html = '<h3>Feedback / Feature Request</h3>'+
@@ -6909,6 +6965,7 @@ var VS = {
   closeModal:closeModal,
   tryPinLogin:tryPinLogin,
   logout:function(){ logout(false); },
+  confirmLogout:function(){ if(confirm('Log out of this device?')) logout(false); },
   setPersonPin:function(id, pin){
     var e = engById(id); if(!e) return;
     e.pin = pin.trim();
