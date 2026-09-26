@@ -4101,7 +4101,7 @@ function generateSurveyPDF(sub){
   drawFooter();
   var fileSafe = (f.client||'client').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
   var filePrefix = { proposal:'SDP', specification:'System-Spec', as_fitted:'As-Fitted' }[sub.docStage] || 'SDP';
-  sharePdf(doc, filePrefix+'-'+fileSafe+'.pdf');
+  return { doc: doc, filename: filePrefix+'-'+fileSafe+'.pdf' };
 }
 
 function renderServiceReportForm(c){
@@ -4278,6 +4278,22 @@ function dataUrlToBlob(dataUrl){
   var arr = new Uint8Array(len);
   for(var i=0;i<len;i++){ arr[i] = binStr.charCodeAt(i); }
   return new Blob([arr], { type: mime });
+}
+
+// Builds the jsPDF document for any form submission without downloading or
+// sharing it, so it can be attached to a ServiceM8 job instead (or shown/
+// downloaded by the caller). Returns { doc, filename } or null if the PDF
+// library isn't loaded yet.
+function buildFormPdf(sub){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection and try again'); return null; }
+  if(sub.formType==='risk_assessment') return generateRiskAssessmentPDF(sub);
+  if(sub.formType==='commissioning') return generateCommissioningPDF(sub);
+  if(sub.formType==='handover') return generateHandoverPDF(sub);
+  if(sub.formType==='terms_acceptance') return generateTermsAcceptancePDF(sub);
+  if(sub.formType==='variation') return generateVariationPDF(sub);
+  if(sub.formType==='disconnection') return generateDisconnectionPDF(sub);
+  if(sub.formType==='survey') return generateSurveyPDF(sub);
+  return generateServiceReportPDF(sub);
 }
 
 function sharePdf(doc, filename){
@@ -4467,7 +4483,7 @@ function generateServiceReportPDF(sub){
   line('Customer', f.customer);
   line('Signed', f.signature);
 
-  sharePdf(doc, 'Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf');
+  return { doc: doc, filename: 'Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf' };
 }
 
 function generateRiskAssessmentPDF(sub){
@@ -4584,7 +4600,7 @@ function generateRiskAssessmentPDF(sub){
 
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  sharePdf(doc, 'RAMS-'+fileSafe+'.pdf');
+  return { doc: doc, filename: 'RAMS-'+fileSafe+'.pdf' };
 }
 
 function pdfHeader(doc, margin, pageWidth, navy, titleText){
@@ -4664,7 +4680,7 @@ function generateCommissioningPDF(sub){
 
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  sharePdf(doc, 'Commissioning-'+fileSafe+'.pdf');
+  return { doc: doc, filename: 'Commissioning-'+fileSafe+'.pdf' };
 }
 
 function generateHandoverPDF(sub){
@@ -4741,7 +4757,7 @@ function generateHandoverPDF(sub){
 
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  sharePdf(doc, 'Handover-'+fileSafe+'.pdf');
+  return { doc: doc, filename: 'Handover-'+fileSafe+'.pdf' };
 }
 
 function generateTermsPDF(){
@@ -4929,7 +4945,7 @@ function generateTermsAcceptancePDF(sub){
 
   drawFooter();
   var fileSafe = (f.clientName||'client').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  sharePdf(doc, 'KHG-Terms-Accepted-'+fileSafe+'.pdf');
+  return { doc: doc, filename: 'KHG-Terms-Accepted-'+fileSafe+'.pdf' };
 }
 
 function generateVariationPDF(sub){
@@ -5007,7 +5023,7 @@ function generateVariationPDF(sub){
 
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  sharePdf(doc, 'Variation-'+fileSafe+'.pdf');
+  return { doc: doc, filename: 'Variation-'+fileSafe+'.pdf' };
 }
 
 function generateDisconnectionPDF(sub){
@@ -5084,7 +5100,7 @@ function generateDisconnectionPDF(sub){
 
   drawFooter();
   var fileSafe = (f.customerName||'customer').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  sharePdf(doc, 'Disconnection-'+fileSafe+'.pdf');
+  return { doc: doc, filename: 'Disconnection-'+fileSafe+'.pdf' };
 }
 
 function renderMyFormSubmissions(c){
@@ -6686,17 +6702,31 @@ var VS = {
   syncFormSubmission:function(id){
     var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
     if(!sub) return;
-    var noteText = sub.formType==='service_report' ? buildServiceReportNote(sub.fields) : buildGenericFormNote(sub.formType, sub.fields);
-    fetch('/.netlify/functions/servicem8-note', {
+    var built = buildFormPdf(sub);
+    if(!built){
+      var sFail = (state.formSubmissions||[]).filter(function(x){ return x.id===id; })[0];
+      if(sFail){ sFail.syncStatus='failed'; sFail.syncError='Could not build the PDF to attach'; saveFormSubmissions(); }
+      if(state.formsTab==='mine') renderFormsScreen();
+      return;
+    }
+    var fileBase64;
+    try{ fileBase64 = built.doc.output('datauristring').split('base64,').pop(); }catch(e){}
+    if(!fileBase64){
+      var sFail2 = (state.formSubmissions||[]).filter(function(x){ return x.id===id; })[0];
+      if(sFail2){ sFail2.syncStatus='failed'; sFail2.syncError='Could not build the PDF to attach'; saveFormSubmissions(); }
+      if(state.formsTab==='mine') renderFormsScreen();
+      return;
+    }
+    fetch('/.netlify/functions/servicem8-attachment', {
       method:'POST', headers:{'Content-Type':'application/json','X-App-Secret':APP_SHARED_SECRET},
-      body: JSON.stringify({ jobNumber: sub.jobNumber, note: noteText })
+      body: JSON.stringify({ jobNumber: sub.jobNumber, fileName: built.filename, fileBase64: fileBase64 })
     }).then(function(res){ return res.json(); }).then(function(data){
       var s = (state.formSubmissions||[]).filter(function(x){ return x.id===id; })[0];
       if(!s) return;
       s.syncStatus = data.success ? 'synced' : 'failed';
       s.syncError = data.success ? null : (data.error||'Unknown error')+(data.detail?' \u2014 '+String(data.detail).slice(0,200):'');
       saveFormSubmissions();
-      if(data.success){ toast('Report added to ServiceM8 job '+sub.jobNumber); }
+      if(data.success){ toast('PDF attached to ServiceM8 job '+sub.jobNumber); }
       else { toast('ServiceM8 sync failed: '+s.syncError); }
       if(state.formsTab==='mine') renderFormsScreen();
     }).catch(function(){
@@ -6722,14 +6752,9 @@ var VS = {
   downloadReportPDF:function(id){
     var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
     if(!sub){ toast('Report not found'); return; }
-    if(sub.formType==='risk_assessment'){ generateRiskAssessmentPDF(sub); }
-    else if(sub.formType==='commissioning'){ generateCommissioningPDF(sub); }
-    else if(sub.formType==='handover'){ generateHandoverPDF(sub); }
-    else if(sub.formType==='terms_acceptance'){ generateTermsAcceptancePDF(sub); }
-    else if(sub.formType==='variation'){ generateVariationPDF(sub); }
-    else if(sub.formType==='disconnection'){ generateDisconnectionPDF(sub); }
-    else if(sub.formType==='survey'){ generateSurveyPDF(sub); }
-    else { generateServiceReportPDF(sub); }
+    var built = buildFormPdf(sub);
+    if(!built) return;
+    sharePdf(built.doc, built.filename);
   },
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
   setJobsViewDate:function(dateStr){ state.jobsViewDate = dateStr; renderJobsScreen(); },
