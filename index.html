@@ -5415,8 +5415,35 @@ function renderFollowUpsScreen(c){
 
 // ---------- Modal ----------
 
+// iOS Safari lets touches "pass through" a fixed-position overlay to the page
+// underneath unless the page itself is locked from scrolling while the modal
+// is open — so without this, touching/scrolling inside a modal can also move
+// the screen behind it. We lock by pinning <body> at its current scroll
+// position and restore that scroll position when the modal closes.
+var modalScrollLockY = null;
+function lockBodyScroll(){
+  if(modalScrollLockY !== null) return; // already locked (nested modal calls)
+  modalScrollLockY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.position = 'fixed';
+  document.body.style.top = '-'+modalScrollLockY+'px';
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+}
+function unlockBodyScroll(){
+  if(modalScrollLockY === null) return;
+  var y = modalScrollLockY;
+  modalScrollLockY = null;
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  window.scrollTo(0, y);
+}
 function openModal(html){
   document.getElementById('vs-modal-root').innerHTML = '<div class="vs-modal-backdrop" onclick="if(event.target===this) VS.closeModal()"><div class="vs-modal">'+html+'</div></div>';
+  lockBodyScroll();
 }
 function closeModal(){
   if(scannerInstance){
@@ -5426,6 +5453,7 @@ function closeModal(){
     pendingScanCode = null;
   }
   document.getElementById('vs-modal-root').innerHTML='';
+  unlockBodyScroll();
 }
 
 function openUseItemChoice(){
