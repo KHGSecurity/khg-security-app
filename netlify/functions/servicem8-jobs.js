@@ -1,8 +1,10 @@
-// Fetches jobs from ServiceM8 for display in the app's Jobs section, along
-// with their scheduled dates (from Job Activity/booking records) so the app
-// can show them on a calendar. Admins see every active job's schedule.
-// Everyone else only sees jobs they're actually scheduled against, found via
-// ServiceM8's Job Activity records for their matching staff member.
+// Fetches jobs from ServiceM8 for display in the app's Jobs section, and to
+// power the "attach to a ServiceM8 job" picker used when completing forms.
+// Returns every active job to every logged-in user (this is an internal
+// company tool — there's no customer-facing exposure), each carrying its
+// full schedule (who's booked on it and when, across all staff) and its
+// customer/company name, so the app can prioritise "my jobs today" while
+// still letting anyone search any other job or customer.
 // The ServiceM8 API key lives only here, as a Netlify environment variable
 // (SERVICEM8_API_KEY) — it never reaches the browser.
 
@@ -24,49 +26,48 @@ exports.handler = async function (event) {
     'Accept': 'application/json'
   };
 
-  const params = event.queryStringParameters || {};
-  const isAdmin = params.admin === '1';
-  const staffName = String(params.staffName || '').trim().toLowerCase();
-
   try {
-    const jobsRes = await fetch(`https://api.servicem8.com/api_1.0/job.json?%24filter=${encodeURIComponent('active eq 1')}`, { headers });
+    const [jobsRes, activitiesRes, staffRes, companiesRes] = await Promise.all([
+      fetch(`https://api.servicem8.com/api_1.0/job.json?%24filter=${encodeURIComponent('active eq 1')}`, { headers }),
+      fetch('https://api.servicem8.com/api_1.0/jobactivity.json', { headers }),
+      fetch('https://api.servicem8.com/api_1.0/staff.json', { headers }),
+      fetch('https://api.servicem8.com/api_1.0/company.json', { headers })
+    ]);
+
     if (!jobsRes.ok) {
       const detail = await jobsRes.text();
       return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch jobs from ServiceM8.', detail }) };
     }
-    const allJobs = await jobsRes.json();
-    let jobs = Array.isArray(allJobs) ? allJobs : [];
-
-    var activitiesUrl;
-    if (isAdmin) {
-      activitiesUrl = 'https://api.servicem8.com/api_1.0/jobactivity.json';
-    } else {
-      if (!staffName) {
-        return { statusCode: 400, body: JSON.stringify({ success: false, error: 'Missing staff name to look up.' }) };
-      }
-      const staffRes = await fetch('https://api.servicem8.com/api_1.0/staff.json', { headers });
-      if (!staffRes.ok) {
-        const detail = await staffRes.text();
-        return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch staff list from ServiceM8.', detail }) };
-      }
-      const staffList = await staffRes.json();
-      const staffMember = (Array.isArray(staffList) ? staffList : []).find(function (s) {
-        const full = `${s.first || ''} ${s.last || ''}`.trim().toLowerCase();
-        return full === staffName;
-      });
-      if (!staffMember) {
-        return { statusCode: 404, body: JSON.stringify({ success: false, error: `No ServiceM8 staff member found matching the name "${params.staffName}". Names must match exactly.` }) };
-      }
-      const actFilter = encodeURIComponent(`staff_uuid eq '${staffMember.uuid}'`);
-      activitiesUrl = `https://api.servicem8.com/api_1.0/jobactivity.json?%24filter=${actFilter}`;
-    }
-
-    const actRes = await fetch(activitiesUrl, { headers });
-    if (!actRes.ok) {
-      const detail = await actRes.text();
+    if (!activitiesRes.ok) {
+      const detail = await activitiesRes.text();
       return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch job activities from ServiceM8.', detail }) };
     }
-    const activities = await actRes.json();
+    if (!staffRes.ok) {
+      const detail = await staffRes.text();
+      return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch staff list from ServiceM8.', detail }) };
+    }
+    if (!companiesRes.ok) {
+      const detail = await companiesRes.text();
+      return { statusCode: 502, body: JSON.stringify({ success: false, error: 'Could not fetch customer list from ServiceM8.', detail }) };
+    }
+
+    const allJobs = await jobsRes.json();
+    const activities = await activitiesRes.json();
+    const staffList = await staffRes.json();
+    const companies = await companiesRes.json();
+
+    const jobs = Array.isArray(allJobs) ? allJobs : [];
+
+    const staffMap = {};
+    (Array.isArray(staffList) ? staffList : []).forEach(function (s) {
+      staffMap[s.uuid] = `${s.first || ''} ${s.last || ''}`.trim();
+    });
+
+    const companyMap = {};
+    (Array.isArray(companies) ? companies : []).forEach(function (co) {
+      companyMap[co.uuid] = co.name || '';
+    });
+
     const activeActivities = (Array.isArray(activities) ? activities : [])
       .filter(function (a) { return a.active !== 0 && a.active !== '0'; });
 
@@ -74,13 +75,12 @@ exports.handler = async function (event) {
     activeActivities.forEach(function (a) {
       if (!a.job_uuid) return;
       if (!scheduleMap[a.job_uuid]) scheduleMap[a.job_uuid] = [];
-      scheduleMap[a.job_uuid].push({ start: a.start_date || '', end: a.end_date || '' });
+      scheduleMap[a.job_uuid].push({
+        start: a.start_date || '',
+        end: a.end_date || '',
+        staffName: staffMap[a.staff_uuid] || ''
+      });
     });
-
-    if (!isAdmin) {
-      const myJobUuids = new Set(Object.keys(scheduleMap));
-      jobs = jobs.filter(function (j) { return myJobUuids.has(j.uuid); });
-    }
 
     const simplified = jobs.map(function (j) {
       return {
@@ -89,6 +89,8 @@ exports.handler = async function (event) {
         description: j.job_description || '',
         address: j.job_address || '',
         status: j.status || '',
+        companyUuid: j.company_uuid || '',
+        companyName: companyMap[j.company_uuid] || '',
         schedule: scheduleMap[j.uuid] || []
       };
     });
