@@ -75,14 +75,15 @@ exports.handler = async function () {
   const uk = ukNow();
 
   try {
-    const [catalog, followUps, vehicles, subsMap, rota, overtime, monthlyReportsExisting] = await Promise.all([
+    const [catalog, followUps, vehicles, subsMap, rota, overtime, monthlyReportsExisting, stock] = await Promise.all([
       firestoreGetDoc('shared/catalog'),
       firestoreGetDoc('shared/follow-ups'),
       firestoreGetDoc('shared/vehicles'),
       firestoreGetDoc('shared/push-subscriptions'),
       firestoreGetDoc('shared/callout-rota'),
       firestoreGetDoc('shared/overtime'),
-      firestoreGetDoc('shared/monthly-reports')
+      firestoreGetDoc('shared/monthly-reports'),
+      firestoreGetDoc('shared/stock')
     ]);
 
     const engineers = (catalog && catalog.engineers) || [];
@@ -127,6 +128,38 @@ exports.handler = async function () {
           officeOrAdminIds.forEach(function (id) { queue(id, 'Vehicle reminder', body, '/'); });
         }
       });
+
+      // Daily low/zero stock digest. This is a reminder only — it never sets
+      // an unread count on anyone's phone home-screen icon (the app itself
+      // keeps that separate and clears it once someone views the Stock
+      // screen), it just nudges office/admin daily until stock is topped up.
+      const items = (catalog && catalog.items) || [];
+      const vanHolders = engineers.filter(function (e) { return e.hasVan !== false; });
+      function appliesTo(item, loc) { const s = item.scope || 'both'; return s === 'both' || s === loc; }
+      function statusFor(qty, par) { if (qty <= 0) return 'out'; if (qty < par) return 'low'; return 'ok'; }
+      let noStockCount = 0, lowCount = 0;
+      items.forEach(function (it) {
+        if (appliesTo(it, 'warehouse')) {
+          const qty = (stock && stock.warehouse && stock.warehouse[it.id]) || 0;
+          const s = statusFor(qty, it.whPar);
+          if (s === 'out') noStockCount++; else if (s === 'low') lowCount++;
+        }
+      });
+      vanHolders.forEach(function (eng) {
+        items.forEach(function (it) {
+          if (!appliesTo(it, 'van')) return;
+          const qty = (stock && stock.van && stock.van[eng.id] && stock.van[eng.id][it.id]) || 0;
+          const s = statusFor(qty, it.vanPar);
+          if (s === 'out') noStockCount++; else if (s === 'low') lowCount++;
+        });
+      });
+      if (noStockCount || lowCount) {
+        const parts = [];
+        if (noStockCount) parts.push(noStockCount + ' item' + (noStockCount === 1 ? '' : 's') + ' with no stock');
+        if (lowCount) parts.push(lowCount + ' item' + (lowCount === 1 ? '' : 's') + ' below minimum');
+        const stockBody = parts.join(' · ') + ' — check the Stock section';
+        officeOrAdminIds.forEach(function (id) { queue(id, 'Stock reminder', stockBody, '/'); });
+      }
     }
 
     // Monthly on-call report: 7am UK on the 25th, covering the WHOLE month
