@@ -2686,6 +2686,14 @@ function openUploadManual(){
 
 function dateOnly(s){ return String(s||'').slice(0,10); }
 
+// Local (not UTC) YYYY-MM-DD — toISOString() converts to UTC first, which
+// during British Summer Time (UTC+1) rolls a local midnight back to the
+// previous day, so date-shift arithmetic must use this instead.
+function localDateStr(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function todayLocalStr(){ return localDateStr(new Date()); }
+
 function timeAgo(ts){
   var secs = Math.round((Date.now()-ts)/1000);
   if(secs<60) return 'just now';
@@ -2733,7 +2741,7 @@ function myJobsToday(){
   var me = currentPerson();
   var myName = me ? (me.servicem8Name || '') : '';
   if(!myName) return [];
-  var todayStr = new Date().toISOString().slice(0,10);
+  var todayStr = todayLocalStr();
   return jobsForStaffOnDate(myName, todayStr);
 }
 
@@ -2948,7 +2956,7 @@ function renderJobsScreen(){
     return;
   }
 
-  var todayStr = new Date().toISOString().slice(0,10);
+  var todayStr = todayLocalStr();
   var me = currentPerson();
   var admin = isAdminPerson(me);
   if(!state.jobsViewDate) state.jobsViewDate = todayStr;
@@ -6849,12 +6857,12 @@ var VS = {
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
   setJobsViewDate:function(dateStr){ if(!dateStr) return; state.jobsViewDate = dateStr; renderJobsScreen(); },
   jobsDateShift:function(delta){
-    var d = new Date((state.jobsViewDate||new Date().toISOString().slice(0,10))+'T00:00:00');
+    var d = new Date((state.jobsViewDate||todayLocalStr())+'T00:00:00');
     d.setDate(d.getDate()+delta);
-    state.jobsViewDate = d.toISOString().slice(0,10);
+    state.jobsViewDate = localDateStr(d);
     renderJobsScreen();
   },
-  jobsGoToday:function(){ state.jobsViewDate = new Date().toISOString().slice(0,10); renderJobsScreen(); },
+  jobsGoToday:function(){ state.jobsViewDate = todayLocalStr(); renderJobsScreen(); },
   setJobsViewEngineer:function(v){ state.jobsViewEngineerId = v; renderJobsScreen(); },
   reloadJobs:function(){ state.jobsError = null; fetchJobs(); },
   openJobPicker:function(targetInputId){
