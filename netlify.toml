@@ -5,3 +5,5 @@
 [functions]
   [functions."check-reminders"]
   schedule = "0 * * * *"
+  [functions."servicem8-check-new-jobs"]
+  schedule = "*/15 * * * *"
