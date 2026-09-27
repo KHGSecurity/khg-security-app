@@ -570,7 +570,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu', feedback:null, hrDocuments:null, jobPicker:null, customersCache:null, customersLoading:false, customersError:null, customersCachedAt:null, customersSearch:'', customerInfo:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, jobsViewDate:null, jobsViewEngineerId:'me', formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu', feedback:null, hrDocuments:null, jobPicker:null, customersCache:null, customersLoading:false, customersError:null, customersCachedAt:null, customersSearch:'', customerInfo:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -2684,9 +2684,6 @@ function openUploadManual(){
 
 // ---------- Jobs (live from ServiceM8) ----------
 
-var jobsCalMonth = new Date();
-jobsCalMonth.setDate(1);
-
 function dateOnly(s){ return String(s||'').slice(0,10); }
 
 function timeAgo(ts){
@@ -2719,14 +2716,25 @@ function ensureJobsLoaded(){
   }
 }
 
+function jobsForStaffOnDate(staffName, dateStr){
+  if(!staffName) return [];
+  return (state.jobsCache||[]).filter(function(j){
+    return (j.schedule||[]).some(function(s){ return dateOnly(s.start)===dateStr && s.staffName===staffName; });
+  });
+}
+
+function staffNamesForJobOnDate(j, dateStr){
+  var names = (j.schedule||[]).filter(function(s){ return dateOnly(s.start)===dateStr; }).map(function(s){ return s.staffName; }).filter(Boolean);
+  var seen = {};
+  return names.filter(function(n){ if(seen[n]) return false; seen[n]=true; return true; });
+}
+
 function myJobsToday(){
   var me = currentPerson();
   var myName = me ? (me.servicem8Name || '') : '';
   if(!myName) return [];
   var todayStr = new Date().toISOString().slice(0,10);
-  return (state.jobsCache||[]).filter(function(j){
-    return (j.schedule||[]).some(function(s){ return dateOnly(s.start)===todayStr && s.staffName===myName; });
-  });
+  return jobsForStaffOnDate(myName, todayStr);
 }
 
 function jobPickerSearchResults(){
@@ -2911,10 +2919,10 @@ function renderCustomersScreen(){
   setContentPreservingFocus(c, html, 'cust-search');
 }
 
-function jobRowHtml(j){
+function jobRowHtml(j, staffLabel){
   return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.viewJob(\''+j.uuid+'\')">'+
-    '<div class="vs-item-info"><div class="vs-item-name">'+(j.jobNumber?'#'+escapeAttr(j.jobNumber)+' \u2014 ':'')+escapeAttr(j.description||'(no description)')+'</div>'+
-    '<div class="vs-item-meta">'+escapeAttr(j.address||'')+(j.status?' \u00b7 '+escapeAttr(j.status):'')+'</div></div></div>';
+    '<div class="vs-item-info"><div class="vs-item-name">'+(j.jobNumber?'#'+escapeAttr(j.jobNumber)+' \u2014 ':'')+escapeAttr(j.description||j.companyName||'(no description)')+'</div>'+
+    '<div class="vs-item-meta">'+escapeAttr(j.address||'')+(j.status?' \u00b7 '+escapeAttr(j.status):'')+(staffLabel?' \u00b7 '+escapeAttr(staffLabel):'')+'</div></div></div>';
 }
 
 function renderJobsScreen(){
@@ -2942,20 +2950,42 @@ function renderJobsScreen(){
 
   var todayStr = new Date().toISOString().slice(0,10);
   var me = currentPerson();
+  var admin = isAdminPerson(me);
+  if(!state.jobsViewDate) state.jobsViewDate = todayStr;
+  var viewDate = state.jobsViewDate;
+  var isToday = viewDate===todayStr;
 
-  var html = '<div style="display:flex;gap:8px;margin-bottom:6px;">'+
-    '<input id="jobs-search" value="'+escapeAttr(state.jobsSearch)+'" placeholder="Search today\u2019s jobs\u2026" oninput="VS.setJobsSearch(this.value)" style="flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-family:\'Inter\';">'+
+  if(me && !me.servicem8Name && !admin){
+    var html0 = '<div class="vs-error">Your ServiceM8 name hasn\u2019t been set up yet \u2014 ask an admin to add it in Items \u2192 Team, so your jobs can be matched to you.</div>';
+    setContentPreservingFocus(c, html0, 'jobs-search');
+    return;
+  }
+
+  // Date navigation
+  var dayLabel = new Date(viewDate+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+  var html = '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">'+
+    '<button class="vs-btn small" onclick="VS.jobsDateShift(-1)">\u2039</button>'+
+    '<input type="date" id="jobs-date" value="'+escapeAttr(viewDate)+'" onchange="VS.setJobsViewDate(this.value)" style="flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px 10px;font-family:\'Inter\';text-align:center;">'+
+    '<button class="vs-btn small" onclick="VS.jobsDateShift(1)">\u203a</button>'+
+    (!isToday ? '<button class="vs-btn small" onclick="VS.jobsGoToday()">Today</button>' : '')+
+  '</div>';
+
+  // Admin engineer picker
+  if(admin){
+    var engineers = (state.catalog.engineers||[]).filter(function(e){ return e.servicem8Name; }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+    var opts = '<option value="me"'+(state.jobsViewEngineerId==='me'?' selected':'')+'>Me'+(me&&me.name?' \u2014 '+escapeAttr(me.name):'')+'</option>'+
+      '<option value="all"'+(state.jobsViewEngineerId==='all'?' selected':'')+'>All engineers</option>'+
+      engineers.map(function(e){ return '<option value="'+e.id+'"'+(state.jobsViewEngineerId===e.id?' selected':'')+'>'+escapeAttr(e.name)+'</option>'; }).join('');
+    html += '<div style="margin-bottom:10px;"><select id="jobs-engineer" onchange="VS.setJobsViewEngineer(this.value)" style="width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-family:\'Inter\';">'+opts+'</select></div>';
+  }
+
+  html += '<div style="display:flex;gap:8px;margin-bottom:6px;">'+
+    '<input id="jobs-search" value="'+escapeAttr(state.jobsSearch)+'" placeholder="Search jobs\u2026" oninput="VS.setJobsSearch(this.value)" style="flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:9px 10px;font-family:\'Inter\';">'+
     '<button class="vs-btn small" onclick="VS.reloadJobs()">Refresh</button>'+
   '</div>';
   html += '<div style="font-size:11px;color:var(--muted-2);margin-bottom:10px;">'+
     (state.jobsLoading ? 'Updating\u2026' : (state.jobsCachedAt ? 'Updated '+timeAgo(state.jobsCachedAt) : ''))+
   '</div>';
-
-  if(me && !me.servicem8Name){
-    html += '<div class="vs-error">Your ServiceM8 name hasn\u2019t been set up yet \u2014 ask an admin to add it in Items \u2192 Team, so today\u2019s jobs can be matched to you.</div>';
-    setContentPreservingFocus(c, html, 'jobs-search');
-    return;
-  }
 
   var q = state.jobsSearch.toLowerCase();
   function matches(j){
@@ -2966,13 +2996,30 @@ function renderJobsScreen(){
       (j.companyName||'').toLowerCase().indexOf(q)!==-1;
   }
 
-  var dayLabel = new Date(todayStr+'T00:00:00').toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
-  html += sectionHead('Today \u2014 '+dayLabel);
-  var dayJobs = myJobsToday().filter(matches);
-  if(dayJobs.length===0){
-    html += '<div class="vs-empty">No jobs booked in for you today.</div>';
+  var scope = admin ? state.jobsViewEngineerId : 'me';
+  var headLabel = (isToday?'Today':dayLabel);
+  var dayJobs, showStaffLabel;
+  if(scope==='all'){
+    dayJobs = jobsForDate(viewDate).filter(matches);
+    showStaffLabel = true;
+    html += sectionHead(headLabel+' \u2014 all engineers');
   } else {
-    html += '<div class="vs-cards">' + dayJobs.map(jobRowHtml).join('') + '</div>';
+    var name;
+    if(scope==='me'){ name = me ? (me.servicem8Name||'') : ''; }
+    else {
+      var eng = engById(scope);
+      name = eng ? (eng.servicem8Name||'') : '';
+    }
+    dayJobs = jobsForStaffOnDate(name, viewDate).filter(matches);
+    showStaffLabel = false;
+    var who = scope==='me' ? 'you' : (engById(scope)?engById(scope).name:'them');
+    html += sectionHead(headLabel+' \u2014 '+who);
+  }
+
+  if(dayJobs.length===0){
+    html += '<div class="vs-empty">No jobs booked in for '+(isToday?'today':'that day')+'.</div>';
+  } else {
+    html += '<div class="vs-cards">' + dayJobs.map(function(j){ return jobRowHtml(j, showStaffLabel ? staffNamesForJobOnDate(j, viewDate).join(', ') : ''); }).join('') + '</div>';
   }
 
   setContentPreservingFocus(c, html, 'jobs-search');
@@ -6781,8 +6828,15 @@ var VS = {
     sharePdf(built.doc, built.filename);
   },
   setJobsSearch:function(v){ state.jobsSearch = v; renderJobsScreen(); },
-  setJobsViewDate:function(dateStr){ state.jobsViewDate = dateStr; renderJobsScreen(); },
-  jobsCalShift:function(delta){ jobsCalMonth.setMonth(jobsCalMonth.getMonth()+delta); renderJobsScreen(); },
+  setJobsViewDate:function(dateStr){ if(!dateStr) return; state.jobsViewDate = dateStr; renderJobsScreen(); },
+  jobsDateShift:function(delta){
+    var d = new Date((state.jobsViewDate||new Date().toISOString().slice(0,10))+'T00:00:00');
+    d.setDate(d.getDate()+delta);
+    state.jobsViewDate = d.toISOString().slice(0,10);
+    renderJobsScreen();
+  },
+  jobsGoToday:function(){ state.jobsViewDate = new Date().toISOString().slice(0,10); renderJobsScreen(); },
+  setJobsViewEngineer:function(v){ state.jobsViewEngineerId = v; renderJobsScreen(); },
   reloadJobs:function(){ state.jobsError = null; fetchJobs(); },
   openJobPicker:function(targetInputId){
     ensureJobsLoaded();
