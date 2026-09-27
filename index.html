@@ -3379,7 +3379,8 @@ function renderRiskAssessmentForm(c){
   html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">Most fields are pre-filled with KHG\u2019s standard wording \u2014 edit anything that needs changing for this job, untick anything that doesn\u2019t apply.</p>';
 
   html += sectionHead('Job details');
-  html += jobPickerFieldHtml('ra-jobnumber', 'ServiceM8 job (optional)');
+  html += jobPickerFieldHtml('ra-jobnumber', 'ServiceM8 job (optional)', null, state.prefillJobNumber);
+  state.prefillJobNumber = '';
   html += '<div class="vs-field"><label>Site name / address</label><input id="ra-site" placeholder="e.g. Charter House, Woodlands Road, Altrincham"></div>';
   html += '<div class="vs-field"><label>Client</label><input id="ra-client"></div>';
   html += '<div class="vs-field"><label>Site contact</label><input id="ra-sitecontact"></div>';
@@ -3437,7 +3438,8 @@ function renderCommissioningForm(c){
   var me = currentPerson();
   var html = formsBackLink();
   html += sectionHead('SmartSecure Pod \u2014 Commissioning Checklist');
-  html += jobPickerFieldHtml('cc-jobnumber', 'ServiceM8 job (optional)');
+  html += jobPickerFieldHtml('cc-jobnumber', 'ServiceM8 job (optional)', null, state.prefillJobNumber);
+  state.prefillJobNumber = '';
   html += '<div class="vs-field"><label>Site name / address</label><input id="cc-site"></div>';
   html += '<div class="vs-field"><label>Unit reference / serial no.</label><input id="cc-unit"></div>';
   html += '<div class="vs-field"><label>Engineer name</label><input id="cc-engineer" value="'+escapeAttr(me?me.name:'')+'"></div>';
@@ -3461,7 +3463,8 @@ function renderHandoverForm(c){
   var html = formsBackLink();
   html += sectionHead('SmartSecure Pod \u2014 Client Handover Form');
   html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">To be completed at handover of the unit. The client should read and tick each point before signing.</p>';
-  html += jobPickerFieldHtml('ho-jobnumber', 'ServiceM8 job (optional)');
+  html += jobPickerFieldHtml('ho-jobnumber', 'ServiceM8 job (optional)', null, state.prefillJobNumber);
+  state.prefillJobNumber = '';
   html += '<div class="vs-field"><label>Site name / address</label><input id="ho-site"></div>';
   html += '<div class="vs-field"><label>Unit reference / serial no.</label><input id="ho-unit"></div>';
   html += '<div class="vs-field"><label>Date of handover</label><input type="date" id="ho-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
@@ -3522,7 +3525,8 @@ function renderTermsAcceptanceForm(c){
   var me = currentPerson();
   var html = formsBackLink();
   html += sectionHead('Accept Terms &amp; Conditions', '<button class="vs-btn small" onclick="VS.viewGeneralTermsModal()">View full Terms</button>');
-  html += jobPickerFieldHtml('ta-site', 'ServiceM8 job / site reference (optional)');
+  html += jobPickerFieldHtml('ta-site', 'ServiceM8 job / site reference (optional)', null, state.prefillJobNumber);
+  state.prefillJobNumber = '';
   html += '<div class="vs-field"><label>Client name</label><input id="ta-clientname"></div>';
   html += '<div class="vs-field"><label>Company</label><input id="ta-clientcompany"></div>';
   html += '<div class="vs-field"><label>Position</label><input id="ta-clientposition"></div>';
@@ -3548,7 +3552,8 @@ function renderVariationForm(c){
   html += sectionHead('Additional Works / Variation');
   html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">Use this to get sign-off on any extra work or changes agreed on site, before carrying it out. Covers both domestic and commercial jobs.</p>';
 
-  html += jobPickerFieldHtml('va-jobnumber', 'ServiceM8 job (optional)');
+  html += jobPickerFieldHtml('va-jobnumber', 'ServiceM8 job (optional)', null, state.prefillJobNumber);
+  state.prefillJobNumber = '';
   html += '<div class="vs-field"><label>Site name / address</label><input id="va-site"></div>';
   html += '<div class="vs-field"><label>Property type</label><select id="va-proptype"><option value="Domestic">Domestic</option><option value="Commercial">Commercial</option></select></div>';
 
@@ -3591,7 +3596,8 @@ function renderDisconnectionForm(c){
     '<p style="font-size:12.5px;color:var(--text);margin:8px 0 0 0;">KHG Security Ltd will aim to complete any necessary repair within <strong>14 days</strong> of this disconnection, unless another timescale is agreed in writing.</p>'+
   '</div>';
 
-  html += jobPickerFieldHtml('dc-jobnumber', 'ServiceM8 job (optional)');
+  html += jobPickerFieldHtml('dc-jobnumber', 'ServiceM8 job (optional)', null, state.prefillJobNumber);
+  state.prefillJobNumber = '';
   html += '<div class="vs-field"><label>Customer name</label><input id="dc-customername"></div>';
   html += '<div class="vs-field"><label>Customer address</label><textarea id="dc-customeraddress" rows="2"></textarea></div>';
   html += '<div class="vs-field"><label>What\u2019s being disconnected, and why?</label><textarea id="dc-description" rows="4"></textarea></div>';
@@ -4208,6 +4214,19 @@ function buildServiceReportNote(f){
   lines.push('Customer: '+(f.customer||'-')+'  |  Signed: '+(f.signature||'-'));
   return lines.join('\n');
 }
+
+// Forms that carry a "ServiceM8 job" field (via jobPickerFieldHtml) and so
+// can be offered when starting a form directly from a job in the Jobs
+// screen. Labels match the tiles in the Forms menu.
+var JOB_ATTACHABLE_FORM_TYPES = [
+  { key:'service_report', label:'Service Report (BS 9263)' },
+  { key:'risk_assessment', label:'Risk Assessment (RAMS)' },
+  { key:'commissioning', label:'Pod Commissioning' },
+  { key:'handover', label:'Pod Handover' },
+  { key:'terms_acceptance', label:'Accept Terms & Conditions' },
+  { key:'variation', label:'Additional Works / Variation' },
+  { key:'disconnection', label:'Disconnection Authorisation' }
+];
 
 // Generic note text for any form type that doesn't have its own bespoke
 // builder (see buildServiceReportNote above for that one). Turns the fields
@@ -6896,11 +6915,18 @@ var VS = {
     openModal(html);
   },
   chooseFormForJob:function(jobNumber){
+    var opts = JOB_ATTACHABLE_FORM_TYPES.map(function(f){ return '<option value="'+f.key+'">'+escapeAttr(f.label)+'</option>'; }).join('');
     var html = '<h3>Choose a form</h3>'+
       '<p style="font-size:13px;color:var(--muted);margin:0 0 14px 0;">For job #'+escapeAttr(jobNumber)+'</p>'+
-      '<button class="vs-btn primary" style="width:100%;margin-bottom:10px;" onclick="VS.startFormForJob(\''+escapeAttr(jobNumber)+'\',\'service_report\')">Service Report (BS 9263)</button>'+
+      '<div class="vs-field"><label>Form type</label><select id="cff-formtype">'+opts+'</select></div>'+
+      '<button class="vs-btn primary" style="width:100%;margin-top:4px;margin-bottom:10px;" onclick="VS.startFormForJobFromPicker(\''+escapeAttr(jobNumber)+'\')">Start form</button>'+
       '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button></div>';
     openModal(html);
+  },
+  startFormForJobFromPicker:function(jobNumber){
+    var sel = document.getElementById('cff-formtype');
+    var formType = sel ? sel.value : JOB_ATTACHABLE_FORM_TYPES[0].key;
+    this.startFormForJob(jobNumber, formType);
   },
   startFormForJob:function(jobNumber, formType){
     state.prefillJobNumber = jobNumber;
