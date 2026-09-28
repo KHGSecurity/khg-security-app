@@ -7,3 +7,5 @@
   schedule = "0 * * * *"
   [functions."servicem8-check-new-jobs"]
   schedule = "*/15 * * * *"
+  [functions."check-mileage-reminders"]
+  schedule = "*/15 * * * *"
