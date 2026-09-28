@@ -75,7 +75,7 @@ exports.handler = async function () {
   const uk = ukNow();
 
   try {
-    const [catalog, followUps, vehicles, subsMap, rota, overtime, monthlyReportsExisting, stock] = await Promise.all([
+    const [catalog, followUps, vehicles, subsMap, rota, overtime, monthlyReportsExisting, stock, mileageEntries] = await Promise.all([
       firestoreGetDoc('shared/catalog'),
       firestoreGetDoc('shared/follow-ups'),
       firestoreGetDoc('shared/vehicles'),
@@ -83,7 +83,8 @@ exports.handler = async function () {
       firestoreGetDoc('shared/callout-rota'),
       firestoreGetDoc('shared/overtime'),
       firestoreGetDoc('shared/monthly-reports'),
-      firestoreGetDoc('shared/stock')
+      firestoreGetDoc('shared/stock'),
+      firestoreGetDoc('shared/mileage')
     ]);
 
     const engineers = (catalog && catalog.engineers) || [];
@@ -196,7 +197,7 @@ exports.handler = async function () {
         officeOrAdminIds.forEach(function (id) { queue(id, 'Monthly on-call report', reportBody, '/'); });
         const reports = (monthlyReportsExisting || []).slice();
         reports.push({ id: genId(), type: 'oncall', label: 'On-call \u2014 ' + monthLabel, body: reportBody, rangeLabel: monthLabel, details: details, generatedAt: new Date().toISOString() });
-        while (reports.length > 60) reports.shift();
+        while (reports.length > 300) reports.shift();
         await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log on-call report', e); });
       }
     }
@@ -228,8 +229,53 @@ exports.handler = async function () {
         const otDetails = Object.keys(totals).map(function (id) { const t = totals[id]; return { name: t.name, hours: t.hours, count: t.count }; });
         const reports = (monthlyReportsExisting || []).slice();
         reports.push({ id: genId(), type: 'overtime', label: 'Overtime \u2014 ' + monthLabel, body: reportBody, rangeLabel: monthLabel + ' to 25th', details: otDetails, generatedAt: new Date().toISOString() });
-        while (reports.length > 60) reports.shift();
+        while (reports.length > 300) reports.shift();
         await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log overtime report', e); });
+      }
+    }
+
+    // Monthly mileage reports: 11am UK on the 25th, one report per engineer,
+    // covering the previous FULL calendar month (not 1st-25th like overtime
+    // — mileage is retrospective record-keeping, so late-month trips must
+    // not be missed). Kept indefinitely for looking back at past months.
+    if (uk.day === 25 && uk.hour === 11) {
+      let prevMonth = uk.month - 1, prevYear = uk.year;
+      if (prevMonth < 1) { prevMonth = 12; prevYear -= 1; }
+      const monthStart = prevYear + '-' + pad2(prevMonth) + '-01';
+      const lastDay = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
+      const monthEnd = prevYear + '-' + pad2(prevMonth) + '-' + pad2(lastDay);
+      const mileageMonthLabel = new Date(Date.UTC(prevYear, prevMonth - 1, 1)).toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+      const byPerson = {}; // personId -> { personId, personName, entries: [] }
+      (mileageEntries || [])
+        .filter(function (e) { return e.date >= monthStart && e.date <= monthEnd; })
+        .forEach(function (e) {
+          if (!byPerson[e.personId]) byPerson[e.personId] = { personId: e.personId, personName: e.personName, entries: [] };
+          byPerson[e.personId].entries.push(e);
+        });
+
+      const personIds = Object.keys(byPerson);
+      if (personIds.length) {
+        const reports = (monthlyReportsExisting || []).slice();
+        let totalMilesAll = 0, totalAmountAll = 0;
+        personIds.forEach(function (pid) {
+          const grp = byPerson[pid];
+          const sorted = grp.entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+          const totalMiles = sorted.reduce(function (s, e) { return s + (parseFloat(e.miles) || 0); }, 0);
+          const totalAmount = sorted.reduce(function (s, e) { return s + (parseFloat(e.amount) || 0); }, 0);
+          totalMilesAll += totalMiles; totalAmountAll += totalAmount;
+          reports.push({
+            id: genId(), type: 'mileage', personId: grp.personId, personName: grp.personName,
+            label: 'Mileage — ' + grp.personName + ' — ' + mileageMonthLabel, rangeLabel: mileageMonthLabel,
+            entries: sorted, totalMiles: totalMiles, totalAmount: totalAmount,
+            body: mileageMonthLabel + ' — ' + grp.personName + ' — ' + totalMiles + ' miles, £' + totalAmount.toFixed(2),
+            generatedAt: new Date().toISOString()
+          });
+        });
+        while (reports.length > 300) reports.shift();
+        await firestoreSetDoc('shared/monthly-reports', reports).catch(function (e) { console.error('Failed to log mileage reports', e); });
+        const digestBody = mileageMonthLabel + ' — ' + personIds.length + ' engineer' + (personIds.length === 1 ? '' : 's') + ' — ' + totalMilesAll + ' miles, £' + totalAmountAll.toFixed(2) + ' total';
+        officeOrAdminIds.forEach(function (id) { queue(id, 'Mileage reports — ' + mileageMonthLabel, digestBody, '/'); });
       }
     }
 
