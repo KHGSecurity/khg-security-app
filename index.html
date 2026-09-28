@@ -570,7 +570,7 @@ var DEFAULT_ENGINEERS = [
   {id:"e5", name:"Alfie", hasVan:true, isAdmin:false, pin:"5555"}
 ];
 
-var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, jobsViewDate:null, jobsViewEngineerId:'me', formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu', feedback:null, hrDocuments:null, jobPicker:null, customersCache:null, customersLoading:false, customersError:null, customersCachedAt:null, customersSearch:'', customerInfo:null };
+var state = { catalog:null, stock:null, history:null, tab:'dashboard', activeVan:null, loaded:false, error:null, currentUser:null, currentUserPin:null, authResolved:false, needsSetup:false, leaveRequests:null, rota:null, swapRequests:null, leaveTab:'menu', manuals:null, stockFilter:{ q:'', cat:'', lowOnly:false }, jobsCache:null, jobsLoading:false, jobsError:null, jobsSearch:'', jobsCachedAt:null, jobsBootstrapping:false, jobsViewDate:null, jobsViewEngineerId:'me', formSubmissions:null, formsTab:'menu', prefillJobNumber:'', vehicles:null, vehicleIssues:null, vehicleChecks:null, vehiclesTab:'menu', checklistFreq:null, checklistAnswers:{}, checklistRegDraft:null, checklistNotesDraft:'', followUps:null, pushSubscriptions:null, surveyDetectionZones:null, surveyKeypads:null, surveyAudibleDevices:null, surveyOtherItems:null, surveyDraft:null, editingSurveyId:null, editingDocStage:'proposal', overtime:null, hrTab:'menu', feedback:null, hrDocuments:null, jobPicker:null, customersCache:null, customersLoading:false, customersError:null, customersCachedAt:null, customersSearch:'', customerInfo:null, mileageEntries:null, mileageReminderDismissals:null };
 var appView = 'home'; // 'home' | 'stock' | 'placeholder'
 
 function isAdminPerson(person){ return !!(person && person.isAdmin); }
@@ -805,16 +805,27 @@ function computeAlertCounts(){
     return f.status!=='resolved' && (officeOrAdmin || (me && f.createdById===me.id));
   }).length;
 
+  var mileageReminderDue = 0;
+  if(me && me.mileageReminderOptIn){
+    var nowMins = new Date().getHours()*60 + new Date().getMinutes();
+    if(nowMins>=(17*60+30)){
+      var todayStr = todayLocalStr();
+      var loggedToday = (state.mileageEntries||[]).some(function(e){ return e.personId===me.id && e.date===todayStr; });
+      var dismissedToday = state.mileageReminderDismissals && state.mileageReminderDismissals[me.id]===todayStr;
+      if(!loggedToday && !dismissedToday) mileageReminderDue = 1;
+    }
+  }
+
   return {
     noStock: noStock.length, totalLow: totalLow, pendingApprovals: pendingApprovals, pendingSwaps: pendingSwaps,
     vehiclesDue: vehiclesDue, openIssues: openIssues, openFollowUps: openFollowUps,
     myLeaveUnseen: myLeaveUnseen, mySwapUnseenSent: mySwapUnseenSent, myOvertimeUnseen: myOvertimeUnseen, pendingOvertime: pendingOvertime,
-    monthlyReportsUnread: monthlyReportsUnread,
+    monthlyReportsUnread: monthlyReportsUnread, mileageReminderDue: mileageReminderDue,
     // Deliberately excludes noStock/totalLow: low/zero stock is shown in the
     // in-app notifications banner but must never contribute to the phone's
     // home-screen app icon badge, so it doesn't drown out other alerts there.
     total: pendingApprovals + pendingSwaps + vehiclesDue + openIssues + openFollowUps
-      + myLeaveUnseen + mySwapUnseenSent + myOvertimeUnseen + pendingOvertime + monthlyReportsUnread
+      + myLeaveUnseen + mySwapUnseenSent + myOvertimeUnseen + pendingOvertime + monthlyReportsUnread + mileageReminderDue
   };
 }
 
@@ -905,7 +916,8 @@ function renderHomeNotifications(){
   var leaveAlerts = pendingApprovals>0 || pendingSwaps>0 || myLeaveUnseen>0 || mySwapUnseenSent>0 || myOvertimeUnseen>0 || pendingOvertime>0 || monthlyReportsUnread>0;
   var vehiclesDue = counts.vehiclesDue;
   var openIssues = counts.openIssues;
-  var vehicleAlerts = vehiclesDue>0 || openIssues>0;
+  var mileageReminderDue = counts.mileageReminderDue;
+  var vehicleAlerts = vehiclesDue>0 || openIssues>0 || mileageReminderDue>0;
   var openFollowUps = counts.openFollowUps;
   var followUpAlerts = openFollowUps>0;
 
@@ -921,6 +933,7 @@ function renderHomeNotifications(){
   if(monthlyReportsUnread) parts.push(monthlyReportsUnread+' new report'+(monthlyReportsUnread===1?'':'s'));
   if(vehiclesDue) parts.push(vehiclesDue+' vehicle MOT/service due soon');
   if(openIssues) parts.push(openIssues+' vehicle issue'+(openIssues===1?'':'s')+' reported');
+  if(mileageReminderDue) parts.push('No mileage logged today');
   if(openFollowUps) parts.push(openFollowUps+' follow-up'+(openFollowUps===1?'':'s')+' outstanding');
 
   var hasAlerts = stockAlerts || leaveAlerts || vehicleAlerts || followUpAlerts;
@@ -1214,7 +1227,7 @@ function storageDelete(key, shared){
 
 // ---------- Live sync: Firestore listeners push updates to every open tab/device ----------
 
-var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false, overtime:false, feedback:false, hrDocuments:false, customerInfo:false };
+var liveLoaded = { catalog:false, stock:false, history:false, leave:false, rota:false, swaps:false, manuals:false, forms:false, vehicles:false, vehicleIssues:false, vehicleChecks:false, followUps:false, pushSubs:false, overtime:false, feedback:false, hrDocuments:false, customerInfo:false, mileage:false, mileageReminderDismissals:false };
 
 function startLiveSync(){
   if(!db){
@@ -1313,6 +1326,16 @@ function startLiveSync(){
     liveLoaded.stockAlertsSeen = true;
     onSharedUpdate('stockAlertsSeen');
   });
+  subscribeShared('mileage', function(value, exists){
+    state.mileageEntries = exists ? JSON.parse(value) : [];
+    liveLoaded.mileage = true;
+    onSharedUpdate('mileage');
+  });
+  subscribeShared('mileage-reminder-dismissals', function(value, exists){
+    state.mileageReminderDismissals = exists ? JSON.parse(value) : {};
+    liveLoaded.mileageReminderDismissals = true;
+    onSharedUpdate('mileageReminderDismissals');
+  });
   subscribeShared('customer-info', function(value, exists){
     state.customerInfo = exists ? JSON.parse(value) : {};
     liveLoaded.customerInfo = true;
@@ -1366,10 +1389,10 @@ function onSharedUpdate(changedKey){
   if(appView==='leave' && ['catalog','leave','rota','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
   if(appView==='manuals' && changedKey==='manuals'){ renderManualsScreen(); }
   if(appView==='forms' && changedKey==='forms'){ renderFormsScreen(); }
-  if(appView==='vehicles' && ['vehicles','vehicleIssues','vehicleChecks','catalog'].indexOf(changedKey)!==-1){ renderVehiclesScreen(); }
+  if(appView==='vehicles' && ['vehicles','vehicleIssues','vehicleChecks','catalog','mileage','monthlyReports','mileageReminderDismissals'].indexOf(changedKey)!==-1){ renderVehiclesScreen(); }
   if(appView==='followups' && changedKey==='followUps'){ renderFollowUpsScreen(); }
   if(appView==='home' && changedKey==='followUps'){ renderHomeNotifications(); }
-  if(appView==='home' && ['vehicles','vehicleIssues'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
+  if(appView==='home' && ['vehicles','vehicleIssues','mileage','mileageReminderDismissals'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
   var deps = TAB_DEPENDS_ON[state.tab];
   if(!deps || deps.indexOf(changedKey)!==-1) render();
 }
@@ -1458,6 +1481,16 @@ function saveMonthlyReports(){
 function saveCustomerInfo(){
   return trackSave(function(){
     return storageSet('customer-info', JSON.stringify(state.customerInfo||{}), true);
+  });
+}
+function saveMileageEntries(){
+  return trackSave(function(){
+    return storageSet('mileage', JSON.stringify(state.mileageEntries||[]), true);
+  });
+}
+function saveMileageReminderDismissals(){
+  return trackSave(function(){
+    return storageSet('mileage-reminder-dismissals', JSON.stringify(state.mileageReminderDismissals||{}), true);
   });
 }
 function saveStockAlertsSeen(){
@@ -2316,7 +2349,7 @@ function renderMonthlyReports(c){
     html += '<div class="vs-empty">No reports yet — the first will appear after the next monthly run.</div>';
   } else {
     html += '<div class="vs-cards">'+reports.map(function(r){
-      var typeLabel = r.type==='overtime' ? 'OVERTIME' : 'ON-CALL';
+      var typeLabel = r.type==='overtime' ? 'OVERTIME' : (r.type==='mileage' ? 'MILEAGE' : 'ON-CALL');
       return '<div class="vs-item-row'+(r.read?'':' low')+'" style="cursor:pointer;" onclick="VS.viewMonthlyReport(\''+r.id+'\')"><div class="vs-item-info">'+
         '<div class="vs-item-name">'+escapeAttr(r.label)+(r.read?'':'<span class="vs-stock-badge low">NEW</span>')+'<span class="vs-stock-badge '+(r.type==='overtime'?'ok':'low')+'">'+typeLabel+'</span></div>'+
         '<div style="font-size:13px;color:#fff;margin-top:4px;line-height:1.5;">'+escapeAttr(r.body)+'</div>'+
@@ -4411,6 +4444,7 @@ function copyTextFallback(text){
 // a monthly report. Used for the on-screen popup, the Copy button and the PDF,
 // so all three always show exactly the same figures.
 function monthlyReportPlainText(r){
+  if(r.type==='mileage') return mileageReportPlainText(r);
   var isOvertime = r.type==='overtime';
   var lines = [];
   lines.push((isOvertime?'Overtime Report':'On-call Report')+' \u2014 '+(r.rangeLabel||r.label));
@@ -4453,9 +4487,94 @@ function monthlyReportPlainText(r){
   return lines.join('\n');
 }
 
+// Plain-text version of a mileage report — one line per trip, in the same
+// Date / From → To / Purpose / Miles @ Rate = Amount shape as the on-screen
+// log and the spreadsheet it replaces.
+function mileageReportPlainText(r){
+  var lines = [];
+  lines.push('Mileage Report — '+r.personName+' — '+(r.rangeLabel||r.label));
+  lines.push('Generated '+new Date(r.generatedAt).toLocaleString()+(r.manual?' (run manually)':''));
+  lines.push('');
+  (r.entries||[]).forEach(function(e){
+    lines.push(fmtLeaveDate(e.date)+' — '+e.from+' → '+e.to);
+    lines.push('Purpose: '+(e.purpose||'-'));
+    lines.push('Miles: '+e.miles+'  Rate: £'+parseFloat(e.rate).toFixed(2)+'  Amount: £'+parseFloat(e.amount).toFixed(2));
+    lines.push('');
+  });
+  lines.push('TOTAL');
+  lines.push('Miles: '+(r.totalMiles!=null?r.totalMiles:'-'));
+  lines.push('Amount: £'+(r.totalAmount!=null?r.totalAmount.toFixed(2):'-'));
+  return lines.join('\n');
+}
+
+// Mileage reports get their own table-style PDF (matching the spreadsheet's
+// Date/From/To/Purpose/Miles/Rate/Amount columns) rather than the generic
+// line-based layout used for on-call/overtime reports.
+function generateMileageReportPDF(r){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection and try again'); return; }
+  var doc = new window.jspdf.jsPDF();
+  var margin = 15;
+  var y = margin;
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var navy = [23, 34, 66];
+
+  // Columns: Date, From, To, Purpose, Miles, Rate, Amount
+  var colX = [margin, margin+20, margin+50, margin+80, margin+126, margin+142, margin+158];
+  var colW = [20, 30, 30, 46, 16, 16, pageWidth-margin-  (margin+158)];
+
+  function drawFooter(){
+    var page = doc.internal.getNumberOfPages();
+    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text('KHG Security Ltd — Mileage Report', margin, pageHeight-10);
+    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
+    doc.setTextColor(30,30,30);
+  }
+  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; drawTableHeader(); } }
+  function drawTableHeader(){
+    doc.setFont(undefined,'bold'); doc.setFontSize(9); doc.setTextColor(255,255,255);
+    doc.setFillColor(navy[0],navy[1],navy[2]);
+    doc.rect(margin, y, pageWidth-margin*2, 7, 'F');
+    var heads = ['Date','From','To','Purpose','Miles','Rate','Amount'];
+    heads.forEach(function(h, i){ doc.text(h, colX[i]+1, y+5); });
+    y += 9;
+    doc.setFont(undefined,'normal'); doc.setFontSize(8.5); doc.setTextColor(30,30,30);
+  }
+  function drawRow(cells, bold){
+    var wrapped = cells.map(function(text, i){ return doc.splitTextToSize(String(text==null?'':text), colW[i]-2); });
+    var rowLines = Math.max.apply(null, wrapped.map(function(w){ return w.length; }).concat([1]));
+    var rowHeight = rowLines*4.6+2;
+    ensureSpace(rowHeight);
+    doc.setFont(undefined, bold?'bold':'normal');
+    wrapped.forEach(function(w, i){ doc.text(w, colX[i]+1, y+4); });
+    y += rowHeight;
+    doc.setDrawColor(220,220,220); doc.setLineWidth(0.2);
+    doc.line(margin, y-1, pageWidth-margin, y-1);
+  }
+
+  doc.setFont(undefined,'bold'); doc.setFontSize(16); doc.setTextColor(navy[0],navy[1],navy[2]);
+  doc.text('KHG Security — Mileage Report', margin, y); y += 9;
+  doc.setFont(undefined,'normal'); doc.setFontSize(10.5); doc.setTextColor(30,30,30);
+  doc.text('Name: '+(r.personName||'-'), margin, y); y += 6;
+  doc.text('Period: '+(r.rangeLabel||r.label||'-'), margin, y); y += 6;
+  doc.text('Generated: '+new Date(r.generatedAt).toLocaleString()+(r.manual?' (run manually)':''), margin, y); y += 9;
+
+  drawTableHeader();
+  (r.entries||[]).forEach(function(e){
+    drawRow([fmtLeaveDate(e.date), e.from, e.to, e.purpose, e.miles, '£'+parseFloat(e.rate).toFixed(2), '£'+parseFloat(e.amount).toFixed(2)]);
+  });
+  ensureSpace(9);
+  y += 2;
+  drawRow(['', '', '', 'Total', (r.totalMiles!=null?r.totalMiles:''), '', '£'+(r.totalAmount!=null?r.totalAmount.toFixed(2):'')], true);
+  drawFooter();
+
+  sharePdf(doc, 'Mileage-Report-'+(r.personName||'').replace(/[^a-z0-9]+/gi,'-')+'-'+(r.rangeLabel||'').replace(/[^a-z0-9]+/gi,'-')+'.pdf');
+}
+
 var MONTHLY_REPORT_FIELD_RE = /^(Weekdays|Weekends|Bank holidays|Amount|Total amount|Hours|Entries):/;
 
 function generateMonthlyReportPDF(r){
+  if(r.type==='mileage') return generateMileageReportPDF(r);
   if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
   var doc = new window.jspdf.jsPDF();
   var margin = 15;
@@ -5237,6 +5356,8 @@ function renderVehiclesScreen(){
   if(state.vehiclesTab==='checklist') return renderHealthChecklist(c);
   if(state.vehiclesTab==='help') return renderVehicleHelp(c);
   if(state.vehiclesTab==='manage') return renderManageVehicles(c);
+  if(state.vehiclesTab==='mileage') return renderMileageLog(c);
+  if(state.vehiclesTab==='mileageReports') return renderMileageReportsAdmin(c);
   return renderVehiclesMenu(c);
 }
 
@@ -5260,8 +5381,11 @@ function renderVehiclesMenu(c){
   html += vehicleMenuTile('report', 'Report Issue', 'Fault or damage', '<path d="M12 9v4m0 4h.01"/><path d="M10.3 3.9L2.5 17a1.5 1.5 0 0 0 1.3 2.3h16.4a1.5 1.5 0 0 0 1.3-2.3L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/>');
   html += vehicleMenuTile('checklist', 'Health Checklist', 'Daily / weekly / monthly', '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>');
   html += vehicleMenuTile('help', 'Help', 'Preferred repair centre', '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-2 2-2 3.5"/><path d="M12 17h.01"/>');
+  html += vehicleMenuTile('mileage', 'Mileage Log', 'Track business miles', '<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M12 9.5v2M10.5 11h3"/>');
   if(admin){
     html += vehicleMenuTile('manage', 'Manage Vehicles'+(openIssues?' ('+openIssues+')':''), 'Admin', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>');
+    var mileageReportCount = (state.monthlyReports||[]).filter(function(r){ return r.type==='mileage'; }).length;
+    html += vehicleMenuTile('mileageReports', 'Mileage Reports'+(mileageReportCount?' ('+mileageReportCount+')':''), 'Admin — by engineer & month', '<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>');
   }
   html += '</div>';
   c.innerHTML = html;
@@ -5414,6 +5538,183 @@ function vehicleFormHtml(v){
       '<button class="vs-btn" onclick="VS.closeModal()">Cancel</button>'+
       '<button class="vs-btn primary" onclick="VS.saveVehicleForm('+(v?"'"+v.id+"'":'null')+')">Save</button>'+
     '</div>';
+}
+
+// ---------- Mileage log ----------
+// HMRC Approved Mileage Allowance Payments — rate raised from 45p to 55p on
+// 6 April 2026 for the first 10,000 business miles in the tax year, 25p
+// after that. Kept in one place so the log, the PDF and the reminder logic
+// all agree; re-check at the start of each tax year (source: HMRC, "Travel
+// mileage and fuel rates and allowances", gov.uk).
+// Defaults only, used until an admin sets their own rates (Mileage Log →
+// admin rate settings, stored in catalog.mileageRates so it syncs like any
+// other setting). Kept here as the fallback so the log, the PDF and the
+// reminder logic always have a sane rate even before that's ever been set.
+var MILEAGE_RATE_STANDARD_DEFAULT = 0.55;
+var MILEAGE_RATE_OVER_10000_DEFAULT = 0.25;
+function mileageRates(){
+  var r = (state.catalog && state.catalog.mileageRates) || {};
+  return {
+    standard: (r.standard!=null && r.standard!=='') ? parseFloat(r.standard) : MILEAGE_RATE_STANDARD_DEFAULT,
+    over10000: (r.over10000!=null && r.over10000!=='') ? parseFloat(r.over10000) : MILEAGE_RATE_OVER_10000_DEFAULT
+  };
+}
+function mileageRateNotesHtml(){
+  var r = mileageRates();
+  return '<p style="font-size:12.5px;color:var(--text);margin:0 0 8px 0;">Record each business journey on the day it happens: date, where you went and why, and the distance.</p>'+
+    '<p style="font-size:12.5px;color:var(--text);margin:0 0 8px 0;">The Amount is worked out for you (distance × rate).</p>'+
+    '<p style="font-size:12.5px;color:var(--text);margin:0 0 4px 0;"><strong>Rate guidance:</strong></p>'+
+    '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px 0;">£'+r.standard.toFixed(2)+' per mile for the first 10,000 business miles in the tax year, then £'+r.over10000.toFixed(2)+'. The rate dropdown switches over for you automatically once your logged business miles pass 10,000 for the tax year, but you can override it. These rates are set by an admin below and follow HMRC’s Approved Mileage Allowance Payments guidance.</p>'+
+    '<p style="font-size:11px;color:var(--muted-2);margin:0;">Source: HMRC, Travel mileage and fuel rates and allowances (gov.uk). Re-check the rate at the start of each tax year.</p>';
+}
+
+// UK tax year runs 6 April → 5 April. Returns the {start,end} YYYY-MM-DD
+// bounds of the tax year containing dateStr, used to decide when the 10,000
+// mile higher rate should switch over.
+function ukTaxYearRange(dateStr){
+  var d = new Date(dateStr+'T00:00:00');
+  var y = d.getFullYear();
+  var aprilSixThisYear = y+'-04-06';
+  var startYear = dateStr>=aprilSixThisYear ? y : y-1;
+  return { start: startYear+'-04-06', end: (startYear+1)+'-04-05' };
+}
+function suggestedMileageRate(personId, dateStr){
+  var range = ukTaxYearRange(dateStr);
+  var priorMiles = 0;
+  (state.mileageEntries||[]).forEach(function(e){
+    if(e.personId===personId && e.date>=range.start && e.date<=range.end && e.date<dateStr){
+      priorMiles += parseFloat(e.miles)||0;
+    }
+  });
+  var rates = mileageRates();
+  return priorMiles>=10000 ? rates.over10000 : rates.standard;
+}
+
+function lastDayOfMonthStr(year, month1to12){
+  return new Date(Date.UTC(year, month1to12, 0)).getUTCDate();
+}
+function monthLabel(year, month1to12){
+  return new Date(Date.UTC(year, month1to12-1, 1)).toLocaleDateString('en-GB', { month:'long', year:'numeric', timeZone:'UTC' });
+}
+
+function renderMileageLog(c){
+  var me = currentPerson();
+  var html = vehiclesBackLink();
+  html += sectionHead('Mileage Log');
+
+  var today = new Date();
+  var todayStr = todayLocalStr();
+  var monthStart = todayStr.slice(0,7)+'-01';
+  var mine = (state.mileageEntries||[]).filter(function(e){ return me && e.personId===me.id && e.date>=monthStart; }).sort(function(a,b){ return a.date<b.date?1:-1; });
+  var totalMiles = mine.reduce(function(s,e){ return s+(parseFloat(e.miles)||0); }, 0);
+  var totalAmount = mine.reduce(function(s,e){ return s+(parseFloat(e.amount)||0); }, 0);
+  var loggedToday = mine.some(function(e){ return e.date===todayStr; });
+
+  // Remind-me reminder banner — only relevant once it's actually past
+  // 5:30pm local and nothing's been logged for today yet.
+  var nowMinutes = today.getHours()*60 + today.getMinutes();
+  var dismissedToday = me && state.mileageReminderDismissals && state.mileageReminderDismissals[me.id]===todayStr;
+  if(me && me.mileageReminderOptIn && nowMinutes>=(17*60+30) && !loggedToday && !dismissedToday){
+    html += '<div style="background:var(--amber-dim);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;margin-bottom:16px;">'+
+      '<div style="font-size:13px;color:var(--text);margin-bottom:10px;">You haven’t logged any mileage for today yet.</div>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+        '<button class="vs-btn small primary" onclick="document.getElementById(\'mil-miles\').focus()">Add today’s trip</button>'+
+        '<button class="vs-btn small" onclick="VS.dismissMileageReminder()">Nothing to report today</button>'+
+      '</div></div>';
+  }
+
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:16px;">'+
+    '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);"><input type="checkbox" id="mil-remindme" '+(me&&me.mileageReminderOptIn?'checked':'')+' onchange="VS.setMileageReminderOptIn(this.checked)" style="width:auto;">Remind me at 5:30pm on days I haven’t logged any mileage</label>'+
+  '</div>';
+
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:16px;display:flex;justify-content:space-around;text-align:center;">'+
+    '<div><div style="font-family:\'Archivo\';font-weight:800;font-size:20px;color:var(--text);">'+totalMiles+'</div><div style="font-size:11px;color:var(--muted);">Miles ('+monthLabel(today.getFullYear(), today.getMonth()+1)+')</div></div>'+
+    '<div><div style="font-family:\'Archivo\';font-weight:800;font-size:20px;color:var(--accent);">£'+totalAmount.toFixed(2)+'</div><div style="font-size:11px;color:var(--muted);">This month</div></div>'+
+  '</div>';
+
+  html += sectionHead('Add a trip');
+  var rates = mileageRates();
+  var suggestedRate = me ? suggestedMileageRate(me.id, todayStr) : rates.standard;
+  html += '<div class="vs-field"><label>Date</label><input type="date" id="mil-date" value="'+todayStr+'" onchange="VS.mileageDateChanged()"></div>';
+  html += '<div class="vs-field"><label>Vehicle registration</label><input id="mil-reg" value="'+escapeAttr(me&&me.registration?me.registration:'')+'" placeholder="e.g. AB12 CDE"></div>';
+  html += '<div class="vs-field"><label>From</label><input id="mil-from" placeholder="e.g. Home / Altrincham office"></div>';
+  html += '<div class="vs-field"><label>To</label><input id="mil-to" placeholder="e.g. Client site, Wilmslow"></div>';
+  html += '<div class="vs-field"><label>Business purpose</label><input id="mil-purpose" placeholder="e.g. Job #4521 — service visit"></div>';
+  html += '<div class="vs-field"><label>Miles</label><input type="number" step="0.1" min="0" id="mil-miles" placeholder="e.g. 18.4" oninput="VS.updateMileagePreview()"></div>';
+  html += '<div class="vs-field"><label>Rate (GBP per mile)</label><select id="mil-rate" onchange="VS.updateMileagePreview()">'+
+    '<option value="'+rates.standard+'"'+(suggestedRate===rates.standard?' selected':'')+'>£'+rates.standard.toFixed(2)+' — up to 10,000 miles</option>'+
+    '<option value="'+rates.over10000+'"'+(suggestedRate===rates.over10000?' selected':'')+'>£'+rates.over10000.toFixed(2)+' — over 10,000 miles</option>'+
+  '</select></div>';
+  html += '<div class="vs-field"><label>Amount</label><div id="mil-amount-preview" style="font-family:\'Archivo\';font-weight:800;font-size:16px;color:var(--accent);padding:8px 0;">£0.00</div></div>';
+  html += '<button class="vs-btn primary" style="width:100%;margin-bottom:20px;" onclick="VS.addMileageEntry()">Add trip</button>';
+
+  html += sectionHead('My trips — '+monthLabel(today.getFullYear(), today.getMonth()+1));
+  if(mine.length===0){
+    html += '<div class="vs-empty">No trips logged yet this month.</div>';
+  } else {
+    html += '<div class="vs-cards">'+mine.map(mileageEntryRowHtml).join('')+'</div>';
+  }
+
+  html += sectionHead('How to use this log');
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:16px;">'+mileageRateNotesHtml()+'</div>';
+
+  if(isAdminPerson(me)){
+    html += sectionHead('Rate settings (admin)');
+    html += '<p style="font-size:12px;color:var(--muted-2);margin:-8px 0 12px 0;">Sets the two rate options everyone sees in the dropdown above, and the default HMRC’s Approved Mileage Allowance Payments guidance is based on. Update these at the start of each tax year if the rate changes.</p>';
+    html += '<div class="vs-field"><label>Rate — up to 10,000 miles (GBP per mile)</label><input type="number" step="0.01" min="0" id="mil-rate-standard" value="'+rates.standard+'"></div>';
+    html += '<div class="vs-field"><label>Rate — over 10,000 miles (GBP per mile)</label><input type="number" step="0.01" min="0" id="mil-rate-over10000" value="'+rates.over10000+'"></div>';
+    html += '<button class="vs-btn primary" style="width:100%;margin-bottom:16px;" onclick="VS.saveMileageRates()">Save rates</button>';
+  }
+
+  c.innerHTML = html;
+}
+
+function mileageEntryRowHtml(e){
+  return '<div class="vs-item-row"><div class="vs-item-info">'+
+    '<div class="vs-item-name">'+fmtLeaveDate(e.date)+' — '+escapeAttr(e.from)+' → '+escapeAttr(e.to)+'</div>'+
+    '<div class="vs-item-meta">'+escapeAttr(e.purpose||'')+'</div>'+
+    '<div class="vs-item-meta">'+e.miles+' mi @ £'+parseFloat(e.rate).toFixed(2)+' = £'+parseFloat(e.amount).toFixed(2)+(e.vehicleReg?' · '+escapeAttr(e.vehicleReg):'')+'</div>'+
+  '</div>'+
+  '<button class="vs-btn small danger" onclick="VS.deleteMileageEntry(\''+e.id+'\')">Delete</button>'+
+  '</div>';
+}
+
+// ---------- Mileage reports (admin) ----------
+
+function mileageReportRowHtml(r){
+  return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.viewMonthlyReport(\''+r.id+'\')"><div class="vs-item-info">'+
+    '<div class="vs-item-name">'+escapeAttr(r.personName)+'<span class="vs-stock-badge low">'+escapeAttr(r.rangeLabel)+'</span>'+(r.read?'':'<span class="vs-stock-badge low">NEW</span>')+'</div>'+
+    '<div class="vs-item-meta">'+(r.totalMiles!=null?r.totalMiles:'?')+' miles · £'+(r.totalAmount!=null?r.totalAmount.toFixed(2):'?')+(r.manual?' · run manually':'')+'</div>'+
+  '</div></div>';
+}
+
+function renderMileageReportsAdmin(c){
+  var html = vehiclesBackLink();
+  html += sectionHead('Mileage Reports');
+  html += '<p style="font-size:12px;color:var(--muted-2);margin:-8px 0 16px 0;">One report per engineer is generated automatically on the 25th of each month, covering the previous full calendar month, and logged here permanently so you can look back at any month. Sent by push notification to office/admin at the same time.</p>';
+
+  html += sectionHead('Run for a month manually');
+  var now = new Date();
+  var y = now.getFullYear(), m = now.getMonth()+1;
+  var prevM = m-1, prevY = y; if(prevM<1){ prevM=12; prevY=y-1; }
+  var defaultMonthVal = prevY+'-'+String(prevM).padStart(2,'0');
+  html += '<div class="vs-field"><label>Month</label><input type="month" id="mil-report-month" value="'+defaultMonthVal+'"></div>';
+  html += '<button class="vs-btn small primary" style="margin:0 0 20px 0;" onclick="VS.runMileageReports()">Run mileage reports</button>';
+
+  html += sectionHead('History — by engineer & month');
+  var reports = (state.monthlyReports||[]).filter(function(r){ return r.type==='mileage'; }).slice().sort(function(a,b){
+    if(a.rangeLabel!==b.rangeLabel) return a.rangeLabel<b.rangeLabel?1:-1;
+    return (a.personName||'').localeCompare(b.personName||'');
+  });
+  if(reports.length===0){
+    html += '<div class="vs-empty">No mileage reports yet — the first will appear after the next monthly run, or run one manually above.</div>';
+  } else {
+    html += '<div class="vs-cards">'+reports.map(mileageReportRowHtml).join('')+'</div>';
+  }
+  c.innerHTML = html;
+  var changed = false;
+  reports.forEach(function(r){ if(!r.read){ r.read = true; changed = true; } });
+  if(changed) saveMonthlyReports();
 }
 
 // ---------- Follow Up ----------
@@ -5892,6 +6193,117 @@ var VS = {
     renderVehiclesScreen();
     toast('Removed');
   },
+  mileageDateChanged:function(){
+    var me = currentPerson();
+    var dateEl = document.getElementById('mil-date');
+    var rateEl = document.getElementById('mil-rate');
+    if(!me || !dateEl || !rateEl || !dateEl.value) return;
+    rateEl.value = suggestedMileageRate(me.id, dateEl.value);
+    this.updateMileagePreview();
+  },
+  updateMileagePreview:function(){
+    var milesEl = document.getElementById('mil-miles');
+    var rateEl = document.getElementById('mil-rate');
+    var preview = document.getElementById('mil-amount-preview');
+    if(!preview) return;
+    var miles = parseFloat(milesEl&&milesEl.value) || 0;
+    var rate = parseFloat(rateEl&&rateEl.value) || 0;
+    preview.textContent = '£'+(miles*rate).toFixed(2);
+  },
+  addMileageEntry:function(){
+    var date = document.getElementById('mil-date').value;
+    if(!date){ toast('Enter a date'); return; }
+    var reg = document.getElementById('mil-reg').value.trim().toUpperCase();
+    var from = document.getElementById('mil-from').value.trim();
+    var to = document.getElementById('mil-to').value.trim();
+    var purpose = document.getElementById('mil-purpose').value.trim();
+    var miles = parseFloat(document.getElementById('mil-miles').value);
+    var rate = parseFloat(document.getElementById('mil-rate').value);
+    if(!from){ toast('Enter where the journey started'); return; }
+    if(!to){ toast('Enter where the journey ended'); return; }
+    if(!purpose){ toast('Enter the business purpose'); return; }
+    if(!miles || miles<=0){ toast('Enter the number of miles'); return; }
+    var me = currentPerson();
+    var amount = Math.round(miles*rate*100)/100;
+    if(!state.mileageEntries) state.mileageEntries = [];
+    state.mileageEntries.push({
+      id: uid(), personId: me?me.id:null, personName: me?me.name:'Unknown',
+      date: date, vehicleReg: reg, from: from, to: to, purpose: purpose,
+      miles: miles, rate: rate, amount: amount, submittedAt: new Date().toISOString()
+    });
+    saveMileageEntries();
+    toast('Trip added');
+    renderVehiclesScreen();
+  },
+  deleteMileageEntry:function(id){
+    if(!confirm('Delete this trip?')) return;
+    state.mileageEntries = (state.mileageEntries||[]).filter(function(e){ return e.id!==id; });
+    saveMileageEntries();
+    renderVehiclesScreen();
+    toast('Deleted');
+  },
+  setMileageReminderOptIn:function(checked){
+    var me = currentPerson(); if(!me) return;
+    me.mileageReminderOptIn = checked;
+    saveCatalog();
+    toast(checked ? 'You’ll get a reminder at 5:30pm on days you haven’t logged mileage' : 'Reminder turned off');
+  },
+  dismissMileageReminder:function(){
+    var me = currentPerson(); if(!me) return;
+    if(!state.mileageReminderDismissals) state.mileageReminderDismissals = {};
+    state.mileageReminderDismissals[me.id] = todayLocalStr();
+    saveMileageReminderDismissals();
+    renderVehiclesScreen();
+    toast('OK — won’t remind you again today');
+  },
+  saveMileageRates:function(){
+    var standard = parseFloat(document.getElementById('mil-rate-standard').value);
+    var over10000 = parseFloat(document.getElementById('mil-rate-over10000').value);
+    if(!(standard>=0) || !(over10000>=0)){ toast('Enter valid rates'); return; }
+    if(!state.catalog.mileageRates) state.catalog.mileageRates = {};
+    state.catalog.mileageRates.standard = standard;
+    state.catalog.mileageRates.over10000 = over10000;
+    saveCatalog();
+    renderVehiclesScreen();
+    toast('Rates saved');
+  },
+  runMileageReports:function(){
+    var monthVal = document.getElementById('mil-report-month').value;
+    if(!monthVal){ toast('Choose a month'); return; }
+    var parts = monthVal.split('-');
+    var y = parseInt(parts[0],10), m = parseInt(parts[1],10);
+    var from = y+'-'+String(m).padStart(2,'0')+'-01';
+    var to = y+'-'+String(m).padStart(2,'0')+'-'+String(lastDayOfMonthStr(y,m)).padStart(2,'0');
+    var rangeLabel = monthLabel(y,m);
+    var byPerson = {};
+    (state.mileageEntries||[]).filter(function(e){ return e.date>=from && e.date<=to; }).forEach(function(e){
+      if(!byPerson[e.personId]) byPerson[e.personId] = { personId:e.personId, personName:e.personName, entries:[] };
+      byPerson[e.personId].entries.push(e);
+    });
+    var ids = Object.keys(byPerson);
+    if(ids.length===0){ toast('No mileage logged in '+rangeLabel); return; }
+    if(!state.monthlyReports) state.monthlyReports = [];
+    var created = 0, totalMilesAll = 0, totalAmountAll = 0;
+    ids.forEach(function(pid){
+      var grp = byPerson[pid];
+      var sorted = grp.entries.slice().sort(function(a,b){ return a.date<b.date?-1:1; });
+      var totalMiles = sorted.reduce(function(s,e){ return s+(parseFloat(e.miles)||0); }, 0);
+      var totalAmount = sorted.reduce(function(s,e){ return s+(parseFloat(e.amount)||0); }, 0);
+      totalMilesAll += totalMiles; totalAmountAll += totalAmount;
+      state.monthlyReports.push({
+        id: uid(), type:'mileage', personId: grp.personId, personName: grp.personName,
+        label: 'Mileage — '+grp.personName+' — '+rangeLabel, rangeLabel: rangeLabel,
+        entries: sorted, totalMiles: totalMiles, totalAmount: totalAmount,
+        body: rangeLabel+' — '+grp.personName+' — '+totalMiles+' miles, £'+totalAmount.toFixed(2),
+        generatedAt: new Date().toISOString(), manual:true, read:false
+      });
+      created++;
+    });
+    saveMonthlyReports();
+    sendPushNotification(officeAndAdminIds(), 'Mileage reports — '+rangeLabel, created+' engineer'+(created===1?'':'s')+' — '+totalMilesAll+' miles, £'+totalAmountAll.toFixed(2)+' total');
+    renderVehiclesScreen();
+    toast(created+' report'+(created===1?'':'s')+' generated');
+  },
   enterFollowUps:enterFollowUps,
   enterHR:enterHR,
   enterCustomers:enterCustomers,
@@ -5959,7 +6371,7 @@ var VS = {
   viewMonthlyReport:function(id){
     var r = (state.monthlyReports||[]).filter(function(x){ return x.id===id; })[0];
     if(!r) return;
-    var typeLabel = r.type==='overtime' ? 'Overtime report' : 'On-call report';
+    var typeLabel = r.type==='overtime' ? 'Overtime report' : (r.type==='mileage' ? 'Mileage report' : 'On-call report');
     var admin = isAdminPerson(currentPerson());
     var text = monthlyReportPlainText(r);
     var html = '<h3 style="color:#fff;">'+escapeAttr(r.label)+'</h3>'+
