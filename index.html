@@ -1772,7 +1772,9 @@ function historyRowHtml(h){
   var verb = {use:'used',found:'added',received:'received',transfer:'transferred',adjust:'set',item_add:'added item',item_edit:'edited item',job:'sent to job',bulk_reset:'reset to minimum levels',bulk_copy:'copied stock levels'}[h.type]||h.type;
   var qtyPart = (h.qty!==undefined) ? ' <b>'+ (h.qty>0 && h.type!=='adjust' ? '+' : '') + h.qty+'</b> ' : ' ';
   var actorName = h.actor || 'Unknown';
-  return '<div class="vs-hist-row"><span class="vs-hist-actor" title="'+escapeAttr(actorName)+'">'+initials(actorName)+'</span>'+
+  var actorEng = h.actorId ? engById(h.actorId) : state.catalog.engineers.filter(function(e){ return e.name===actorName; })[0];
+  var actorInitials = (actorEng && actorEng.code) ? actorEng.code : initials(actorName);
+  return '<div class="vs-hist-row"><span class="vs-hist-actor" title="'+escapeAttr(actorName)+'">'+escapeAttr(actorInitials)+'</span>'+
     '<div class="vs-hist-time">'+timeStr+'</div><div class="vs-hist-what">'+
     (h.locationLabel||'')+' '+verb+qtyPart+itName+(h.note?' — '+h.note:'')+'</div></div>';
 }
