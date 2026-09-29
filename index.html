@@ -1769,7 +1769,7 @@ function historyRowHtml(h){
   var itName = it ? it.name : (h.itemId ? '(deleted item)' : '');
   var d = new Date(h.ts);
   var timeStr = d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-  var verb = {use:'used',found:'added',received:'received',transfer:'transferred',adjust:'set',item_add:'added item',item_edit:'edited item',job:'sent to job',bulk_reset:'reset to minimum levels'}[h.type]||h.type;
+  var verb = {use:'used',found:'added',received:'received',transfer:'transferred',adjust:'set',item_add:'added item',item_edit:'edited item',job:'sent to job',bulk_reset:'reset to minimum levels',bulk_copy:'copied stock levels'}[h.type]||h.type;
   var qtyPart = (h.qty!==undefined) ? ' <b>'+ (h.qty>0 && h.type!=='adjust' ? '+' : '') + h.qty+'</b> ' : ' ';
   var actorName = h.actor || 'Unknown';
   return '<div class="vs-hist-row"><span class="vs-hist-actor" title="'+escapeAttr(actorName)+'">'+initials(actorName)+'</span>'+
@@ -1824,6 +1824,7 @@ function renderWarehouse(c){
   var html = sectionHead('Stores stock', '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
     '<button class="vs-btn small" onclick="VS.openRestockStores()">Restock Stores</button>'+
     '<button class="vs-btn small" onclick="VS.openBarcodeScanner({type:\'warehouse\'})">Scan to Restock</button>'+
+    (canReset ? '<button class="vs-btn small" onclick="VS.openCopyVanStockConfirm()">Copy a Van’s Stock to All Vans</button>' : '')+
     (canReset ? '<button class="vs-btn small danger" onclick="VS.openResetStoresConfirm()">Reset to Min Levels</button>' : '')+
   '</div>');
   html += renderStockFilterBar();
@@ -5907,6 +5908,20 @@ function openResetStoresConfirm(){
   openModal(html);
 }
 
+function openCopyVanStockConfirm(){
+  var vanHolders = state.catalog.engineers.filter(personHasVan);
+  if(vanHolders.length < 2){
+    toast('Need at least 2 vans set up for this');
+    return;
+  }
+  var options = vanHolders.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('');
+  var html = '<h3>Copy a van’s stock to all vans</h3>'+
+    '<p style="font-size:13px;color:var(--muted);margin:0 0 16px 0;">One-off global reset. Every other van’s stock is overwritten with the quantities currently in the van you pick below. Stores stock is then reduced by each item’s quantity × every van (including the one you pick), since that much has now gone out to vans. This can’t be undone.</p>'+
+    '<div class="vs-field"><label>Copy stock levels from</label><select id="cvs-source">'+options+'</select></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmCopyVanStock()">Copy to all vans</button></div>';
+  openModal(html);
+}
+
 function openRestockStores(){
   var vanHolders = state.catalog.engineers.filter(personHasVan);
   var html = '<h3>Restock stores</h3>'+
@@ -7996,6 +8011,38 @@ var VS = {
     addHistory({type:'bulk_reset', itemId:null, locationLabel:eng.name, note:count+' item(s) reset'});
     closeModal(); render();
     toast('Reset to minimum levels');
+  },
+  openCopyVanStockConfirm:openCopyVanStockConfirm,
+  confirmCopyVanStock:function(){
+    var sourceSel = document.getElementById('cvs-source');
+    var sourceId = sourceSel ? sourceSel.value : '';
+    var source = engById(sourceId);
+    if(!source) return;
+    var vanHolders = state.catalog.engineers.filter(personHasVan);
+    var vanCount = vanHolders.length;
+    var template = state.stock.van[sourceId] || {};
+    vanHolders.forEach(function(e){
+      if(!state.stock.van[e.id]) state.stock.van[e.id] = {};
+    });
+    var itemCount = 0, clamped = 0;
+    state.catalog.items.forEach(function(it){
+      if(!itemAppliesTo(it,'van')) return;
+      var qty = template[it.id] || 0;
+      vanHolders.forEach(function(e){
+        state.stock.van[e.id][it.id] = qty;
+      });
+      itemCount++;
+      if(itemAppliesTo(it,'warehouse')){
+        var whCur = state.stock.warehouse[it.id] || 0;
+        var next = whCur - (qty * vanCount);
+        if(next < 0){ clamped++; next = 0; }
+        state.stock.warehouse[it.id] = next;
+      }
+    });
+    saveStock();
+    addHistory({type:'bulk_copy', itemId:null, locationLabel:'All vans', note:'Copied '+source.name+'’s levels to '+vanCount+' van(s), '+itemCount+' item(s); stores reduced accordingly'+(clamped?' ('+clamped+' item(s) hit 0 in stores)':'')});
+    closeModal(); render();
+    toast('Copied to all vans'+(clamped?' — '+clamped+' item(s) hit 0 in stores':''));
   },
   openResetStoresConfirm:openResetStoresConfirm,
   confirmResetStores:function(){
