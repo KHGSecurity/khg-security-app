@@ -1635,12 +1635,13 @@ function render(){
   if(state.tab==='dashboard') return renderDashboard(c);
   if(state.tab==='van') return renderVan(c);
   if(state.tab==='warehouse') return renderWarehouse(c);
+  if(state.tab==='report') return renderStockReport(c);
   if(state.tab==='history') return renderHistory(c);
   if(state.tab==='items') return renderItems(c);
 }
 
 function renderTabs(){
-  var tabs = [['dashboard','Dashboard'],['van','Vans'],['warehouse','Stores'],['history','History'],['items','Items']];
+  var tabs = [['dashboard','Dashboard'],['van','Vans'],['warehouse','Stores'],['report','Report'],['history','History'],['items','Items']];
   var html = tabs.map(function(t){
     return '<button class="vs-tab '+(state.tab===t[0]?'active':'')+'" onclick="VS.setTab(\''+t[0]+'\')">'+t[1]+'</button>';
   }).join('');
@@ -1852,6 +1853,22 @@ function renderWarehouse(c){
   html += '</div>';
   if(shown===0) html += '<div class="vs-empty">No items match your search.</div>';
   setContentPreservingFocus(c, html, 'stock-search');
+}
+
+function renderStockReport(c){
+  var vanHolders = visibleVanHolders();
+  var html = sectionHead('Stock Report', '');
+  html += '<p style="font-size:13px;color:var(--muted);margin:-4px 0 16px 0;">Pick an area and generate a printable PDF listing every item that should be stocked there, what’s actually there now, and what needs restocking.</p>';
+  html += '<div class="vs-field"><label>Area</label><select id="rpt-scope" onchange="VS.updateStockReportField()">'+
+    '<option value="warehouse">Stores</option>'+
+    (vanHolders.length ? '<option value="all-vans">All vans</option>' : '')+
+    (vanHolders.length ? '<option value="one-van">One van</option>' : '')+
+  '</select></div>';
+  html += '<div class="vs-field" id="rpt-van-field" style="display:none;"><label>Van</label><select id="rpt-van">'+
+    vanHolders.map(function(e){ return '<option value="'+e.id+'">'+escapeAttr(e.name)+'</option>'; }).join('')+
+  '</select></div>';
+  html += '<button class="vs-btn primary" style="margin-top:8px;" onclick="VS.generateStockReport()">Generate PDF</button>';
+  c.innerHTML = html;
 }
 
 function renderHistory(c){
@@ -4589,6 +4606,102 @@ function generateMileageReportPDF(r){
   drawFooter();
 
   sharePdf(doc, 'Mileage-Report-'+(r.personName||'').replace(/[^a-z0-9]+/gi,'-')+'-'+(r.rangeLabel||'').replace(/[^a-z0-9]+/gi,'-')+'.pdf');
+}
+
+// Builds a printable stock-check PDF for one or more locations (Stores and/or
+// individual vans). Each location gets its own page: every item that should
+// be stocked there, its current quantity, its minimum level, and a
+// LOW/OUT status flag for anything that needs restocking.
+function buildStockReportPDF(locations){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection and try again'); return; }
+  var doc = new window.jspdf.jsPDF();
+  var margin = 15;
+  var y = margin;
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var navy = [23, 34, 66];
+
+  // Columns: Item, Current, Min, Status
+  var colX = [margin, margin+100, margin+128, margin+152];
+  var colW = [100, 28, 24, pageWidth-margin-(margin+152)];
+
+  function drawFooter(){
+    var page = doc.internal.getNumberOfPages();
+    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text('KHG Security Ltd — Stock Report', margin, pageHeight-10);
+    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
+    doc.setTextColor(30,30,30);
+  }
+  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; drawTableHeader(); } }
+  function drawTableHeader(){
+    doc.setFont(undefined,'bold'); doc.setFontSize(9); doc.setTextColor(255,255,255);
+    doc.setFillColor(navy[0],navy[1],navy[2]);
+    doc.rect(margin, y, pageWidth-margin*2, 7, 'F');
+    var heads = ['Item','Current','Min','Status'];
+    heads.forEach(function(h, i){ doc.text(h, colX[i]+1, y+5); });
+    y += 9;
+    doc.setFont(undefined,'normal'); doc.setFontSize(8.5); doc.setTextColor(30,30,30);
+  }
+  function drawRow(cells, status){
+    var wrapped = cells.map(function(text, i){ return doc.splitTextToSize(String(text==null?'':text), colW[i]-2); });
+    var rowLines = Math.max.apply(null, wrapped.map(function(w){ return w.length; }).concat([1]));
+    var rowHeight = rowLines*4.6+2;
+    ensureSpace(rowHeight);
+    wrapped.forEach(function(w, i){
+      if(i===3 && status==='out'){ doc.setFont(undefined,'bold'); doc.setTextColor(190,40,40); }
+      else if(i===3 && status==='low'){ doc.setFont(undefined,'bold'); doc.setTextColor(175,120,0); }
+      else { doc.setFont(undefined,'normal'); doc.setTextColor(30,30,30); }
+      doc.text(w, colX[i]+1, y+4);
+    });
+    doc.setTextColor(30,30,30);
+    y += rowHeight;
+    doc.setDrawColor(220,220,220); doc.setLineWidth(0.2);
+    doc.line(margin, y-1, pageWidth-margin, y-1);
+  }
+
+  locations.forEach(function(loc, idx){
+    if(idx>0){ drawFooter(); doc.addPage(); y = margin; }
+
+    doc.setFont(undefined,'bold'); doc.setFontSize(16); doc.setTextColor(navy[0],navy[1],navy[2]);
+    doc.text('KHG Security — Stock Report', margin, y); y += 9;
+    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(30,30,30);
+    doc.text(loc.label, margin, y); y += 7;
+    doc.setFont(undefined,'normal'); doc.setFontSize(9.5); doc.setTextColor(110,110,110);
+    doc.text('Generated: '+new Date().toLocaleString(), margin, y); y += 8;
+    doc.setTextColor(30,30,30);
+
+    var items = state.catalog.items.filter(function(it){ return itemAppliesTo(it, loc.type); })
+      .slice().sort(function(a,b){ return a.name.localeCompare(b.name); });
+
+    drawTableHeader();
+    var needsRestock = 0;
+    items.forEach(function(it){
+      var qty = loc.type==='warehouse' ? (state.stock.warehouse[it.id]||0) : ((state.stock.van[loc.id]||{})[it.id]||0);
+      var par = loc.type==='warehouse' ? it.whPar : it.vanPar;
+      var status = statusFor(qty, par);
+      if(status!=='ok') needsRestock++;
+      var itName = it.name + (it.unit && it.unit!=='ea' ? ' ('+it.unit+')' : '');
+      drawRow([itName, qty, par, status==='ok'?'OK':status.toUpperCase()], status);
+    });
+    if(items.length===0){
+      ensureSpace(8);
+      doc.setFont(undefined,'normal'); doc.setFontSize(9.5); doc.setTextColor(110,110,110);
+      doc.text('No items set up for this location.', margin+1, y+4); y += 8;
+      doc.setTextColor(30,30,30);
+    }
+
+    ensureSpace(8);
+    y += 2;
+    doc.setFont(undefined,'bold'); doc.setFontSize(10);
+    doc.setTextColor(needsRestock ? 190 : 30, needsRestock ? 40 : 30, needsRestock ? 40 : 30);
+    doc.text(needsRestock ? needsRestock+' item(s) need restocking' : 'Everything at or above minimum level', margin, y);
+    doc.setTextColor(30,30,30);
+    y += 6;
+  });
+  drawFooter();
+
+  var scopeLabel = locations.length===1 ? locations[0].label : 'All-Vans';
+  sharePdf(doc, 'Stock-Report-'+scopeLabel.replace(/[^a-z0-9]+/gi,'-')+'-'+todayLocalStr()+'.pdf');
 }
 
 var MONTHLY_REPORT_FIELD_RE = /^(Weekdays|Weekends|Bank holidays|Amount|Total amount|Hours|Entries):/;
@@ -7879,6 +7992,30 @@ var VS = {
     toast(agreed ? (s.type==='swap' ? 'Swap agreed \u2014 rota updated' : 'Cover agreed \u2014 rota updated') : 'Declined');
   },
   setTab:function(t){ state.tab=t; render(); },
+  updateStockReportField:function(){
+    var scope = document.getElementById('rpt-scope').value;
+    var field = document.getElementById('rpt-van-field');
+    if(field) field.style.display = scope==='one-van' ? '' : 'none';
+  },
+  generateStockReport:function(){
+    var scopeEl = document.getElementById('rpt-scope');
+    if(!scopeEl) return;
+    var scope = scopeEl.value;
+    var vanHolders = visibleVanHolders();
+    var locations = [];
+    if(scope==='warehouse'){
+      locations = [{type:'warehouse', id:null, label:'Stores'}];
+    } else if(scope==='all-vans'){
+      locations = vanHolders.map(function(e){ return {type:'van', id:e.id, label:e.name+'’s van'}; });
+    } else if(scope==='one-van'){
+      var vanId = document.getElementById('rpt-van').value;
+      var eng = engById(vanId);
+      if(!eng){ toast('Pick a van'); return; }
+      locations = [{type:'van', id:eng.id, label:eng.name+'’s van'}];
+    }
+    if(locations.length===0){ toast('Nothing to report on'); return; }
+    buildStockReportPDF(locations);
+  },
   setStockSearch:function(v){ state.stockFilter.q = v; render(); },
   setStockCategory:function(v){ state.stockFilter.cat = v; render(); },
   toggleLowStockOnly:function(){ state.stockFilter.lowOnly = !state.stockFilter.lowOnly; render(); },
