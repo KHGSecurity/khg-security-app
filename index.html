@@ -2402,10 +2402,14 @@ function renderLeaveRequestForm(c){
   var todayStr = new Date().toISOString().slice(0,10);
   html += '<div class="vs-field"><label>Start date</label><input type="date" id="lv-start" value="'+todayStr+'" onchange="VS.updateLeaveHalfDayUI()"></div>';
   html += '<div class="vs-field"><label>End date</label><input type="date" id="lv-end" value="'+todayStr+'" onchange="VS.updateLeaveHalfDayUI()"></div>';
-  // Booking a single day shows one AM/PM choice; a multi-day range shows
-  // separate first-day/last-day choices instead (VS.updateLeaveHalfDayUI
-  // toggles between the two whenever the dates change).
-  html += '<div class="vs-field" id="lv-halfday-single"><label>Half day?</label><select id="lv-single-half"><option value="full">Full day</option><option value="am">Morning only (AM)</option><option value="pm">Afternoon only (PM)</option></select></div>';
+  // Booking a single day shows a "Half day" checkbox that reveals one
+  // Morning/Afternoon choice; a multi-day range shows separate
+  // first-day/last-day choices instead (VS.updateLeaveHalfDayUI toggles
+  // between the two whenever the dates change).
+  html += '<div class="vs-field" id="lv-halfday-single">'+
+    '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);"><input type="checkbox" id="lv-halfday-check" onchange="VS.toggleLeaveSingleHalfDay()" style="width:auto;">Half day</label>'+
+    '<select id="lv-single-half" style="display:none;margin-top:8px;"><option value="am">Morning only (AM)</option><option value="pm">Afternoon only (PM)</option></select>'+
+  '</div>';
   html += '<div id="lv-halfday-range" style="display:none;">'+
     '<div class="vs-field"><label>First day</label><select id="lv-start-half"><option value="full">Full day</option><option value="pm">Half day (afternoon only)</option></select></div>'+
     '<div class="vs-field"><label>Last day</label><select id="lv-end-half"><option value="full">Full day</option><option value="am">Half day (morning only)</option></select></div>'+
@@ -7510,6 +7514,12 @@ var VS = {
     single.style.display = same ? '' : 'none';
     range.style.display = same ? 'none' : '';
   },
+  toggleLeaveSingleHalfDay:function(){
+    var check = document.getElementById('lv-halfday-check');
+    var select = document.getElementById('lv-single-half');
+    if(!check || !select) return;
+    select.style.display = check.checked ? '' : 'none';
+  },
   submitLeaveRequest:function(){
     var start = document.getElementById('lv-start').value;
     var end = document.getElementById('lv-end').value;
@@ -7521,7 +7531,8 @@ var VS = {
     }
     var startHalf, endHalf;
     if(start===end){
-      var single = document.getElementById('lv-single-half').value;
+      var isHalf = document.getElementById('lv-halfday-check').checked;
+      var single = isHalf ? document.getElementById('lv-single-half').value : 'full';
       startHalf = single==='pm' ? 'pm' : 'full';
       endHalf = single==='am' ? 'am' : 'full';
     } else {
@@ -7666,15 +7677,18 @@ var VS = {
     if(!r) return;
     var wasApproved = (r.status==='approved' || r.status==='approved_conditions');
     var isSingle = r.startDate===r.endDate;
-    var singleVal = r.endHalf==='am' ? 'am' : (r.startHalf==='pm' ? 'pm' : 'full');
+    var singleIsHalf = r.endHalf==='am' || r.startHalf==='pm';
+    var singleVal = r.endHalf==='am' ? 'am' : 'pm';
     var html = '<h3>Amend leave request</h3>'+
       '<div class="vs-field"><label>Start date</label><input type="date" id="am-start" value="'+r.startDate+'" onchange="VS.updateAmendHalfDayUI()"></div>'+
       '<div class="vs-field"><label>End date</label><input type="date" id="am-end" value="'+r.endDate+'" onchange="VS.updateAmendHalfDayUI()"></div>'+
-      '<div class="vs-field" id="am-halfday-single" style="display:'+(isSingle?'':'none')+';"><label>Half day?</label><select id="am-single-half">'+
-        '<option value="full"'+(singleVal==='full'?' selected':'')+'>Full day</option>'+
-        '<option value="am"'+(singleVal==='am'?' selected':'')+'>Morning only (AM)</option>'+
-        '<option value="pm"'+(singleVal==='pm'?' selected':'')+'>Afternoon only (PM)</option>'+
-      '</select></div>'+
+      '<div class="vs-field" id="am-halfday-single" style="display:'+(isSingle?'':'none')+';">'+
+        '<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);"><input type="checkbox" id="am-halfday-check" onchange="VS.toggleAmendSingleHalfDay()" style="width:auto;" '+(singleIsHalf?'checked':'')+'>Half day</label>'+
+        '<select id="am-single-half" style="display:'+(singleIsHalf?'':'none')+';margin-top:8px;">'+
+          '<option value="am"'+(singleVal==='am'?' selected':'')+'>Morning only (AM)</option>'+
+          '<option value="pm"'+(singleVal==='pm'?' selected':'')+'>Afternoon only (PM)</option>'+
+        '</select>'+
+      '</div>'+
       '<div id="am-halfday-range" style="display:'+(isSingle?'none':'')+';">'+
         '<div class="vs-field"><label>First day</label><select id="am-start-half"><option value="full" '+(r.startHalf!=='pm'?'selected':'')+'>Full day</option><option value="pm" '+(r.startHalf==='pm'?'selected':'')+'>Half day (afternoon only)</option></select></div>'+
         '<div class="vs-field"><label>Last day</label><select id="am-end-half"><option value="full" '+(r.endHalf!=='am'?'selected':'')+'>Full day</option><option value="am" '+(r.endHalf==='am'?'selected':'')+'>Half day (morning only)</option></select></div>'+
@@ -7694,6 +7708,12 @@ var VS = {
     single.style.display = same ? '' : 'none';
     range.style.display = same ? 'none' : '';
   },
+  toggleAmendSingleHalfDay:function(){
+    var check = document.getElementById('am-halfday-check');
+    var select = document.getElementById('am-single-half');
+    if(!check || !select) return;
+    select.style.display = check.checked ? '' : 'none';
+  },
   confirmAmendLeave:function(id){
     var r = state.leaveRequests.filter(function(x){ return x.id===id; })[0];
     if(!r) return;
@@ -7704,7 +7724,8 @@ var VS = {
     r.startDate = start;
     r.endDate = end;
     if(start===end){
-      var single = document.getElementById('am-single-half').value;
+      var isHalf = document.getElementById('am-halfday-check').checked;
+      var single = isHalf ? document.getElementById('am-single-half').value : 'full';
       r.startHalf = single==='pm' ? 'pm' : 'full';
       r.endHalf = single==='am' ? 'am' : 'full';
     } else {
