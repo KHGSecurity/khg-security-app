@@ -8349,12 +8349,19 @@ var VS = {
     toast('Item removed');
   },
   resetAll:function(){
-    if(!confirm('This clears all stock levels and history for everyone using this app. Continue?')) return;
-    var seeded = seedStock();
-    state.catalog = {items:DEFAULT_ITEMS, engineers:DEFAULT_ENGINEERS};
-    state.stock = seeded;
+    var typed = prompt('This resets ALL stock levels back to minimum and clears the stock history for everyone using this app. It cannot be undone.\n\nPeople, PINs and the item list are NOT touched.\n\nType RESET to confirm:');
+    if(typed===null || typed.trim().toUpperCase()!=='RESET') return;
+    // Rebuild stock from the CURRENT catalog (not the factory defaults) so
+    // people, PINs and items are never wiped by this button.
+    var warehouse = {}, van = {};
+    state.catalog.items.forEach(function(it){ if(itemAppliesTo(it,'warehouse')) warehouse[it.id] = it.whPar; });
+    state.catalog.engineers.forEach(function(e){
+      van[e.id] = {};
+      state.catalog.items.forEach(function(it){ if(itemAppliesTo(it,'van')) van[e.id][it.id] = it.vanPar; });
+    });
+    state.stock = {warehouse:warehouse, van:van};
     state.history = [];
-    saveCatalog(); saveStock(); saveHistory();
+    saveStock(); saveHistory();
     render();
     toast('Data reset');
   }
