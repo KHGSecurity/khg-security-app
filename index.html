@@ -8363,8 +8363,12 @@ var VS = {
     if(!ta) return;
     if(status) status.textContent = 'Fetching from ServiceM8…';
     fetch('/.netlify/functions/servicem8-materials', { headers:{'X-App-Secret':APP_SHARED_SECRET} })
-      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j}; }); })
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j, status:r.status}; }, function(){ return {ok:false, body:null, status:r.status}; }); })
       .then(function(res){
+        if(!res.body && res.status===404){
+          if(status) status.textContent = 'The ServiceM8 materials function isn’t on the server yet (404). Make sure netlify/functions/servicem8-materials.js has been uploaded to GitHub and Netlify has finished deploying.';
+          return;
+        }
         if(!res.ok || !res.body || !res.body.success){
           if(status) status.textContent = (res.body && res.body.error) ? res.body.error : 'Couldn’t fetch the list from ServiceM8.';
           return;
