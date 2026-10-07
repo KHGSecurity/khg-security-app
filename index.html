@@ -1930,7 +1930,11 @@ function renderItems(c){
       '<input type="file" id="vs-restore-file" accept=".json,application/json" style="display:none;" onchange="VS.restoreFromFile(this)">'+
     '</div>';
     html += sectionHead('Data');
-    html += '<button class="vs-btn danger" onclick="VS.resetAll()">Reset all stock data</button>';
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+      '<button class="vs-btn danger" onclick="VS.resetAll()">Reset all stock data</button>'+
+      '<button class="vs-btn danger" onclick="VS.deleteAllItems()">Delete ALL items &amp; stock</button>'+
+    '</div>'+
+    '<p style="font-size:11.5px;color:var(--muted-2);margin-top:6px;">“Reset” puts every quantity back to its minimum and clears history. “Delete ALL” empties the item list and all stock so you can start again. People are never touched. Both take a safety backup first (except Reset).</p>';
   }
   c.innerHTML = html;
   initItemsSortable(admin);
@@ -8268,6 +8272,27 @@ var VS = {
     addHistory({type:'bulk_reset', itemId:null, locationLabel:eng.name, note:count+' item(s) reset'});
     closeModal(); render();
     toast('Reset to minimum levels');
+  },
+  deleteAllItems:function(){
+    if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
+    var n = (state.catalog.items||[]).length;
+    var typed = prompt('This deletes ALL '+n+' items and ALL stock levels (stores and every van) so you can start again.\n\nPeople, PINs and stock history are NOT touched. A safety backup is taken first, so it can be undone from Restore from a backup.\n\nType DELETE to confirm:');
+    if(typed===null || typed.trim().toUpperCase()!=='DELETE') return;
+    toast('Deleting…');
+    fetchAllSharedDocs().then(function(docs){
+      return writeBackupDocs(docs, backupStamp(true)+'-pre-delete');
+    }).then(function(){
+      state.catalog.items = [];
+      var van = {};
+      state.catalog.engineers.forEach(function(e){ van[e.id] = {}; });
+      state.stock = {warehouse:{}, van:van};
+      saveCatalog(); saveStock();
+      addHistory({type:'bulk_reset', itemId:null, locationLabel:'Catalog', note:n+' item(s) deleted — starting again'});
+      render();
+      toast('All items deleted');
+    }).catch(function(){
+      toast('Couldn’t take the safety backup — nothing was deleted');
+    });
   },
   backupNow:function(){
     if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
