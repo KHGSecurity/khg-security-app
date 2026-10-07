@@ -1919,6 +1919,16 @@ function renderItems(c){
   if(admin) html += '<p style="font-size:11.5px;color:var(--muted-2);margin-top:6px;">Drag \u2837 to reorder items.</p>';
 
   if(admin){
+    html += sectionHead('Backup &amp; restore');
+    html += '<p style="font-size:12.5px;color:var(--muted);margin:-4px 0 10px 0;">A copy of all app data is saved automatically every night and kept for 30 days. You can also take one yourself at any time.</p>';
+    html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">'+
+      '<button class="vs-btn small primary" onclick="VS.backupNow()">Back up now</button>'+
+      '<button class="vs-btn small" onclick="VS.openRestoreBackup()">Restore from a backup</button>'+
+      '<button class="vs-btn small" onclick="VS.downloadBackupFile()">Download backup file</button>'+
+      '<button class="vs-btn small" onclick="document.getElementById(\'vs-restore-file\').click()">Restore from file</button>'+
+      '<button class="vs-btn small" onclick="VS.openImportItems()">Import items &amp; stock</button>'+
+      '<input type="file" id="vs-restore-file" accept=".json,application/json" style="display:none;" onchange="VS.restoreFromFile(this)">'+
+    '</div>';
     html += sectionHead('Data');
     html += '<button class="vs-btn danger" onclick="VS.resetAll()">Reset all stock data</button>';
   }
@@ -6023,6 +6033,114 @@ function openResetStoresConfirm(){
   openModal(html);
 }
 
+// ---------- Backup & restore (admin) ----------
+// Every shared data set is copied into a separate "backups" collection, tagged
+// with a date stamp. A nightly Netlify function does this automatically
+// (backup-data.js); these helpers let an admin take one on demand, download
+// one as a file, and restore from either.
+
+var BACKUP_SKIP_KEYS = ['push-subscriptions'];
+
+function backupStamp(manual){
+  var d = new Date();
+  var s = localDateStr(d);
+  if(manual) s += '-'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0');
+  return s;
+}
+
+function fetchAllSharedDocs(){
+  if(!db) return Promise.reject(new Error('no-db'));
+  return db.collection('shared').get().then(function(snap){
+    var out = {};
+    snap.forEach(function(doc){
+      var v = doc.data().value;
+      if(BACKUP_SKIP_KEYS.indexOf(doc.id)===-1 && v!=null) out[doc.id] = v;
+    });
+    return out;
+  });
+}
+
+function writeBackupDocs(docs, stamp){
+  var savedAt = new Date().toISOString();
+  var keys = Object.keys(docs);
+  return Promise.all(keys.map(function(k){
+    return db.collection('backups').doc(stamp+'__'+k).set({ key:k, stamp:stamp, savedAt:savedAt, value:docs[k] });
+  })).then(function(){ return keys.length; });
+}
+
+function restoreDocsMap(docs, keys){
+  return Promise.all(keys.map(function(k){
+    return storageSet(k, docs[k], true);
+  })).then(function(results){
+    return results.every(function(r){ return !!r; });
+  });
+}
+
+function restoreKeysFor(docs, everything){
+  var core = ['catalog','stock','history'];
+  var keys = everything ? Object.keys(docs) : core;
+  return keys.filter(function(k){ return docs[k]!=null && BACKUP_SKIP_KEYS.indexOf(k)===-1; });
+}
+
+function openRestoreBackupModal(){
+  if(!db){ toast('Not connected to the database'); return; }
+  openModal('<h3>Restore from a backup</h3><div id="rb-body"><p style="font-size:13px;color:var(--muted);">Looking for backups…</p></div>');
+  db.collection('backups').where('key','==','catalog').get().then(function(snap){
+    var rows = [];
+    snap.forEach(function(d){
+      var x = d.data(), cat = null;
+      try{ cat = JSON.parse(x.value); }catch(e){}
+      rows.push({ stamp:x.stamp, savedAt:x.savedAt||'', people:(cat&&cat.engineers)?cat.engineers.length:'?', items:(cat&&cat.items)?cat.items.length:'?' });
+    });
+    rows.sort(function(a,b){ return a.savedAt<b.savedAt ? 1 : -1; });
+    var body = document.getElementById('rb-body');
+    if(!body) return;
+    if(rows.length===0){
+      body.innerHTML = '<p style="font-size:13px;color:var(--muted);">No backups found yet. The first nightly backup appears after the next 2am run, or tap “Back up now”.</p>'+
+        '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+      return;
+    }
+    body.innerHTML = '<p style="font-size:13px;color:var(--muted);margin:0 0 12px 0;">Pick the backup to go back to. The people and items counts help you spot the good one.</p>'+
+      '<div class="vs-field"><label>Backup</label><select id="rb-stamp">'+
+        rows.map(function(r){ return '<option value="'+escapeAttr(r.stamp)+'">'+escapeAttr(r.stamp)+' — '+r.people+' people, '+r.items+' items</option>'; }).join('')+
+      '</select></div>'+
+      '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:12px;"><input type="checkbox" id="rb-all" style="width:auto;margin-top:3px;">Also restore everything else (leave, mileage, vehicles, forms, follow-ups). Leave unticked to restore only people, items, stock and stock history.</label>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn danger" onclick="VS.confirmRestoreBackup()">Restore</button></div>';
+  }).catch(function(){
+    var body = document.getElementById('rb-body');
+    if(body) body.innerHTML = '<p style="font-size:13px;color:var(--red);">Couldn’t read backups. Check your connection and try again.</p><div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+  });
+}
+
+function parseItemImport(text){
+  var lines = String(text||'').split(/\r?\n/).map(function(l){ return l.trim(); }).filter(Boolean);
+  var rows = [];
+  lines.forEach(function(line, i){
+    var cells = (line.indexOf('\t')!==-1 ? line.split('\t') : line.split(',')).map(function(c){ return c.trim().replace(/^"|"$/g,'').trim(); });
+    if(i===0 && /^(item\s*)?name$/i.test(cells[0])) return;
+    if(!cells[0]) return;
+    rows.push(cells);
+  });
+  return rows;
+}
+function importScope(s){
+  s = String(s||'').trim().toLowerCase();
+  if(s==='van' || s==='van only') return 'van';
+  if(s==='stores' || s==='store' || s==='warehouse' || s==='stores only') return 'warehouse';
+  return 'both';
+}
+function importCategory(s){
+  s = String(s||'').trim();
+  if(!s) return null;
+  var m = CATEGORIES.filter(function(c){ return c.toLowerCase()===s.toLowerCase(); })[0];
+  return m || s;
+}
+function importNum(v){
+  if(v===undefined || String(v).trim()==='') return null;
+  var n = parseInt(v,10);
+  return isNaN(n) ? null : Math.max(0,n);
+}
+
 function openCopyVanStockConfirm(){
   var vanHolders = state.catalog.engineers.filter(personHasVan);
   if(vanHolders.length < 2){
@@ -8150,6 +8268,154 @@ var VS = {
     addHistory({type:'bulk_reset', itemId:null, locationLabel:eng.name, note:count+' item(s) reset'});
     closeModal(); render();
     toast('Reset to minimum levels');
+  },
+  backupNow:function(){
+    if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
+    toast('Backing up…');
+    fetchAllSharedDocs().then(function(docs){ return writeBackupDocs(docs, backupStamp(true)); })
+      .then(function(n){ toast('Backed up '+n+' data sets'); })
+      .catch(function(){ toast('Backup failed — check your connection'); });
+  },
+  openRestoreBackup:function(){
+    if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
+    openRestoreBackupModal();
+  },
+  confirmRestoreBackup:function(){
+    var sel = document.getElementById('rb-stamp');
+    if(!sel) return;
+    var stamp = sel.value;
+    var everything = !!document.getElementById('rb-all').checked;
+    var typed = prompt('This replaces the current data with the backup from '+stamp+'.\nA safety copy of how things are right now is taken first.\n\nType RESTORE to confirm:');
+    if(typed===null || typed.trim().toUpperCase()!=='RESTORE') return;
+    toast('Restoring…');
+    var current;
+    fetchAllSharedDocs().then(function(docs){
+      current = docs;
+      return writeBackupDocs(current, backupStamp(true)+'-pre-restore');
+    }).then(function(){
+      return db.collection('backups').where('stamp','==',stamp).get();
+    }).then(function(snap){
+      var docs = {};
+      snap.forEach(function(d){ var x = d.data(); docs[x.key] = x.value; });
+      var keys = restoreKeysFor(docs, everything);
+      if(keys.indexOf('catalog')===-1){ throw new Error('no-catalog'); }
+      return restoreDocsMap(docs, keys).then(function(ok){ return {ok:ok, count:keys.length}; });
+    }).then(function(res){
+      closeModal();
+      toast(res.ok ? 'Restored '+res.count+' data sets' : 'Restore finished with some errors');
+    }).catch(function(){
+      toast('Restore failed — nothing was changed');
+    });
+  },
+  downloadBackupFile:function(){
+    if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
+    fetchAllSharedDocs().then(function(docs){
+      var payload = JSON.stringify({ app:'khg-security', version:1, savedAt:new Date().toISOString(), docs:docs });
+      var blob = new Blob([payload], {type:'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'KHG-backup-'+todayLocalStr()+'.json';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+      toast('Backup file saved');
+    }).catch(function(){ toast('Couldn’t create the backup file'); });
+  },
+  restoreFromFile:function(input){
+    var file = input && input.files && input.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(){
+      input.value = '';
+      var parsed;
+      try{ parsed = JSON.parse(reader.result); }catch(e){ toast('That isn’t a valid backup file'); return; }
+      var docs = parsed && parsed.docs;
+      if(!docs || docs.catalog==null){ toast('That backup file has no data in it'); return; }
+      var everything = confirm('Restore EVERYTHING in this file (leave, mileage, vehicles, forms and so on)?\n\nOK = everything\nCancel = only people, items, stock and stock history');
+      var typed = prompt('This replaces the current data with the file’s contents (saved '+(parsed.savedAt||'unknown date')+').\nA safety copy of how things are right now is taken first.\n\nType RESTORE to confirm:');
+      if(typed===null || typed.trim().toUpperCase()!=='RESTORE') return;
+      toast('Restoring…');
+      fetchAllSharedDocs().then(function(current){
+        return writeBackupDocs(current, backupStamp(true)+'-pre-restore');
+      }).then(function(){
+        var keys = restoreKeysFor(docs, everything);
+        return restoreDocsMap(docs, keys).then(function(ok){ return {ok:ok, count:keys.length}; });
+      }).then(function(res){
+        toast(res.ok ? 'Restored '+res.count+' data sets' : 'Restore finished with some errors');
+      }).catch(function(){ toast('Restore failed'); });
+    };
+    reader.readAsText(file);
+  },
+  openImportItems:function(){
+    if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
+    var html = '<h3>Import items &amp; stock</h3>'+
+      '<p style="font-size:12.5px;color:var(--muted);margin:0 0 8px 0;">Paste one item per line (or paste straight from a spreadsheet). Columns, in order:</p>'+
+      '<p style="font-size:12px;color:var(--text);margin:0 0 8px 0;"><b>Name, Category, Tracked in, Unit, Van min, Stores min, Stores qty, Van qty, Barcode</b></p>'+
+      '<p style="font-size:11.5px;color:var(--muted-2);margin:0 0 8px 0;">Tracked in = both, van or stores. Anything after Name can be left blank. Van qty is applied to every van. Items that already exist (same name) are updated, not duplicated.</p>'+
+      '<button class="vs-btn small" style="margin-bottom:8px;" onclick="VS.pullServiceM8Items()">Pull item list from ServiceM8</button>'+
+      '<p id="imp-status" style="font-size:12px;color:var(--muted);margin:0 0 8px 0;"></p>'+
+      '<div class="vs-field"><textarea id="imp-text" rows="9" placeholder="LightSYS Plus Panel, Intruder, both, ea, 1, 4, 6, 1" style="width:100%;font-size:13px;"></textarea></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.confirmImportItems()">Import</button></div>';
+    openModal(html);
+  },
+  pullServiceM8Items:function(){
+    var status = document.getElementById('imp-status');
+    var ta = document.getElementById('imp-text');
+    if(!ta) return;
+    if(status) status.textContent = 'Fetching from ServiceM8…';
+    fetch('/.netlify/functions/servicem8-materials', { headers:{'X-App-Secret':APP_SHARED_SECRET} })
+      .then(function(r){ return r.json().then(function(j){ return {ok:r.ok, body:j}; }); })
+      .then(function(res){
+        if(!res.ok || !res.body || !res.body.success){
+          if(status) status.textContent = (res.body && res.body.error) ? res.body.error : 'Couldn’t fetch the list from ServiceM8.';
+          return;
+        }
+        var mats = res.body.materials || [];
+        // Tab-separated so item names containing commas stay intact. Category,
+        // quantities and minimums are left blank for you to fill in afterwards.
+        ta.value = mats.map(function(m){
+          return [m.name, '', 'both', 'ea', '', '', '', '', m.barcode||''].join('\t');
+        }).join('\n');
+        if(status) status.textContent = mats.length+' items found. Delete any lines that aren’t stock (labour, call-outs, services), then tap Import.';
+      })
+      .catch(function(){ if(status) status.textContent = 'Couldn’t reach ServiceM8 — check your connection.'; });
+  },
+  confirmImportItems:function(){
+    var ta = document.getElementById('imp-text');
+    var rows = parseItemImport(ta ? ta.value : '');
+    if(rows.length===0){ toast('Nothing to import'); return; }
+    var vanHolders = state.catalog.engineers.filter(personHasVan);
+    var added = 0, updated = 0;
+    rows.forEach(function(cells){
+      var name = cells[0];
+      var it = state.catalog.items.filter(function(i){ return i.name.trim().toLowerCase()===name.toLowerCase(); })[0];
+      if(!it){
+        it = { id:'it_'+uid(), name:name, category:'Other', scope:'both', unit:'ea', vanPar:0, whPar:0 };
+        state.catalog.items.push(it);
+        added++;
+      } else { updated++; }
+      var cat = importCategory(cells[1]); if(cat) it.category = cat;
+      if(cells[2]) it.scope = importScope(cells[2]);
+      if(cells[3]) it.unit = cells[3];
+      var vp = importNum(cells[4]); if(vp!==null) it.vanPar = vp;
+      var wp = importNum(cells[5]); if(wp!==null) it.whPar = wp;
+      if(cells[8]) it.barcode = cells[8];
+      var sq = importNum(cells[6]), vq = importNum(cells[7]);
+      if(itemAppliesTo(it,'warehouse')){
+        if(sq!==null) state.stock.warehouse[it.id] = sq;
+        else if(state.stock.warehouse[it.id]===undefined) state.stock.warehouse[it.id] = 0;
+      }
+      if(itemAppliesTo(it,'van')){
+        vanHolders.forEach(function(e){
+          if(!state.stock.van[e.id]) state.stock.van[e.id] = {};
+          if(vq!==null) state.stock.van[e.id][it.id] = vq;
+          else if(state.stock.van[e.id][it.id]===undefined) state.stock.van[e.id][it.id] = 0;
+        });
+      }
+    });
+    saveCatalog(); saveStock();
+    addHistory({type:'bulk_copy', itemId:null, locationLabel:'Catalog', note:'Imported '+rows.length+' item(s): '+added+' new, '+updated+' updated'});
+    closeModal(); render();
+    toast('Imported '+added+' new, '+updated+' updated');
   },
   openCopyVanStockConfirm:openCopyVanStockConfirm,
   confirmCopyVanStock:function(){
