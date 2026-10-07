@@ -6058,6 +6058,9 @@ function fetchAllSharedDocs(){
     var out = {};
     snap.forEach(function(doc){
       var v = doc.data().value;
+      // Backups live in the same "shared" collection (the only place the
+      // database rules allow), under ids starting "bk__" - never back those up.
+      if(doc.id.indexOf('bk__')===0) return;
       if(BACKUP_SKIP_KEYS.indexOf(doc.id)===-1 && v!=null) out[doc.id] = v;
     });
     return out;
@@ -6068,8 +6071,12 @@ function writeBackupDocs(docs, stamp){
   var savedAt = new Date().toISOString();
   var keys = Object.keys(docs);
   return Promise.all(keys.map(function(k){
-    return db.collection('backups').doc(stamp+'__'+k).set({ key:k, stamp:stamp, savedAt:savedAt, value:docs[k] });
+    return db.collection('shared').doc('bk__'+stamp+'__'+k).set({ bkKey:k, bkStamp:stamp, savedAt:savedAt, value:docs[k] });
   })).then(function(){ return keys.length; });
+}
+
+function errReason(e){
+  return (e && (e.code || e.message)) ? String(e.code || e.message).slice(0,80) : 'unknown error';
 }
 
 function restoreDocsMap(docs, keys){
@@ -6089,12 +6096,12 @@ function restoreKeysFor(docs, everything){
 function openRestoreBackupModal(){
   if(!db){ toast('Not connected to the database'); return; }
   openModal('<h3>Restore from a backup</h3><div id="rb-body"><p style="font-size:13px;color:var(--muted);">Looking for backups…</p></div>');
-  db.collection('backups').where('key','==','catalog').get().then(function(snap){
+  db.collection('shared').where('bkKey','==','catalog').get().then(function(snap){
     var rows = [];
     snap.forEach(function(d){
       var x = d.data(), cat = null;
       try{ cat = JSON.parse(x.value); }catch(e){}
-      rows.push({ stamp:x.stamp, savedAt:x.savedAt||'', people:(cat&&cat.engineers)?cat.engineers.length:'?', items:(cat&&cat.items)?cat.items.length:'?' });
+      rows.push({ stamp:x.bkStamp, savedAt:x.savedAt||'', people:(cat&&cat.engineers)?cat.engineers.length:'?', items:(cat&&cat.items)?cat.items.length:'?' });
     });
     rows.sort(function(a,b){ return a.savedAt<b.savedAt ? 1 : -1; });
     var body = document.getElementById('rb-body');
@@ -8279,9 +8286,7 @@ var VS = {
     var typed = prompt('This deletes ALL '+n+' items and ALL stock levels (stores and every van) so you can start again.\n\nPeople, PINs and stock history are NOT touched. A safety backup is taken first, so it can be undone from Restore from a backup.\n\nType DELETE to confirm:');
     if(typed===null || typed.trim().toUpperCase()!=='DELETE') return;
     toast('Deleting…');
-    fetchAllSharedDocs().then(function(docs){
-      return writeBackupDocs(docs, backupStamp(true)+'-pre-delete');
-    }).then(function(){
+    function doDelete(){
       state.catalog.items = [];
       var van = {};
       state.catalog.engineers.forEach(function(e){ van[e.id] = {}; });
@@ -8290,8 +8295,12 @@ var VS = {
       addHistory({type:'bulk_reset', itemId:null, locationLabel:'Catalog', note:n+' item(s) deleted — starting again'});
       render();
       toast('All items deleted');
-    }).catch(function(){
-      toast('Couldn’t take the safety backup — nothing was deleted');
+    }
+    // Safety copy of just what is being deleted (small and quick).
+    var snapshot = { catalog:JSON.stringify(state.catalog), stock:JSON.stringify(state.stock) };
+    writeBackupDocs(snapshot, backupStamp(true)+'-pre-delete').then(doDelete).catch(function(e){
+      if(confirm('Couldn’t save a safety backup ('+errReason(e)+').\n\nDelete everything anyway? This can’t then be undone.')){ doDelete(); }
+      else { toast('Nothing was deleted'); }
     });
   },
   backupNow:function(){
@@ -8299,7 +8308,7 @@ var VS = {
     toast('Backing up…');
     fetchAllSharedDocs().then(function(docs){ return writeBackupDocs(docs, backupStamp(true)); })
       .then(function(n){ toast('Backed up '+n+' data sets'); })
-      .catch(function(){ toast('Backup failed — check your connection'); });
+      .catch(function(e){ toast('Backup failed: '+errReason(e)); });
   },
   openRestoreBackup:function(){
     if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
@@ -8318,18 +8327,18 @@ var VS = {
       current = docs;
       return writeBackupDocs(current, backupStamp(true)+'-pre-restore');
     }).then(function(){
-      return db.collection('backups').where('stamp','==',stamp).get();
+      return db.collection('shared').where('bkStamp','==',stamp).get();
     }).then(function(snap){
       var docs = {};
-      snap.forEach(function(d){ var x = d.data(); docs[x.key] = x.value; });
+      snap.forEach(function(d){ var x = d.data(); docs[x.bkKey] = x.value; });
       var keys = restoreKeysFor(docs, everything);
       if(keys.indexOf('catalog')===-1){ throw new Error('no-catalog'); }
       return restoreDocsMap(docs, keys).then(function(ok){ return {ok:ok, count:keys.length}; });
     }).then(function(res){
       closeModal();
       toast(res.ok ? 'Restored '+res.count+' data sets' : 'Restore finished with some errors');
-    }).catch(function(){
-      toast('Restore failed — nothing was changed');
+    }).catch(function(e){
+      toast('Restore failed: '+errReason(e));
     });
   },
   downloadBackupFile:function(){
@@ -8366,7 +8375,7 @@ var VS = {
         return restoreDocsMap(docs, keys).then(function(ok){ return {ok:ok, count:keys.length}; });
       }).then(function(res){
         toast(res.ok ? 'Restored '+res.count+' data sets' : 'Restore finished with some errors');
-      }).catch(function(){ toast('Restore failed'); });
+      }).catch(function(e){ toast('Restore failed: '+errReason(e)); });
     };
     reader.readAsText(file);
   },
