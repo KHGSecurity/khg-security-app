@@ -1345,6 +1345,18 @@ function startLiveSync(){
 
 function subscribeShared(key, onData){
   db.collection('shared').doc(key).onSnapshot(function(doc){
+    // IMPORTANT: on a weak or offline connection Firestore can report a document
+    // as "not existing" from its empty local cache before the server has
+    // answered. Treating that as real made the app seed factory-default
+    // users/items/stock and then save them over the real data. So an "absent"
+    // answer that did not come from the server is never trusted: we ask the
+    // server directly, and if it can't be reached we simply wait.
+    if(!doc.exists && doc.metadata && doc.metadata.fromCache){
+      db.collection('shared').doc(key).get({source:'server'}).then(function(sd){
+        onData(sd.exists ? sd.data().value : null, sd.exists);
+      }).catch(function(){ /* offline - wait for the live listener to deliver real data */ });
+      return;
+    }
     onData(doc.exists ? doc.data().value : null, doc.exists);
   }, function(){
     if(state.currentUser){
