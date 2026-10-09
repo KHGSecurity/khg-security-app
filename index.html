@@ -1913,11 +1913,25 @@ function renderItems(c){
   }
 
   html += sectionHead('Item catalog', '<button class="vs-btn small primary" onclick="VS.openAddItem()">+ Add item</button>');
-  html += '<div class="vs-scroll-x"><table class="vs-cat-table"><thead><tr>'+(admin?'<th></th>':'')+'<th style="min-width:150px;">Name</th><th>Category</th>'+(admin?'<th>Tracked in</th>':'')+'<th>Unit</th><th>Van Min</th><th>Stores Min</th>'+(admin?'<th></th>':'')+'</tr></thead><tbody id="vs-items-tbody">';
+  // Drop any selected ids that no longer exist (e.g. removed on another device).
+  Object.keys(itemsSelected).forEach(function(id){ if(!itemById(id)) delete itemsSelected[id]; });
+  if(admin){
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px 0;">'+
+      '<input id="items-filter" placeholder="Filter by name or category…" value="'+escapeAttr(itemsFilter)+'" oninput="VS.filterItems(this.value)" style="flex:1;min-width:160px;">'+
+    '</div>'+
+    '<div id="items-selbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px 0;">'+
+      '<span id="items-selcount" style="font-size:12.5px;color:var(--muted);"></span>'+
+      '<button class="vs-btn small" onclick="VS.selectAllItems(true)">Select all shown</button>'+
+      '<button class="vs-btn small" onclick="VS.selectAllItems(false)">Clear</button>'+
+      '<button class="vs-btn small danger" id="items-remove-sel" onclick="VS.removeSelectedItems()">Remove selected</button>'+
+    '</div>';
+  }
+  html += '<div class="vs-scroll-x"><table class="vs-cat-table"><thead><tr>'+(admin?'<th></th><th></th>':'')+'<th style="min-width:150px;">Name</th><th>Category</th>'+(admin?'<th>Tracked in</th>':'')+'<th>Unit</th><th>Van Min</th><th>Stores Min</th>'+(admin?'<th></th>':'')+'</tr></thead><tbody id="vs-items-tbody">';
   state.catalog.items.forEach(function(it){
     var scope = it.scope || 'both';
     html += '<tr data-item-id="'+it.id+'">'+
       (admin?'<td class="vs-drag-handle">\u2837</td>':'')+
+      (admin?'<td><input type="checkbox" class="items-sel" '+(itemsSelected[it.id]?'checked ':'')+'onchange="VS.toggleItemSelect(\''+it.id+'\',this.checked)" style="width:20px;height:20px;"></td>':'')+
       '<td><input value="'+escapeAttr(it.name)+'" onchange="VS.editItem(\''+it.id+'\',\'name\',this.value)" style="min-width:140px;font-size:14.5px;" '+(admin?'':'disabled')+'></td>'+
       '<td><select onchange="VS.editItem(\''+it.id+'\',\'category\',this.value)" '+(admin?'':'disabled')+'>'+categoryOptions(it.category)+'</select></td>'+
       (admin?'<td><select onchange="VS.editItem(\''+it.id+'\',\'scope\',this.value)">'+SCOPES.map(function(s){return '<option value="'+s.v+'" '+(s.v===scope?'selected':'')+'>'+s.label+'</option>';}).join('')+'</select></td>':'')+
@@ -1950,6 +1964,31 @@ function renderItems(c){
   }
   c.innerHTML = html;
   initItemsSortable(admin);
+  if(admin){ applyItemsFilter(); updateItemsSelBar(); }
+}
+
+// Multi-select state for removing several catalogue items at once.
+var itemsSelected = {};
+var itemsFilter = '';
+
+function applyItemsFilter(){
+  var tbody = document.getElementById('vs-items-tbody');
+  if(!tbody) return;
+  var q = itemsFilter.trim().toLowerCase();
+  Array.prototype.forEach.call(tbody.querySelectorAll('tr'), function(tr){
+    var nameEl = tr.querySelector('td:not(.vs-drag-handle) input:not([type=checkbox])');
+    var catEl = tr.querySelector('select');
+    var hay = ((nameEl?nameEl.value:'')+' '+(catEl?catEl.value:'')).toLowerCase();
+    tr.style.display = (!q || hay.indexOf(q)!==-1) ? '' : 'none';
+  });
+}
+
+function updateItemsSelBar(){
+  var n = Object.keys(itemsSelected).length;
+  var countEl = document.getElementById('items-selcount');
+  if(countEl) countEl.textContent = n ? (n+' selected') : 'Tick items to remove several at once';
+  var btn = document.getElementById('items-remove-sel');
+  if(btn){ btn.disabled = !n; btn.style.opacity = n ? '1' : '0.5'; btn.textContent = n ? ('Remove selected ('+n+')') : 'Remove selected'; }
 }
 
 var itemsSortable = null;
@@ -8291,6 +8330,50 @@ var VS = {
     addHistory({type:'bulk_reset', itemId:null, locationLabel:eng.name, note:count+' item(s) reset'});
     closeModal(); render();
     toast('Reset to minimum levels');
+  },
+  toggleItemSelect:function(id, checked){
+    if(checked) itemsSelected[id] = true; else delete itemsSelected[id];
+    updateItemsSelBar();
+  },
+  selectAllItems:function(on){
+    var tbody = document.getElementById('vs-items-tbody');
+    if(!tbody) return;
+    Array.prototype.forEach.call(tbody.querySelectorAll('tr'), function(tr){
+      var id = tr.getAttribute('data-item-id');
+      var box = tr.querySelector('input.items-sel');
+      if(!id || !box) return;
+      if(on && tr.style.display==='none') return; // only items currently shown by the filter
+      box.checked = !!on;
+      if(on) itemsSelected[id] = true; else delete itemsSelected[id];
+    });
+    updateItemsSelBar();
+  },
+  filterItems:function(value){
+    itemsFilter = value || '';
+    applyItemsFilter();
+  },
+  removeSelectedItems:function(){
+    if(!isAdminPerson(currentPerson()) && !noAdminYet()){ toast('Admins only'); return; }
+    var ids = Object.keys(itemsSelected).filter(function(id){ return !!itemById(id); });
+    if(ids.length===0){ toast('Tick the items you want to remove first'); return; }
+    if(!confirm('Remove '+ids.length+' item'+(ids.length===1?'':'s')+' from the catalogue?\n\nTheir stock records in stores and every van are dropped too.')) return;
+    function doRemove(){
+      var gone = {};
+      ids.forEach(function(id){ gone[id] = true; });
+      state.catalog.items = state.catalog.items.filter(function(i){ return !gone[i.id]; });
+      ids.forEach(function(id){
+        delete state.stock.warehouse[id];
+        state.catalog.engineers.forEach(function(e){ if(state.stock.van[e.id]) delete state.stock.van[e.id][id]; });
+      });
+      itemsSelected = {};
+      saveCatalog(); saveStock();
+      addHistory({type:'bulk_reset', itemId:null, locationLabel:'Catalog', note:ids.length+' item(s) removed'});
+      render();
+      toast(ids.length+' item'+(ids.length===1?'':'s')+' removed');
+    }
+    // Best-effort safety copy first; never blocks the removal.
+    writeBackupDocs({ catalog:JSON.stringify(state.catalog), stock:JSON.stringify(state.stock) }, backupStamp(true)+'-pre-remove')
+      .then(doRemove, doRemove);
   },
   deleteAllItems:function(){
     if(!isAdminPerson(currentPerson())){ toast('Admins only'); return; }
