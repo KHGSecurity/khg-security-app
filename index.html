@@ -360,7 +360,9 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
     <select id="vs-lock-name" style="margin-bottom:8px;" onchange="if(this.value) document.getElementById('vs-lock-input').focus()"><option value="">Select your name…</option></select>
     <input id="vs-lock-input" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" onkeydown="if(event.key==='Enter') VS.tryPinLogin()">
     <button onclick="VS.tryPinLogin()">Log in</button>
+    <button id="vs-faceid-btn" onclick="VS.faceIdLogin()" style="display:none;margin-top:8px;background:transparent;color:var(--text,#fff);border:1px solid currentColor;">&#128274; Log in with Face ID</button>
     <div class="vs-lock-err" id="vs-lock-err"></div>
+    <button id="vs-faceid-forget" class="vs-transfer-link" style="display:none;font-size:12px;margin-top:6px;" onclick="VS.faceIdOff()">Turn off Face ID on this device</button>
   </div>
 </div>
 
@@ -671,6 +673,7 @@ function refreshAppScreen(){
     document.getElementById('vs-lock-wrap').style.display = 'flex';
     document.getElementById('vs-lock-err').textContent = '';
     populateLockNameDropdown();
+    updateFaceIdButtons();
     var input = document.getElementById('vs-lock-input');
     if(input){ input.value = ''; input.focus(); }
     return;
@@ -987,6 +990,7 @@ function checkStillAuthorized(){
   if(!state.currentUser) return;
   var person = engById(state.currentUser);
   if(!person || !person.pin || person.pin !== state.currentUserPin){
+    clearFaceId();
     logout(true);
   }
 }
@@ -1040,6 +1044,7 @@ function tryPinLogin(){
     appView = 'home';
     storageSet('my-login', JSON.stringify({id:person.id, pin:person.pin}), false);
     refreshAppScreen();
+    offerFaceId(person);
   } else {
     lockout.fails = (lockout.fails||0) + 1;
     if(lockout.fails % 5 === 0){
@@ -1053,6 +1058,120 @@ function tryPinLogin(){
     input.value = '';
     input.focus();
   }
+}
+
+// ---------- Face ID / Touch ID quick login (WebAuthn platform authenticator) ----------
+// Convenience layer only: after a normal PIN login the device can remember you
+// behind Face ID / fingerprint. The PIN always still works, and changing a PIN
+// or removing a person invalidates the saved Face ID automatically.
+
+function faceIdSupported(){
+  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && window.isSecureContext);
+}
+function getFaceId(){
+  try{ var raw = window.localStorage.getItem('vs-faceid'); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function clearFaceId(){
+  try{ window.localStorage.removeItem('vs-faceid'); }catch(e){}
+}
+function b64enc(buf){
+  var b = new Uint8Array(buf), str = '';
+  for(var i=0;i<b.length;i++) str += String.fromCharCode(b[i]);
+  return btoa(str);
+}
+function b64dec(str){
+  var bin = atob(str), out = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function randomBytes(n){
+  var a = new Uint8Array(n);
+  window.crypto.getRandomValues(a);
+  return a;
+}
+function updateFaceIdButtons(){
+  var fid = getFaceId();
+  var on = !!(fid && faceIdSupported());
+  var btn = document.getElementById('vs-faceid-btn');
+  var forget = document.getElementById('vs-faceid-forget');
+  if(btn) btn.style.display = on ? 'block' : 'none';
+  if(forget) forget.style.display = on ? 'inline-block' : 'none';
+}
+function enrolFaceId(person){
+  if(!faceIdSupported()) return Promise.reject(new Error('unsupported'));
+  return navigator.credentials.create({ publicKey:{
+    challenge: randomBytes(32),
+    rp:{ name:'KHG Security' },
+    user:{ id: randomBytes(16), name: person.name, displayName: person.name },
+    pubKeyCredParams:[{ type:'public-key', alg:-7 },{ type:'public-key', alg:-257 }],
+    authenticatorSelection:{ authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged' },
+    timeout:60000
+  }}).then(function(cred){
+    try{
+      window.localStorage.setItem('vs-faceid', JSON.stringify({ id:person.id, pin:person.pin, credId:b64enc(cred.rawId) }));
+    }catch(e){ throw new Error('storage'); }
+    updateFaceIdButtons();
+  });
+}
+function offerFaceId(person){
+  if(!faceIdSupported()) return;
+  var fid = getFaceId();
+  if(fid && fid.id===person.id) return;
+  try{ if(window.localStorage.getItem('vs-faceid-declined-'+person.id)) return; }catch(e){}
+  setTimeout(function(){
+    PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function(ok){
+      if(!ok) return;
+      if(confirm('Use Face ID / fingerprint to log in on this device next time?')){
+        enrolFaceId(person).then(function(){ toast('Face ID turned on'); }).catch(function(){ toast('Face ID was not set up'); });
+      } else {
+        try{ window.localStorage.setItem('vs-faceid-declined-'+person.id, '1'); }catch(e){}
+      }
+    }).catch(function(){});
+  }, 600);
+}
+function faceIdLogin(){
+  var errEl = document.getElementById('vs-lock-err');
+  var fid = getFaceId();
+  if(!fid || !faceIdSupported()){ updateFaceIdButtons(); return; }
+  if(!state.catalog){ errEl.textContent = 'Still connecting \u2014 try again in a moment'; return; }
+  navigator.credentials.get({ publicKey:{
+    challenge: randomBytes(32),
+    allowCredentials:[{ type:'public-key', id: b64dec(fid.credId), transports:['internal'] }],
+    userVerification:'required',
+    timeout:60000
+  }}).then(function(){
+    var person = engById(fid.id);
+    if(!person || !person.pin || person.pin !== fid.pin){
+      clearFaceId();
+      updateFaceIdButtons();
+      errEl.textContent = 'Your PIN has changed \u2014 please log in with your PIN';
+      return;
+    }
+    setPinLockoutState({ fails:0, lockedUntil:0 });
+    state.currentUser = person.id;
+    state.currentUserPin = person.pin;
+    appView = 'home';
+    storageSet('my-login', JSON.stringify({id:person.id, pin:person.pin}), false);
+    refreshAppScreen();
+  }).catch(function(){
+    errEl.textContent = 'Face ID did not work \u2014 use your PIN instead';
+  });
+}
+function faceIdOff(){
+  if(!confirm('Turn off Face ID login on this device?')) return;
+  clearFaceId();
+  try{ var p = currentPerson(); if(p) window.localStorage.setItem('vs-faceid-declined-'+p.id, '1'); }catch(e){}
+  updateFaceIdButtons();
+  refreshAppScreen();
+  toast('Face ID turned off');
+}
+function faceIdOn(){
+  var p = currentPerson();
+  if(!p) return;
+  enrolFaceId(p).then(function(){
+    try{ window.localStorage.removeItem('vs-faceid-declined-'+p.id); }catch(e){}
+    toast('Face ID turned on'); refreshAppScreen();
+  }).catch(function(){ toast('Face ID is not available on this device'); });
 }
 
 function logout(wasRevoked){
@@ -1082,7 +1201,9 @@ function renderWhoBadge(){
   var p = currentPerson();
   var html = p ? (
     '<div class="vs-welcome-title">Welcome '+escapeAttr(p.name)+'</div>'+
-    '<div class="vs-welcome-sub">Not '+escapeAttr(p.name)+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.confirmLogout()">log out</button></div>'
+    '<div class="vs-welcome-sub">Not '+escapeAttr(p.name)+'? <button class="vs-transfer-link" style="font-size:12px;" onclick="VS.confirmLogout()">log out</button>'+
+    (faceIdSupported() ? ' \u00b7 '+(getFaceId() ? '<button class="vs-transfer-link" style="font-size:12px;" onclick="VS.faceIdOff()">turn off Face ID</button>' : '<button class="vs-transfer-link" style="font-size:12px;" onclick="VS.faceIdOn()">turn on Face ID</button>') : '')+
+    '</div>'
   ) : '';
   ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge','vs-customers-who-badge','vs-help-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
@@ -8632,6 +8753,9 @@ var VS = {
   doAddPerson:doAddPerson,
   closeModal:closeModal,
   tryPinLogin:tryPinLogin,
+  faceIdLogin:faceIdLogin,
+  faceIdOn:faceIdOn,
+  faceIdOff:faceIdOff,
   logout:function(){ logout(false); },
   confirmLogout:function(){ if(confirm('Log out of this device?')) logout(false); },
   setPersonPin:function(id, pin){
