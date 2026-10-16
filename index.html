@@ -2232,7 +2232,7 @@ function renderHelpScreen(){
 
   html += helpSection('Forms', ''+
     '<p style="margin:0 0 10px 0;">Every completed form is saved in \u201cMy Submitted Reports\u201d, generates a branded KHG PDF, and can be shared or downloaded. Available forms include:</p>'+
-    '<p style="margin:0 0 10px 0;">Service Report, Risk Assessment (RAMS), Pod Commissioning Checklist, Pod Client Handover, Pod &amp; General Terms and Conditions, Additional Works / Variation, Disconnection Authorisation, and the full Alarm System Survey (SDP) \u2014 which can be saved as a Proposal, then later promoted to a Specification or As Fitted document without starting again.</p>'+
+    '<p style="margin:0 0 10px 0;">Service Report, Risk Assessment (RAMS), Pod Commissioning Checklist, Pod Client Handover, Pod &amp; General Terms and Conditions, Additional Works / Variation, Works Commissioning, Disconnection Authorisation, and the full Alarm System Survey (SDP) \u2014 which can be saved as a Proposal, then later promoted to a Specification or As Fitted document without starting again.</p>'+
     '<p style="margin:0;">A Disconnection Authorisation automatically creates an entry in Follow Up so the repair doesn\u2019t get forgotten. You can delete any submitted report from the list if it was made in error.</p>'
   );
 
@@ -3369,6 +3369,7 @@ function renderFormsScreen(){
   if(state.formsTab==='general_terms') return renderGeneralTermsScreen(c);
   if(state.formsTab==='terms_acceptance') return renderTermsAcceptanceForm(c);
   if(state.formsTab==='variation') return renderVariationForm(c);
+  if(state.formsTab==='works_commissioning') return renderWorksCommissioningForm(c);
   if(state.formsTab==='disconnection') return renderDisconnectionForm(c);
   if(state.formsTab==='survey') return renderSurveyForm(c);
   if(state.formsTab==='survey_settings') return renderSurveySettings(c);
@@ -3420,6 +3421,11 @@ function renderFormsMenu(c){
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'+
     '<span class="vs-home-tile-label">Additional Works</span>'+
     '<span class="vs-home-tile-sub">Sign off changes or extras</span>'+
+  '</button>';
+  html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'works_commissioning\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4 2.5-2.5z"/></svg>'+
+    '<span class="vs-home-tile-label">Works Commissioning</span>'+
+    '<span class="vs-home-tile-sub">Sign-off for additional works</span>'+
   '</button>';
   html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'disconnection\')">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/></svg>'+
@@ -3808,6 +3814,66 @@ function renderTermsAcceptanceForm(c){
   c.innerHTML = html;
   initSignaturePad('ta-client-sig');
   initSignaturePad('ta-rep-sig');
+}
+
+var WORKS_COMMISSIONING_CHECKS = [
+  "System left in full working order",
+  "Full live test carried out and all devices operating correctly",
+  "All new / altered detectors walk-tested",
+  "Sounders / sirens tested",
+  "Keypads and control panel tested for correct operation",
+  "Remote signalling tested with ARC (where monitored)",
+  "No faults, tamper or open zones showing on the system",
+  "Standby battery / power supply checked and charging correctly",
+  "Date and time on the system checked and correct",
+  "User codes and keyholder details checked and up to date",
+  "Customer shown how to operate the new / altered equipment",
+  "Customer handed any relevant documentation / user guides",
+  "Site left clean and tidy, all waste removed"
+];
+
+function renderWorksCommissioningForm(c){
+  var me = currentPerson();
+  var html = formsBackLink();
+  html += sectionHead('Works Commissioning');
+  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">Use this to record and sign off the commissioning of additional works — confirming the system has been tested and left in working order.</p>';
+
+  html += jobPickerFieldHtml('wc-jobnumber', 'ServiceM8 job (optional)', null, state.prefillJobNumber);
+  state.prefillJobNumber = '';
+  html += '<div class="vs-field"><label>Site name / address</label><input id="wc-site"></div>';
+  html += '<div class="vs-field"><label>Customer name</label><input id="wc-customer"></div>';
+  html += '<div class="vs-field"><label>Property type</label><select id="wc-proptype"><option value="Domestic">Domestic</option><option value="Commercial">Commercial</option></select></div>';
+  html += '<div class="vs-field"><label>System make and model</label><input id="wc-makemodel"></div>';
+
+  html += sectionHead('Works carried out');
+  html += '<div class="vs-field"><label>Description of works carried out</label><textarea id="wc-works" rows="4" placeholder="What was installed, altered or added"></textarea></div>';
+  html += '<div class="vs-field"><label>Equipment / materials used (optional)</label><textarea id="wc-materials" rows="3"></textarea></div>';
+
+  html += sectionHead('Commissioning checks');
+  html += WORKS_COMMISSIONING_CHECKS.map(function(check, i){
+    return '<div class="vs-field"><label style="font-size:12.5px;">'+escapeAttr(check)+'</label>'+
+      '<select id="wc-check-'+i+'"><option value="">— select —</option><option value="Yes">Yes</option><option value="No">No</option><option value="N/A">N/A</option></select></div>';
+  }).join('');
+  html += '<div class="vs-field"><label>Further action required / comments (required if any check is ‘No’)</label><textarea id="wc-furtheraction" rows="3"></textarea></div>';
+
+  html += sectionHead('Visit details');
+  html += '<div class="vs-field"><label>Date</label><input type="date" id="wc-date" value="'+new Date().toISOString().slice(0,10)+'"></div>';
+  html += '<div class="vs-field"><label>Time of arrival</label><input type="time" id="wc-arrival"></div>';
+  html += '<div class="vs-field"><label>Time of departure</label><input type="time" id="wc-departure"></div>';
+
+  html += sectionHead('Customer sign-off');
+  html += '<div class="vs-field"><label>Name</label><input id="wc-signname"></div>';
+  html += '<div class="vs-field"><label>Position (e.g. Homeowner, Site Manager)</label><input id="wc-signposition"></div>';
+  html += signaturePadHtml('wc-client-sig', 'Customer signature');
+
+  html += sectionHead('Engineer');
+  html += '<div class="vs-field"><label>Engineer name</label><input id="wc-engineer" value="'+escapeAttr(me?me.name:'')+'"></div>';
+  html += signaturePadHtml('wc-eng-sig', 'Engineer signature');
+
+  html += '<button class="vs-btn primary" style="width:100%;margin-top:6px;" onclick="VS.submitWorksCommissioning()">Generate certificate</button>';
+  c.innerHTML = html;
+  initSignaturePad('wc-client-sig');
+  initSignaturePad('wc-eng-sig');
 }
 
 function renderVariationForm(c){
@@ -4489,6 +4555,7 @@ var JOB_ATTACHABLE_FORM_TYPES = [
   { key:'handover', label:'Pod Handover' },
   { key:'terms_acceptance', label:'Accept Terms & Conditions' },
   { key:'variation', label:'Additional Works / Variation' },
+  { key:'works_commissioning', label:'Works Commissioning' },
   { key:'disconnection', label:'Disconnection Authorisation' }
 ];
 
@@ -4501,6 +4568,7 @@ var FORM_TYPE_NOTE_TITLES = {
   handover:'SmartSecure Pod — Client Handover Form',
   terms_acceptance:'Terms & Conditions Acceptance',
   variation:'Additional Works / Variation',
+  works_commissioning:'Works Commissioning Certificate',
   disconnection:'Disconnection Authorisation',
   risk_assessment:'Risk Assessment (RAMS)'
 };
@@ -4557,7 +4625,7 @@ function buildGenericFormNote(formType, fields){
 
 function formSubmissionRowHtml(s){
   var dt = new Date(s.submittedAt).toLocaleDateString(undefined,{day:'numeric',month:'short'});
-  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED', variation:'VARIATION', disconnection:'DISCONNECTION' };
+  var badgeByType = { risk_assessment:'RAMS', commissioning:'COMMISSIONING', handover:'HANDOVER', terms_acceptance:'T&Cs ACCEPTED', variation:'VARIATION', works_commissioning:'WORKS COMMISSIONED', disconnection:'DISCONNECTION' };
   var stageLabels = { proposal:'SURVEY - PROPOSAL', specification:'SURVEY - SPECIFICATION', as_fitted:'SURVEY - AS FITTED' };
   if(s.formType==='survey') badgeByType.survey = stageLabels[s.docStage] || 'SURVEY - PROPOSAL';
   // Once a form has been attached to a ServiceM8 job (syncStatus set), show the
@@ -4617,6 +4685,7 @@ function buildFormPdf(sub){
   if(sub.formType==='handover') return generateHandoverPDF(sub);
   if(sub.formType==='terms_acceptance') return generateTermsAcceptancePDF(sub);
   if(sub.formType==='variation') return generateVariationPDF(sub);
+  if(sub.formType==='works_commissioning') return generateWorksCommissioningPDF(sub);
   if(sub.formType==='disconnection') return generateDisconnectionPDF(sub);
   if(sub.formType==='survey') return generateSurveyPDF(sub);
   return generateServiceReportPDF(sub);
@@ -5532,6 +5601,91 @@ function generateVariationPDF(sub){
   drawFooter();
   var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
   return { doc: doc, filename: 'Variation-'+fileSafe+'.pdf' };
+}
+
+function generateWorksCommissioningPDF(sub){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection and try again'); return; }
+  var f = sub.fields;
+  var doc = new window.jspdf.jsPDF();
+  var margin = 15;
+  var pageWidth = doc.internal.pageSize.getWidth();
+  var pageHeight = doc.internal.pageSize.getHeight();
+  var navy = [23, 34, 66];
+  var y;
+
+  function drawFooter(){
+    var page = doc.internal.getNumberOfPages();
+    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
+    doc.text('KHG Security Ltd — Works Commissioning Certificate', margin, pageHeight-10);
+    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
+    doc.setTextColor(30,30,30);
+  }
+  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; } }
+  function heading(text){
+    ensureSpace(14); y += 3;
+    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
+    doc.text(text, margin, y); y += 2;
+    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
+    doc.line(margin, y, pageWidth-margin, y); y += 6;
+    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
+  }
+  function line(label, value){
+    var text = label ? (label+': '+(value||'-')) : (value||'-');
+    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
+    ensureSpace(wrapped.length*5.5+2);
+    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+  }
+  function sigBlock(img){
+    if(!img) return;
+    ensureSpace(30);
+    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
+    try{ doc.addImage(img, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
+    doc.setFont(undefined,'normal');
+  }
+
+  y = pdfHeader(doc, margin, pageWidth, navy, 'WORKS COMMISSIONING CERTIFICATE');
+  line('Job', f.jobNumber);
+  line('Site', f.site);
+  line('Customer', f.customer);
+  line('Property type', f.propertyType);
+  line('System make / model', f.makeModel);
+  line('Date', f.date);
+  line('Arrival / departure', (f.arrival||'-')+' / '+(f.departure||'-'));
+
+  heading('Works Carried Out');
+  line(null, f.works);
+  if(f.materials) line('Equipment / materials used', f.materials);
+
+  heading('Commissioning Checks');
+  (f.checks||[]).forEach(function(ch){
+    var ans = ch.answer || '-';
+    var wrapped = doc.splitTextToSize(ch.item, pageWidth-margin*2-22);
+    ensureSpace(wrapped.length*5+3);
+    doc.setFont(undefined,'normal'); doc.text(wrapped, margin, y);
+    doc.setFont(undefined,'bold');
+    if(ans==='No') doc.setTextColor(190,30,30); else doc.setTextColor(30,30,30);
+    doc.text(ans, pageWidth-margin, y, {align:'right'});
+    doc.setTextColor(30,30,30); doc.setFont(undefined,'normal');
+    y += wrapped.length*5;
+    doc.setDrawColor(215,215,215); doc.setLineWidth(0.2);
+    doc.line(margin, y-1.5, pageWidth-margin, y-1.5);
+    y += 2;
+  });
+  if(f.furtherAction){ y += 2; line('Further action / comments', f.furtherAction); }
+
+  heading('Customer Sign-off');
+  line('Name', f.signName);
+  line('Position', f.signPosition);
+  line('Date', f.date);
+  sigBlock(f.clientSignature);
+
+  heading('Engineer');
+  line('Name', f.engineer);
+  sigBlock(f.engineerSignature);
+
+  drawFooter();
+  var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
+  return { doc: doc, filename: 'Works-Commissioning-'+fileSafe+'.pdf' };
 }
 
 function generateDisconnectionPDF(sub){
@@ -7281,6 +7435,56 @@ var VS = {
     state.formSubmissions.push(submission);
     saveFormSubmissions();
     toast('Variation saved'+(jobNumber?' — sending to ServiceM8…':''));
+    state.formsTab = 'mine';
+    resetFormDirty();
+    renderFormsScreen();
+    if(jobNumber) this.syncFormSubmission(submission.id);
+  },
+  submitWorksCommissioning:function(){
+    var site = document.getElementById('wc-site').value.trim();
+    if(!site){ toast('Enter the site name/address'); return; }
+    var works = document.getElementById('wc-works').value.trim();
+    if(!works){ toast('Describe the works carried out'); return; }
+    var checks = WORKS_COMMISSIONING_CHECKS.map(function(check, i){
+      var el = document.getElementById('wc-check-'+i);
+      return { item: check, answer: el ? el.value : '' };
+    });
+    if(checks.some(function(ch){ return !ch.answer; })){ toast('Answer every commissioning check (Yes / No / N/A)'); return; }
+    var furtherAction = document.getElementById('wc-furtheraction').value.trim();
+    if(checks.some(function(ch){ return ch.answer==='No'; }) && !furtherAction){ toast('Explain any ‘No’ answers in further action / comments'); return; }
+    var signName = document.getElementById('wc-signname').value.trim();
+    if(!signName){ toast('Enter the customer’s name'); return; }
+    if(signatureIsBlank('wc-client-sig')){ toast('Customer signature is required'); return; }
+    if(signatureIsBlank('wc-eng-sig')){ toast('Engineer signature is required'); return; }
+    var jobNumber = document.getElementById('wc-jobnumber').value.trim();
+    var me = currentPerson();
+    var fields = {
+      jobNumber: jobNumber,
+      site: site,
+      customer: document.getElementById('wc-customer').value.trim(),
+      propertyType: document.getElementById('wc-proptype').value,
+      makeModel: document.getElementById('wc-makemodel').value.trim(),
+      works: works,
+      materials: document.getElementById('wc-materials').value.trim(),
+      checks: checks,
+      furtherAction: furtherAction,
+      date: document.getElementById('wc-date').value,
+      arrival: document.getElementById('wc-arrival').value,
+      departure: document.getElementById('wc-departure').value,
+      signName: signName,
+      signPosition: document.getElementById('wc-signposition').value.trim(),
+      clientSignature: getSignatureDataUrl('wc-client-sig'),
+      engineer: document.getElementById('wc-engineer').value.trim(),
+      engineerSignature: getSignatureDataUrl('wc-eng-sig')
+    };
+    var submission = {
+      id: uid(), formType:'works_commissioning', jobNumber: jobNumber || site,
+      submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
+      fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
+    };
+    state.formSubmissions.push(submission);
+    saveFormSubmissions();
+    toast('Commissioning certificate saved'+(jobNumber?' — sending to ServiceM8…':''));
     state.formsTab = 'mine';
     resetFormDirty();
     renderFormsScreen();
