@@ -4267,9 +4267,7 @@ function generateSurveyPDF(sub){
   function heading(text){
     ensureSpace(14); y += 3;
     doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
+    doc.setFillColor(KHG_REPORT_NAVY[0],KHG_REPORT_NAVY[1],KHG_REPORT_NAVY[2]); doc.rect(margin, y-5.4, pageWidth-margin*2, 7.6, 'F'); doc.setFontSize(10.5); doc.setTextColor(255,255,255); doc.text(String(text).toUpperCase(), margin+3, y); y += 6;
     doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
   }
   function subheading(text){
@@ -4997,345 +4995,593 @@ function generateMonthlyReportPDF(r){
   sharePdf(doc, (isOvertime?'Overtime-Report-':'On-call-Report-')+new Date(r.generatedAt).toISOString().slice(0,10)+'.pdf');
 }
 
-function generateServiceReportPDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var y = margin;
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var lineHeight = 6;
 
-  function ensureSpace(needed){
-    if(y + needed > pageHeight - margin){ doc.addPage(); y = margin; }
-  }
-  function heading(text){
-    ensureSpace(10);
-    doc.setFont(undefined, 'bold'); doc.setFontSize(12);
-    doc.text(text, margin, y);
-    y += 8;
-    doc.setFont(undefined, 'normal'); doc.setFontSize(10);
-  }
-  function line(label, value){
-    var text = label ? (label+': '+(value||'-')) : (value||'-');
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
-    ensureSpace(wrapped.length*lineHeight);
-    doc.text(wrapped, margin, y);
-    y += wrapped.length*lineHeight;
-  }
 
-  doc.setFont(undefined,'bold'); doc.setFontSize(16);
-  doc.text('Service Report \u2014 BS 9263:2016', margin, y); y += 10;
-  doc.setFont(undefined,'normal'); doc.setFontSize(10);
-  line(null, 'Job #'+sub.jobNumber+'   |   Engineer: '+f.engineer+'   |   Date: '+f.date);
-  line(null, 'Arrival: '+(f.arrival||'-')+'   |   Departure: '+(f.departure||'-'));
-  y += 4;
+// ---------- Branded report layout (matches the KHG job-report look: repeating header,
+// navy title/section bars, shaded label cells, bordered tables) ----------
+var KHG_REPORT_NAVY = [37, 42, 92];
 
-  heading('1. System & Monitoring Details');
-  line('Type of system', f.systemType);
-  line('Type of monitoring', f.monitoringType);
-  line('Make/Model', f.makeModel);
-  line('Backup battery total', f.backupBattery);
-  line('Wireless battery total', f.wirelessBattery);
-  y += 4;
-
-  heading('2. Service Summary');
-  line('Action taken', f.actionTaken);
-  if(f.furtherAction) line('Further action required', f.furtherAction);
-  y += 4;
-
-  heading('3. Checks Completed \u2014 BS 9263:2016');
-  f.checks.forEach(function(ch){
-    line(null, '\u2022 '+ch.item+': '+(ch.answer||'-'));
-  });
-  y += 4;
-
-  heading('4. Materials & Equipment');
-  if(f.disconnected) line('Disconnected equipment', f.disconnected);
-  line('Materials used', f.materials);
-  y += 4;
-
-  heading('5. Sign-off');
-  line('Customer', f.customer);
-  line('Signed', f.signature);
-
-  return { doc: doc, filename: 'Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf' };
+function ordinalDate(str){
+  if(!str) return '';
+  var d = /^\d{4}-\d{2}-\d{2}/.test(String(str)) ? new Date(String(str).slice(0,10)+'T12:00:00') : new Date(str);
+  if(isNaN(d.getTime())) return String(str);
+  var n = d.getDate();
+  var suf = (n%10===1 && n!==11) ? 'st' : (n%10===2 && n!==12) ? 'nd' : (n%10===3 && n!==13) ? 'rd' : 'th';
+  return n+suf+' '+d.toLocaleString('en-GB',{month:'long'})+' '+d.getFullYear();
+}
+function ukDateShort(str){
+  var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(str||''));
+  return m ? (parseInt(m[3],10)+'/'+parseInt(m[2],10)+'/'+m[1]) : (str||'');
+}
+function lookupJobByNumber(n){
+  if(!n) return null;
+  return (state.jobsCache||[]).filter(function(j){ return String(j.jobNumber)===String(n); })[0] || null;
+}
+function reportJobNo(sub){
+  var f = (sub && sub.fields) || {};
+  if(f.jobNumber) return String(f.jobNumber);
+  return /^\d{3,}$/.test(String((sub && sub.jobNumber)||'')) ? String(sub.jobNumber) : '';
+}
+function reportDocStart(){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection and try again'); return null; }
+  return new window.jspdf.jsPDF();
 }
 
-function generateRiskAssessmentPDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var navy = [23, 34, 66];
-  var y = margin;
-
-  function drawFooter(){
-    var page = doc.internal.getNumberOfPages();
-    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('KHG Security Ltd \u2014 Risk Assessment & Method Statement', margin, pageHeight-10);
-    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
-    doc.setTextColor(30,30,30);
-  }
-  function ensureSpace(needed){
-    if(y + needed > pageHeight - 22){
-      drawFooter();
-      doc.addPage();
-      y = margin;
-    }
-  }
-  function heading(text){
-    ensureSpace(16);
-    y += 4;
-    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y);
-    y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]);
-    doc.setLineWidth(0.6);
-    doc.line(margin, y, pageWidth-margin, y);
-    y += 6;
-    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-  }
-  function line(label, value){
-    var text = label ? (label+': '+(value||'-')) : (value||'-');
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y);
-    y += wrapped.length*5.5+2;
-  }
-  function bullet(text){
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2-6);
-    ensureSpace(wrapped.length*5.5);
-    doc.text('\u2022', margin, y);
-    doc.text(wrapped, margin+5, y);
-    y += wrapped.length*5.5;
-  }
-
-  try{
-    var logoW = 55, logoH = 55*126/700;
-    doc.addImage('data:image/jpeg;base64,'+KHG_LOGO_B64, 'JPEG', margin, y, logoW, logoH);
-    y += logoH + 8;
-  }catch(e){ y += 8; }
-  doc.setDrawColor(navy[0],navy[1],navy[2]);
-  doc.setLineWidth(1);
-  doc.line(margin, y, pageWidth-margin, y);
-  y += 10;
-
-  doc.setFont(undefined,'bold'); doc.setFontSize(16); doc.setTextColor(navy[0],navy[1],navy[2]);
-  doc.text('RISK ASSESSMENT & METHOD STATEMENT', margin, y);
-  y += 10;
-  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-
-  line('Site', f.site);
-  line('Client', f.client);
-  line('Site contact', f.siteContact);
-  line(null, 'Start: '+(f.startDate||'-')+'   End: '+(f.endDate||'-')+'   Hours: '+(f.hours||'-'));
-  line('Principal Contractor', 'KHG Security Ltd');
-  line('Prepared by', (f.preparedBy||'-')+' on '+(f.datePrepared||'-'));
-
-  heading('1. Scope of Works');
-  line(null, f.scope);
-
-  heading('2. Method Statement');
-  line('Preparation', f.preparation);
-  line('Equipment & Materials', f.equipment);
-  ensureSpace(10);
-  doc.setFont(undefined,'bold'); doc.text('Work Process', margin, y); y += 6.5; doc.setFont(undefined,'normal');
-  var steps = (f.workProcess||'').split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s; });
-  if(steps.length===0){ line(null, '-'); }
-  steps.forEach(function(step, i){ line(null, (i+1)+'. '+step); });
-  line('Completion', f.completion);
-
-  heading('3. Risk Assessment Summary');
-  if(!f.hazards || f.hazards.length===0){ line(null, 'No specific hazards identified beyond standard site conditions.'); }
-  (f.hazards||[]).forEach(function(h){
-    ensureSpace(14);
-    doc.setFont(undefined,'bold'); doc.setFontSize(10);
-    doc.text('Hazard: '+h.name, margin, y); y += 5.5;
-    doc.setFont(undefined,'normal');
-    var wrapped = doc.splitTextToSize('Controls: '+(h.controls||'-'), pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+3);
-    doc.text(wrapped, margin, y);
-    y += wrapped.length*5.5 + 4;
+function newReport(doc, o){
+  var W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  var M = 10, CW = W - M*2, BOTTOM = H - 16;
+  var NAVY = KHG_REPORT_NAVY, GREY = [238,239,246], LINE = [200,202,216];
+  var LH = 4.2;
+  var R = { y: 0, started: false };
+  var addr = [];
+  (o.addressLines||[]).forEach(function(a){
+    if(!a) return;
+    String(a).split('\n').forEach(function(l){ if(l.trim()) addr.push(l.trim()); });
   });
 
-  heading('4. PPE Requirements');
-  if(!f.ppe || f.ppe.length===0){ line(null, 'None specified.'); }
-  (f.ppe||[]).forEach(function(p){ bullet(p); });
+  function ink(){ doc.setTextColor(30,30,30); }
+  function font(style, size){ doc.setFont(undefined, style); doc.setFontSize(size); }
 
-  heading('5. Emergency Procedures');
-  line(null, f.emergency);
+  function drawHeader(){
+    var y0 = M, logoBottom = M + 11;
+    try{
+      var lw = 62, lh = lw*126/700;
+      doc.addImage('data:image/jpeg;base64,'+KHG_LOGO_B64, 'JPEG', M, y0, lw, lh);
+      logoBottom = y0 + lh;
+    }catch(e){}
+    font('normal', 9); ink();
+    var ry = y0 + 3;
+    ['KHG Security','Knutsford Cheshire WA16 8DX','01565 634211','office@khgsecurity.com'].forEach(function(t){
+      doc.text(t, W-M, ry, {align:'right'}); ry += 4.4;
+    });
+    ry += 3.5;
+    if(o.jobNumber){ doc.text('Job # '+o.jobNumber, W-M, ry, {align:'right'}); ry += 4.4; }
+    if(o.dateText){ doc.text(o.dateText, W-M, ry, {align:'right'}); ry += 4.4; }
+    var by = logoBottom + 7, boxBottom = by;
+    if(addr.length){
+      var lines = [];
+      addr.forEach(function(a){ doc.splitTextToSize(a, 66).forEach(function(l){ lines.push(l); }); });
+      lines = lines.slice(0,5);
+      var bh = lines.length*4.4 + 4;
+      doc.setDrawColor(40,40,40); doc.setLineWidth(0.3);
+      doc.rect(M, by, 70, bh);
+      lines.forEach(function(l, i){ doc.text(l, M+2, by+5+i*4.4); });
+      boxBottom = by + bh;
+    }
+    var yy = Math.max(boxBottom, ry) + 8;
+    doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+    doc.rect(M, yy, CW, 9, 'F');
+    font('bold', 12); doc.setTextColor(255,255,255);
+    doc.text(o.title, M+3, yy+6.2);
+    ink(); font('normal', 9);
+    R.y = yy + 9 + 8;
+  }
+  function newPage(){ doc.addPage(); drawHeader(); }
+  function need(h){ if(R.y + h > BOTTOM){ newPage(); return true; } return false; }
+  function cell(x, y, w, h, fill){
+    doc.setDrawColor(LINE[0],LINE[1],LINE[2]); doc.setLineWidth(0.2);
+    if(fill){ doc.setFillColor(fill[0],fill[1],fill[2]); doc.rect(x, y, w, h, 'FD'); }
+    else { doc.rect(x, y, w, h, 'S'); }
+  }
+  function wrap(text, width, style, size){
+    font(style, size);
+    return doc.splitTextToSize(String(text==null||text===''?'':text), width);
+  }
+  function putLines(lines, x, top, h, align, valign){
+    var contentH = lines.length*LH;
+    var start = (valign==='top') ? top + 4.6 : top + (h - contentH)/2 + 3.1;
+    lines.forEach(function(l, i){
+      if(align==='center') doc.text(l, x, start + i*LH, {align:'center'});
+      else doc.text(l, x, start + i*LH);
+    });
+  }
 
-  heading('6. Training & Competence');
-  line(null, f.training);
+  R.section = function(text){
+    if(R.started) R.y += 6;
+    need(7 + 20);
+    doc.setFillColor(NAVY[0],NAVY[1],NAVY[2]);
+    doc.rect(M, R.y, CW, 7.2, 'F');
+    font('bold', 10); doc.setTextColor(255,255,255);
+    doc.text(String(text).toUpperCase(), M+3, R.y+5);
+    ink();
+    R.y += 7.2;
+    R.started = true;
+  };
+  R.rows = function(pairs){
+    var labelW = CW*0.36;
+    pairs.forEach(function(p){
+      var l = wrap(p[0], labelW-6, 'bold', 9);
+      var v = wrap(p[1]||'', CW-labelW-6, 'normal', 9);
+      var h = Math.max(8, Math.max(l.length, v.length)*LH + 4.2);
+      need(h);
+      cell(M, R.y, labelW, h, GREY);
+      cell(M+labelW, R.y, CW-labelW, h, null);
+      font('bold', 9); ink(); putLines(l, M+3, R.y, h);
+      font('normal', 9); putLines(v, M+labelW+3, R.y, h);
+      R.y += h;
+    });
+  };
+  function textCell(lines, minH, opts){
+    opts = opts || {};
+    if(!lines.length) lines = [''];
+    while(lines.length){
+      var avail = BOTTOM - R.y;
+      var maxLines = Math.max(1, Math.floor((avail - 5.5)/LH));
+      if(avail < 14){ newPage(); continue; }
+      var chunk = lines.splice(0, maxLines);
+      var h = Math.max(lines.length ? 0 : minH, chunk.length*LH + 5.5);
+      cell(M, R.y, CW, h, null);
+      font(opts.style||'normal', opts.size||9);
+      if(opts.color) doc.setTextColor(opts.color[0],opts.color[1],opts.color[2]); else ink();
+      putLines(chunk, M+3, R.y, h, 'left', 'top');
+      ink();
+      R.y += h;
+      if(lines.length) newPage();
+    }
+  }
+  R.box = function(label, text, minH){
+    var lines = wrap(text||'', CW-6, 'normal', 9);
+    need(7.6 + 16);
+    cell(M, R.y, CW, 7.6, GREY);
+    font('bold', 9); ink();
+    doc.text(String(label), M+3, R.y+5);
+    R.y += 7.6;
+    textCell(lines, minH||14);
+  };
+  R.checks = function(headText, items, colHead){
+    var colW = 46, leftW = CW - colW;
+    var hl = wrap(headText, leftW-6, 'bold', 9);
+    var hh = Math.max(8, hl.length*LH + 4.2);
+    need(hh + 20);
+    cell(M, R.y, leftW, hh, GREY); cell(M+leftW, R.y, colW, hh, GREY);
+    font('bold', 9); ink();
+    putLines(hl, M+3, R.y, hh);
+    doc.text(colHead||'Yes/No', M+leftW+colW/2, R.y + hh/2 + 1.1, {align:'center'});
+    R.y += hh;
+    items.forEach(function(it){
+      var ans = String(it[1]||'-').toUpperCase();
+      var l = wrap(it[0], leftW-6, 'normal', 9);
+      var h = Math.max(8, l.length*LH + 4.2);
+      need(h);
+      cell(M, R.y, leftW, h, null); cell(M+leftW, R.y, colW, h, GREY);
+      font('normal', 9); ink(); putLines(l, M+3, R.y, h);
+      font('normal', 9);
+      if(ans==='NO' || ans==='NOT DONE') doc.setTextColor(190,30,30);
+      doc.text(ans, M+leftW+colW/2, R.y + h/2 + 1.1, {align:'center'});
+      ink();
+      R.y += h;
+    });
+  };
+  R.signature = function(label, sig){
+    need(7.6 + 26);
+    cell(M, R.y, CW, 7.6, GREY);
+    font('bold', 9); ink();
+    doc.text(String(label), M+3, R.y+5);
+    R.y += 7.6;
+    cell(M, R.y, CW, 25, null);
+    if(sig && String(sig).indexOf('data:')===0){
+      try{ doc.addImage(sig, 'PNG', M+4, R.y+2.5, 60, 20); }catch(e){}
+    } else if(sig){
+      font('bolditalic', 14); doc.text(String(sig), M+5, R.y+14);
+      font('normal', 9);
+    }
+    R.y += 25;
+  };
+  R.subhead = function(text){
+    need(12);
+    font('bold', 10); doc.setTextColor(NAVY[0],NAVY[1],NAVY[2]);
+    doc.text(String(text), M, R.y+3); ink();
+    R.y += 7;
+  };
+  R.para = function(text, o2){
+    o2 = o2 || {};
+    var size = o2.size || 9, lh = size*0.46;
+    String(text||'').split('\n').forEach(function(p){
+      if(!p.trim()){ R.y += lh*0.6; return; }
+      var lines = wrap(p.trim(), CW, o2.style||'normal', size);
+      lines.forEach(function(l){
+        need(lh+1);
+        font(o2.style||'normal', size);
+        if(o2.color) doc.setTextColor(o2.color[0],o2.color[1],o2.color[2]); else ink();
+        doc.text(l, M, R.y+3);
+        R.y += lh;
+      });
+      R.y += 1.2;
+    });
+    ink(); font('normal', 9);
+    R.y += (o2.gap==null ? 2 : o2.gap);
+  };
+  R.warn = function(text){
+    var lines = wrap(text, CW-8, 'bold', 9);
+    var h = lines.length*LH + 7;
+    need(h + 4);
+    doc.setFillColor(253,235,235); doc.setDrawColor(200,60,60); doc.setLineWidth(0.3);
+    doc.roundedRect(M, R.y, CW, h, 1.5, 1.5, 'FD');
+    font('bold', 9); doc.setTextColor(150,30,30);
+    lines.forEach(function(l, i){ doc.text(l, M+4, R.y+6+i*LH); });
+    ink(); font('normal', 9);
+    R.y += h + 6;
+  };
+  R.finish = function(){
+    var n = doc.internal.getNumberOfPages();
+    for(var p=1; p<=n; p++){
+      doc.setPage(p);
+      font('normal', 8); doc.setTextColor(140,140,140);
+      doc.text(o.footer || 'KHG Security Ltd', M, H-8);
+      doc.text('Page '+p+' of '+n, W-M, H-8, {align:'right'});
+    }
+    ink();
+  };
 
-  heading('7. Environmental Considerations');
-  line(null, f.environmental);
-
-  drawFooter();
-  var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  return { doc: doc, filename: 'RAMS-'+fileSafe+'.pdf' };
+  drawHeader();
+  return R;
 }
 
 function pdfHeader(doc, margin, pageWidth, navy, titleText){
-  var y = margin;
+  var y = margin, logoBottom = y + 11;
   try{
-    var logoW = 55, logoH = 55*126/700;
-    doc.addImage('data:image/jpeg;base64,'+KHG_LOGO_B64, 'JPEG', margin, y, logoW, logoH);
-    y += logoH + 8;
-  }catch(e){ y += 8; }
-  doc.setDrawColor(navy[0],navy[1],navy[2]);
-  doc.setLineWidth(1);
-  doc.line(margin, y, pageWidth-margin, y);
-  y += 10;
-  doc.setFont(undefined,'bold'); doc.setFontSize(16); doc.setTextColor(navy[0],navy[1],navy[2]);
-  doc.text(titleText, margin, y);
-  y += 10;
+    var lw = 62, lh = lw*126/700;
+    doc.addImage('data:image/jpeg;base64,'+KHG_LOGO_B64, 'JPEG', margin, y, lw, lh);
+    logoBottom = y + lh;
+  }catch(e){}
+  doc.setFont(undefined,'normal'); doc.setFontSize(9); doc.setTextColor(30,30,30);
+  var ry = y + 3;
+  ['KHG Security','Knutsford Cheshire WA16 8DX','01565 634211','office@khgsecurity.com'].forEach(function(t){
+    doc.text(t, pageWidth-margin, ry, {align:'right'}); ry += 4.4;
+  });
+  y = Math.max(logoBottom, ry) + 6;
+  doc.setFillColor(KHG_REPORT_NAVY[0],KHG_REPORT_NAVY[1],KHG_REPORT_NAVY[2]);
+  doc.rect(margin, y, pageWidth-margin*2, 9, 'F');
+  doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(255,255,255);
+  doc.text(titleText, margin+3, y+6.2);
+  y += 9 + 9;
   doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
   return y;
 }
 
-function generateCommissioningPDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var navy = [23, 34, 66];
-  var y;
+function fileSafeName(s, fallback){
+  return (s||fallback).replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40) || fallback;
+}
 
-  function drawFooter(){
-    var page = doc.internal.getNumberOfPages();
-    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('KHG Security Ltd \u2014 SmartSecure Pod Commissioning Checklist', margin, pageHeight-10);
-    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
-    doc.setTextColor(30,30,30);
-  }
-  function ensureSpace(needed){
-    if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; }
-  }
-  function heading(text){
-    ensureSpace(16); y += 4;
-    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
-    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-  }
-  function line(label, value){
-    var text = label ? (label+': '+(value||'-')) : (value||'-');
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
-  }
-
-  y = pdfHeader(doc, margin, pageWidth, navy, 'SMARTSECURE POD \u2014 COMMISSIONING CHECKLIST');
-  line('Site', f.site);
-  line('Unit reference / serial no.', f.unitRef);
-  line('Engineer', f.engineer);
-  line('Date of commissioning', f.date);
-
-  heading('Checklist');
-  (f.tasks||[]).forEach(function(t){
-    var wrapped = doc.splitTextToSize((t.done?'[X] ':'[ ] ')+t.task, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+1);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+1;
+function generateServiceReportPDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var job = lookupJobByNumber(sub.jobNumber);
+  var R = newReport(doc, {
+    title: 'SERVICE REPORT',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.date),
+    addressLines: [f.customer || f.jobCompany || (job && job.companyName), f.jobAddress || (job && job.address)],
+    footer: 'KHG Security Ltd — Service Report'
   });
-  if(f.notes){ heading('Additional Notes'); line(null, f.notes); }
 
-  heading('Engineer Sign-off');
-  line('Name', f.engineer);
-  line('Date', f.date);
-  if(f.signature){
-    ensureSpace(30);
-    try{ doc.addImage(f.signature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
+  R.section('1.  System & Monitoring Details');
+  R.rows([
+    ['Type of System?', f.systemType],
+    ['Type of Monitoring?', f.monitoringType],
+    ['System Make and Model?', f.makeModel],
+    ['Backup Battery Total?', f.backupBattery],
+    ['Wireless Battery Total?', f.wirelessBattery]
+  ]);
+
+  R.section('2.  Service Summary');
+  R.box('Action Taken?', f.actionTaken);
+  R.box('Further Action Required? (leave blank if none)', f.furtherAction);
+
+  R.section('3.  Checks Completed — BS 9263:2016');
+  R.checks('The following checks have been completed in accordance with BS 9263:2016',
+    (f.checks||[]).map(function(ch){ return [ch.item, ch.answer||'-']; }), 'Yes/No');
+
+  R.section('4.  Materials & Equipment');
+  R.box('Disconnected Equipment (please list)', f.disconnected);
+  R.box('Materials Used (list all items, incl. batteries)', f.materials);
+
+  R.section('5.  Sign-off');
+  R.rows([
+    ['Engineer', f.engineer],
+    ['Customer', f.customer],
+    ['Date', ukDateShort(f.date)],
+    ['Time of Arrival', f.arrival],
+    ['Time of Departure', f.departure]
+  ]);
+  R.signature('Customer Signature', f.signature);
+
+  R.finish();
+  return { doc: doc, filename: 'Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf' };
+}
+
+function generateRiskAssessmentPDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var R = newReport(doc, {
+    title: 'RISK ASSESSMENT & METHOD STATEMENT',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.datePrepared || f.startDate),
+    addressLines: [f.client, f.site],
+    footer: 'KHG Security Ltd — Risk Assessment & Method Statement'
+  });
+
+  R.section('1.  Site Details');
+  R.rows([
+    ['Site', f.site],
+    ['Client', f.client],
+    ['Site Contact', f.siteContact],
+    ['Start / End / Hours', (f.startDate||'-')+'  /  '+(f.endDate||'-')+'  /  '+(f.hours||'-')],
+    ['Principal Contractor', 'KHG Security Ltd'],
+    ['Prepared By', (f.preparedBy||'-')+' on '+(f.datePrepared||'-')]
+  ]);
+
+  R.section('2.  Scope of Works');
+  R.box('Scope', f.scope);
+
+  R.section('3.  Method Statement');
+  R.box('Preparation', f.preparation, 10);
+  R.box('Equipment & Materials', f.equipment, 10);
+  var steps = (f.workProcess||'').split('\n').map(function(s){ return s.trim(); }).filter(function(s){ return s; });
+  R.box('Work Process', steps.length ? steps.map(function(s, i){ return (i+1)+'. '+s; }).join('\n') : '-', 10);
+  R.box('Completion', f.completion, 10);
+
+  R.section('4.  Risk Assessment Summary');
+  if(!f.hazards || f.hazards.length===0){
+    R.box('Hazards', 'No specific hazards identified beyond standard site conditions.', 10);
+  } else {
+    R.rows(f.hazards.map(function(h){ return ['Hazard: '+h.name, 'Controls: '+(h.controls||'-')]; }));
   }
 
-  drawFooter();
-  var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  return { doc: doc, filename: 'Commissioning-'+fileSafe+'.pdf' };
+  R.section('5.  PPE Requirements');
+  R.box('PPE', (f.ppe && f.ppe.length) ? f.ppe.map(function(p){ return '• '+p; }).join('\n') : 'None specified.', 10);
+
+  R.section('6.  Emergency Procedures');
+  R.box('Emergency Procedures', f.emergency, 10);
+
+  R.section('7.  Training & Competence');
+  R.box('Training & Competence', f.training, 10);
+
+  R.section('8.  Environmental Considerations');
+  R.box('Environmental Considerations', f.environmental, 10);
+
+  R.finish();
+  return { doc: doc, filename: 'RAMS-'+fileSafeName(f.site,'site')+'.pdf' };
+}
+
+function generateCommissioningPDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var R = newReport(doc, {
+    title: 'SMARTSECURE POD — COMMISSIONING CHECKLIST',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.date),
+    addressLines: [f.site],
+    footer: 'KHG Security Ltd — SmartSecure Pod Commissioning Checklist'
+  });
+
+  R.section('1.  Unit Details');
+  R.rows([
+    ['Site', f.site],
+    ['Unit Reference / Serial No.', f.unitRef],
+    ['Engineer', f.engineer],
+    ['Date of Commissioning', ukDateShort(f.date)]
+  ]);
+
+  R.section('2.  Checklist');
+  R.checks('The following tasks have been completed',
+    (f.tasks||[]).map(function(t){ return [t.task, t.done ? 'Done' : 'Not done']; }), 'Status');
+  if(f.notes){ R.section('3.  Additional Notes'); R.box('Notes', f.notes); }
+
+  R.section((f.notes ? '4.' : '3.')+'  Engineer Sign-off');
+  R.rows([['Name', f.engineer], ['Date', ukDateShort(f.date)]]);
+  R.signature('Engineer Signature', f.signature);
+
+  R.finish();
+  return { doc: doc, filename: 'Commissioning-'+fileSafeName(f.site,'site')+'.pdf' };
 }
 
 function generateHandoverPDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var navy = [23, 34, 66];
-  var y;
-
-  function drawFooter(){
-    var page = doc.internal.getNumberOfPages();
-    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('KHG Security Ltd \u2014 SmartSecure Pod Client Handover Form', margin, pageHeight-10);
-    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
-    doc.setTextColor(30,30,30);
-  }
-  function ensureSpace(needed){
-    if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; }
-  }
-  function heading(text){
-    ensureSpace(16); y += 4;
-    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
-    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-  }
-  function line(label, value){
-    var text = label ? (label+': '+(value||'-')) : (value||'-');
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
-  }
-
-  y = pdfHeader(doc, margin, pageWidth, navy, 'SMARTSECURE POD \u2014 CLIENT HANDOVER FORM');
-  line('Site', f.site);
-  line('Unit reference / serial no.', f.unitRef);
-  line('Date of handover', f.date);
-
-  heading('Client Acknowledgements (all confirmed)');
-  HANDOVER_ACKNOWLEDGEMENTS.forEach(function(pt){
-    var wrapped = doc.splitTextToSize('[X] '+pt, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var R = newReport(doc, {
+    title: 'SMARTSECURE POD — CLIENT HANDOVER FORM',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.date),
+    addressLines: [f.clientName, f.site],
+    footer: 'KHG Security Ltd — SmartSecure Pod Client Handover Form'
   });
 
-  heading('Client Sign-off');
-  line('Client name', f.clientName);
-  line('Position / company', f.clientPosition);
-  line('Date', f.date);
-  if(f.clientSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.clientSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
+  R.section('1.  Handover Details');
+  R.rows([
+    ['Site', f.site],
+    ['Unit Reference / Serial No.', f.unitRef],
+    ['Date of Handover', ukDateShort(f.date)]
+  ]);
 
-  heading('KHG Security Ltd Representative');
-  line('Name', f.repName);
-  line('Date', f.date);
-  if(f.repSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.repSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
+  R.section('2.  Client Acknowledgements');
+  R.checks('The client confirms the following', HANDOVER_ACKNOWLEDGEMENTS.map(function(pt){ return [pt, 'Confirmed']; }), 'Status');
 
-  ensureSpace(14);
-  doc.setFont(undefined,'italic'); doc.setFontSize(9); doc.setTextColor(100,100,100);
-  doc.text(doc.splitTextToSize('This handover is issued subject to KHG Security Ltd\u2019s Terms and Conditions for the Hire and Loan of SmartSecure Pod Rapid Deployment Units, a copy of which has been provided to the client.', pageWidth-margin*2), margin, y);
+  R.section('3.  Client Sign-off');
+  R.rows([['Client Name', f.clientName], ['Position / Company', f.clientPosition], ['Date', ukDateShort(f.date)]]);
+  R.signature('Client Signature', f.clientSignature);
 
-  drawFooter();
-  var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  return { doc: doc, filename: 'Handover-'+fileSafe+'.pdf' };
+  R.section('4.  KHG Security Ltd Representative');
+  R.rows([['Name', f.repName], ['Date', ukDateShort(f.date)]]);
+  R.signature('Representative Signature', f.repSignature);
+
+  R.y += 4;
+  R.para('This handover is issued subject to KHG Security Ltd’s Terms and Conditions for the Hire and Loan of SmartSecure Pod Rapid Deployment Units, a copy of which has been provided to the client.', { style:'italic', size:8.5, color:[100,100,100] });
+
+  R.finish();
+  return { doc: doc, filename: 'Handover-'+fileSafeName(f.site,'site')+'.pdf' };
 }
+
+function generateTermsAcceptancePDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var R = newReport(doc, {
+    title: 'TERMS & CONDITIONS — SIGNED ACCEPTANCE',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.date),
+    addressLines: [f.clientName, f.clientCompany, f.site],
+    footer: 'KHG Security Ltd — Terms and Conditions (Signed Acceptance)'
+  });
+
+  R.section('1.  Terms & Conditions');
+  if(f.site) R.rows([['Site / Job Reference', f.site]]);
+  R.y += 4;
+  R.para(GENERAL_TERMS_INTRO, { size:8.5 });
+  GENERAL_TERMS_SECTIONS.forEach(function(sec){
+    R.subhead(sec.heading);
+    R.para(sec.body, { size:8.5 });
+  });
+
+  R.section('2.  Client Acceptance');
+  R.y += 3;
+  R.para('I confirm that I have read, understood and accept KHG Security Ltd’s Terms and Conditions in full, including the provisions on project scheduling, working hours, and order of precedence over any terms provided by me or my organisation.', { size:9 });
+  R.rows([['Client Name', f.clientName], ['Company', f.clientCompany], ['Position', f.clientPosition], ['Date', ukDateShort(f.date)]]);
+  R.signature('Client Signature', f.clientSignature);
+
+  R.section('3.  KHG Security Ltd Representative');
+  R.rows([['Name', f.repName], ['Date', ukDateShort(f.date)]]);
+  R.signature('Representative Signature', f.repSignature);
+
+  R.finish();
+  return { doc: doc, filename: 'KHG-Terms-Accepted-'+fileSafeName(f.clientName,'client')+'.pdf' };
+}
+
+function generateVariationPDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var R = newReport(doc, {
+    title: 'ADDITIONAL WORKS / VARIATION',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.date),
+    addressLines: [f.signatoryName, f.site],
+    footer: 'KHG Security Ltd — Additional Works / Variation'
+  });
+
+  R.section('1.  Site Details');
+  R.rows([['Site', f.site], ['Property Type', f.propertyType], ['Date', ukDateShort(f.date)]]);
+
+  R.section('2.  Authorisation');
+  R.rows([['Authorised By', f.signatoryName], ['Position', f.signatoryPosition]]);
+  R.box('Confirmation', 'The above confirms they are authorised to approve additional works and associated costs at this property/on behalf of this business, and to commit to payment.', 10);
+
+  R.section('3.  Additional Works');
+  R.box('Description of Additional Work / Changes', f.description, 20);
+  R.rows([['Cost', f.cost]]);
+  if(f.notes) R.box('Notes', f.notes, 10);
+  R.y += 3;
+  R.para('This variation is agreed subject to KHG Security Ltd’s Terms and Conditions.', { style:'italic', size:8.5, color:[100,100,100] });
+
+  R.section('4.  Client Sign-off');
+  R.rows([['Name', f.signatoryName], ['Date', ukDateShort(f.date)]]);
+  R.signature('Client Signature', f.clientSignature);
+
+  R.section('5.  Engineer');
+  R.rows([['Name', f.engineer]]);
+  R.signature('Engineer Signature', f.engineerSignature);
+
+  R.finish();
+  return { doc: doc, filename: 'Variation-'+fileSafeName(f.site,'site')+'.pdf' };
+}
+
+function generateWorksCommissioningPDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var job = lookupJobByNumber(f.jobNumber);
+  var R = newReport(doc, {
+    title: 'WORKS COMMISSIONING CERTIFICATE',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.date),
+    addressLines: [f.customer || f.jobCompany || (job && job.companyName), f.site],
+    footer: 'KHG Security Ltd — Works Commissioning Certificate'
+  });
+
+  R.section('1.  Site & System Details');
+  R.rows([
+    ['Site', f.site],
+    ['Customer', f.customer],
+    ['Property Type', f.propertyType],
+    ['System Make and Model', f.makeModel]
+  ]);
+
+  R.section('2.  Works Carried Out');
+  R.box('Description of Works Carried Out', f.works, 20);
+  R.box('Equipment / Materials Used', f.materials, 12);
+
+  R.section('3.  Commissioning Checks');
+  R.checks('The following commissioning checks have been completed',
+    (f.checks||[]).map(function(ch){ return [ch.item, ch.answer||'-']; }), 'Yes/No/N/A');
+  R.box('Further Action Required / Comments', f.furtherAction, 12);
+
+  R.section('4.  Sign-off');
+  R.rows([
+    ['Engineer', f.engineer],
+    ['Customer', f.signName],
+    ['Customer Position', f.signPosition],
+    ['Date', ukDateShort(f.date)],
+    ['Time of Arrival', f.arrival],
+    ['Time of Departure', f.departure]
+  ]);
+  R.signature('Customer Signature', f.clientSignature);
+  R.signature('Engineer Signature', f.engineerSignature);
+
+  R.finish();
+  return { doc: doc, filename: 'Works-Commissioning-'+fileSafeName(f.site,'site')+'.pdf' };
+}
+
+function generateDisconnectionPDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var R = newReport(doc, {
+    title: 'DISCONNECTION AUTHORISATION',
+    jobNumber: reportJobNo(sub),
+    dateText: ordinalDate(f.date),
+    addressLines: [f.customerName, f.customerAddress],
+    footer: 'KHG Security Ltd — Disconnection Authorisation'
+  });
+
+  R.warn('This disconnection may reduce or compromise the security system’s ability to detect or signal an event at this property. KHG Security Ltd will aim to complete any necessary repair within 14 days of this disconnection, unless another timescale is agreed in writing.');
+
+  R.section('1.  Customer Details');
+  R.rows([['Customer', f.customerName], ['Address', f.customerAddress], ['Date', ukDateShort(f.date)]]);
+
+  R.section('2.  Details');
+  R.box('Description of Disconnection', f.description, 20);
+  R.rows([['Repair By', (f.repairBy||'-')+(f.extendedAgreed ? ' (extended timescale agreed with customer)' : '')]]);
+
+  R.section('3.  Customer Sign-off');
+  R.rows([['Name', f.customerName], ['Date', ukDateShort(f.date)]]);
+  R.signature('Customer Signature', f.customerSignature);
+
+  R.section('4.  Engineer');
+  R.rows([['Name', f.engineer]]);
+  R.signature('Engineer Signature', f.engineerSignature);
+
+  R.finish();
+  return { doc: doc, filename: 'Disconnection-'+fileSafeName(f.customerName,'customer')+'.pdf' };
+}
+
+
+
 
 function generateTermsPDF(){
   if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
@@ -5359,9 +5605,7 @@ function generateTermsPDF(){
   function heading(text){
     ensureSpace(16); y += 3;
     doc.setFont(undefined,'bold'); doc.setFontSize(11.5); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.5);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
+    doc.setFillColor(KHG_REPORT_NAVY[0],KHG_REPORT_NAVY[1],KHG_REPORT_NAVY[2]); doc.rect(margin, y-5.4, pageWidth-margin*2, 7.6, 'F'); doc.setFontSize(10.5); doc.setTextColor(255,255,255); doc.text(String(text).toUpperCase(), margin+3, y); y += 6;
     doc.setFont(undefined,'normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
   }
   function para(text){
@@ -5426,9 +5670,7 @@ function generateGeneralTermsPDF(){
   function heading(text){
     ensureSpace(14); y += 3;
     doc.setFont(undefined,'bold'); doc.setFontSize(11); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.5);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
+    doc.setFillColor(KHG_REPORT_NAVY[0],KHG_REPORT_NAVY[1],KHG_REPORT_NAVY[2]); doc.rect(margin, y-5.4, pageWidth-margin*2, 7.6, 'F'); doc.setFontSize(10.5); doc.setTextColor(255,255,255); doc.text(String(text).toUpperCase(), margin+3, y); y += 6;
     doc.setFont(undefined,'normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
   }
   function para(text){
@@ -5449,321 +5691,9 @@ function generateGeneralTermsPDF(){
   sharePdf(doc, 'KHG-Security-Terms-and-Conditions.pdf');
 }
 
-function generateTermsAcceptancePDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var navy = [23, 34, 66];
-  var y;
 
-  function drawFooter(){
-    var page = doc.internal.getNumberOfPages();
-    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('KHG Security Ltd \u2014 Terms and Conditions (Signed Acceptance)', margin, pageHeight-10);
-    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
-    doc.setTextColor(30,30,30);
-  }
-  function ensureSpace(needed){
-    if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; }
-  }
-  function heading(text){
-    ensureSpace(14); y += 3;
-    doc.setFont(undefined,'bold'); doc.setFontSize(11); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.5);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
-    doc.setFont(undefined,'normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,30);
-  }
-  function para(text){
-    (text||'').split('\n\n').forEach(function(p){
-      if(!p.trim()) return;
-      var wrapped = doc.splitTextToSize(p.trim(), pageWidth-margin*2);
-      ensureSpace(wrapped.length*5+3);
-      doc.text(wrapped, margin, y); y += wrapped.length*5+3;
-    });
-  }
-  function fieldLine(label, value){
-    var wrapped = doc.splitTextToSize(label+': '+(value||'-'), pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
-  }
 
-  y = pdfHeader(doc, margin, pageWidth, navy, 'TERMS & CONDITIONS');
-  doc.setFontSize(9.5); doc.setTextColor(30,30,30);
-  if(f.site) fieldLine('Site/Job reference', f.site);
-  para(GENERAL_TERMS_INTRO);
-  GENERAL_TERMS_SECTIONS.forEach(function(sec){ heading(sec.heading); para(sec.body); });
 
-  heading('Client Acceptance');
-  para('I confirm that I have read, understood and accept KHG Security Ltd\u2019s Terms and Conditions in full, including the provisions on project scheduling, working hours, and order of precedence over any terms provided by me or my organisation.');
-  fieldLine('Client name', f.clientName);
-  fieldLine('Company', f.clientCompany);
-  fieldLine('Position', f.clientPosition);
-  fieldLine('Date', f.date);
-  if(f.clientSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.clientSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
-
-  heading('KHG Security Ltd Representative');
-  fieldLine('Name', f.repName);
-  fieldLine('Date', f.date);
-  if(f.repSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.repSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
-
-  drawFooter();
-  var fileSafe = (f.clientName||'client').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  return { doc: doc, filename: 'KHG-Terms-Accepted-'+fileSafe+'.pdf' };
-}
-
-function generateVariationPDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var navy = [23, 34, 66];
-  var y;
-
-  function drawFooter(){
-    var page = doc.internal.getNumberOfPages();
-    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('KHG Security Ltd \u2014 Additional Works / Variation', margin, pageHeight-10);
-    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
-    doc.setTextColor(30,30,30);
-  }
-  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; } }
-  function heading(text){
-    ensureSpace(14); y += 3;
-    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
-    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-  }
-  function line(label, value){
-    var text = label ? (label+': '+(value||'-')) : (value||'-');
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
-  }
-
-  y = pdfHeader(doc, margin, pageWidth, navy, 'ADDITIONAL WORKS / VARIATION');
-  line('Site', f.site);
-  line('Property type', f.propertyType);
-  line('Date', f.date);
-
-  heading('Authorisation');
-  line('Authorised by', f.signatoryName);
-  line('Position', f.signatoryPosition);
-  line(null, 'The above confirms they are authorised to approve additional works and associated costs at this property/on behalf of this business, and to commit to payment.');
-
-  heading('Additional Works');
-  line(null, f.description);
-  line('Cost', f.cost);
-  if(f.notes) line('Notes', f.notes);
-
-  ensureSpace(12);
-  doc.setFont(undefined,'italic'); doc.setFontSize(9); doc.setTextColor(100,100,100);
-  var termsLine = doc.splitTextToSize('This variation is agreed subject to KHG Security Ltd\u2019s Terms and Conditions.', pageWidth-margin*2);
-  doc.text(termsLine, margin, y); y += termsLine.length*5+6;
-  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-
-  heading('Client Sign-off');
-  line('Name', f.signatoryName);
-  line('Date', f.date);
-  if(f.clientSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.clientSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
-
-  heading('Engineer');
-  line('Name', f.engineer);
-  if(f.engineerSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.engineerSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
-
-  drawFooter();
-  var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  return { doc: doc, filename: 'Variation-'+fileSafe+'.pdf' };
-}
-
-function generateWorksCommissioningPDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var navy = [23, 34, 66];
-  var y;
-
-  function drawFooter(){
-    var page = doc.internal.getNumberOfPages();
-    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('KHG Security Ltd — Works Commissioning Certificate', margin, pageHeight-10);
-    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
-    doc.setTextColor(30,30,30);
-  }
-  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; } }
-  function heading(text){
-    ensureSpace(14); y += 3;
-    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
-    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-  }
-  function line(label, value){
-    var text = label ? (label+': '+(value||'-')) : (value||'-');
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
-  }
-  function sigBlock(img){
-    if(!img) return;
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(img, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
-
-  y = pdfHeader(doc, margin, pageWidth, navy, 'WORKS COMMISSIONING CERTIFICATE');
-  line('Job', f.jobNumber);
-  line('Site', f.site);
-  line('Customer', f.customer);
-  line('Property type', f.propertyType);
-  line('System make / model', f.makeModel);
-  line('Date', f.date);
-  line('Arrival / departure', (f.arrival||'-')+' / '+(f.departure||'-'));
-
-  heading('Works Carried Out');
-  line(null, f.works);
-  if(f.materials) line('Equipment / materials used', f.materials);
-
-  heading('Commissioning Checks');
-  (f.checks||[]).forEach(function(ch){
-    var ans = ch.answer || '-';
-    var wrapped = doc.splitTextToSize(ch.item, pageWidth-margin*2-22);
-    ensureSpace(wrapped.length*5+3);
-    doc.setFont(undefined,'normal'); doc.text(wrapped, margin, y);
-    doc.setFont(undefined,'bold');
-    if(ans==='No') doc.setTextColor(190,30,30); else doc.setTextColor(30,30,30);
-    doc.text(ans, pageWidth-margin, y, {align:'right'});
-    doc.setTextColor(30,30,30); doc.setFont(undefined,'normal');
-    y += wrapped.length*5;
-    doc.setDrawColor(215,215,215); doc.setLineWidth(0.2);
-    doc.line(margin, y-1.5, pageWidth-margin, y-1.5);
-    y += 2;
-  });
-  if(f.furtherAction){ y += 2; line('Further action / comments', f.furtherAction); }
-
-  heading('Customer Sign-off');
-  line('Name', f.signName);
-  line('Position', f.signPosition);
-  line('Date', f.date);
-  sigBlock(f.clientSignature);
-
-  heading('Engineer');
-  line('Name', f.engineer);
-  sigBlock(f.engineerSignature);
-
-  drawFooter();
-  var fileSafe = (f.site||'site').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  return { doc: doc, filename: 'Works-Commissioning-'+fileSafe+'.pdf' };
-}
-
-function generateDisconnectionPDF(sub){
-  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load \u2014 check your connection and try again'); return; }
-  var f = sub.fields;
-  var doc = new window.jspdf.jsPDF();
-  var margin = 15;
-  var pageWidth = doc.internal.pageSize.getWidth();
-  var pageHeight = doc.internal.pageSize.getHeight();
-  var navy = [23, 34, 66];
-  var y;
-
-  function drawFooter(){
-    var page = doc.internal.getNumberOfPages();
-    doc.setFont(undefined,'normal'); doc.setFontSize(8); doc.setTextColor(140,140,140);
-    doc.text('KHG Security Ltd \u2014 Disconnection Authorisation', margin, pageHeight-10);
-    doc.text('Page '+page, pageWidth-margin, pageHeight-10, {align:'right'});
-    doc.setTextColor(30,30,30);
-  }
-  function ensureSpace(needed){ if(y + needed > pageHeight - 22){ drawFooter(); doc.addPage(); y = margin; } }
-  function heading(text){
-    ensureSpace(14); y += 3;
-    doc.setFont(undefined,'bold'); doc.setFontSize(12); doc.setTextColor(navy[0],navy[1],navy[2]);
-    doc.text(text, margin, y); y += 2;
-    doc.setDrawColor(navy[0],navy[1],navy[2]); doc.setLineWidth(0.6);
-    doc.line(margin, y, pageWidth-margin, y); y += 6;
-    doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-  }
-  function line(label, value){
-    var text = label ? (label+': '+(value||'-')) : (value||'-');
-    var wrapped = doc.splitTextToSize(text, pageWidth-margin*2);
-    ensureSpace(wrapped.length*5.5+2);
-    doc.text(wrapped, margin, y); y += wrapped.length*5.5+2;
-  }
-
-  y = pdfHeader(doc, margin, pageWidth, navy, 'DISCONNECTION AUTHORISATION');
-  line('Customer', f.customerName);
-  line('Address', f.customerAddress);
-  line('Date', f.date);
-
-  ensureSpace(24);
-  doc.setFillColor(253, 235, 235);
-  doc.setDrawColor(200, 60, 60);
-  var warnLines = doc.splitTextToSize('This disconnection may reduce or compromise the security system\u2019s ability to detect or signal an event at this property. KHG Security Ltd will aim to complete any necessary repair within 14 days of this disconnection, unless another timescale is agreed in writing.', pageWidth-margin*2-8);
-  var boxHeight = warnLines.length*5+8;
-  doc.roundedRect(margin, y, pageWidth-margin*2, boxHeight, 2, 2, 'FD');
-  doc.setTextColor(150,30,30); doc.setFont(undefined,'bold'); doc.setFontSize(9.5);
-  doc.text(warnLines, margin+4, y+7);
-  y += boxHeight+8;
-  doc.setFont(undefined,'normal'); doc.setFontSize(10); doc.setTextColor(30,30,30);
-
-  heading('Details');
-  line(null, f.description);
-  line('Repair by', f.repairBy+(f.extendedAgreed?' (extended timescale agreed with customer)':''));
-
-  heading('Customer Sign-off');
-  line('Name', f.customerName);
-  line('Date', f.date);
-  if(f.customerSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.customerSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
-
-  heading('Engineer');
-  line('Name', f.engineer);
-  if(f.engineerSignature){
-    ensureSpace(30);
-    doc.setFont(undefined,'bold'); doc.text('Signature:', margin, y); y += 3;
-    try{ doc.addImage(f.engineerSignature, 'PNG', margin, y, 60, 20); y += 24; }catch(e){}
-    doc.setFont(undefined,'normal');
-  }
-
-  drawFooter();
-  var fileSafe = (f.customerName||'customer').replace(/[^a-z0-9]+/gi,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  return { doc: doc, filename: 'Disconnection-'+fileSafe+'.pdf' };
-}
 
 function renderMyFormSubmissions(c){
   var me = currentPerson();
@@ -7477,6 +7407,7 @@ var VS = {
       engineer: document.getElementById('wc-engineer').value.trim(),
       engineerSignature: getSignatureDataUrl('wc-eng-sig')
     };
+    var wcJob = lookupJobByNumber(jobNumber); if(wcJob){ fields.jobCompany = wcJob.companyName||''; }
     var submission = {
       id: uid(), formType:'works_commissioning', jobNumber: jobNumber || site,
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
@@ -7848,6 +7779,7 @@ var VS = {
       departure: document.getElementById('sr-departure').value,
       signature: document.getElementById('sr-signature').value.trim()
     };
+    var srJob = lookupJobByNumber(jobNumber); if(srJob){ fields.jobAddress = srJob.address||''; fields.jobCompany = srJob.companyName||''; }
     var submission = {
       id: uid(), formType:'service_report', jobNumber: jobNumber,
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
