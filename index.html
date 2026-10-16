@@ -3378,6 +3378,7 @@ function renderFormsScreen(){
 }
 
 function renderFormsMenu(c){
+  state.editingSubmissionId = null;
   var me = currentPerson();
   var admin = isAdminPerson(me);
   var myCount = state.formSubmissions.filter(function(s){ return s.submittedBy===(me?me.name:''); }).length;
@@ -4644,8 +4645,12 @@ function formSubmissionRowHtml(s){
     if(s.syncStatus==='failed' && s.syncError) html += '<div class="vs-item-meta">'+escapeAttr(s.syncError)+'</div>';
     html += '</div></div>';
   }
+  if(s.editedAt) html += '<div class="vs-item-meta" style="margin-top:4px;">Edited '+new Date(s.editedAt).toLocaleDateString(undefined,{day:'numeric',month:'short'})+(s.editedBy?' by '+escapeAttr(s.editedBy):'')+'</div>';
   html += '<div style="display:flex;gap:8px;margin:8px 0 16px 0;">';
   html += '<button class="vs-btn small primary" onclick="VS.downloadReportPDF(\''+s.id+'\')">Download PDF</button>';
+  if(EDITABLE_FORM_TYPES.indexOf(s.formType)!==-1){
+    html += '<button class="vs-btn small" onclick="VS.editFormSubmission(\''+s.id+'\')">Edit</button>';
+  }
   if(s.formType==='survey'){
     html += '<button class="vs-btn small" onclick="VS.editSurvey(\''+s.id+'\')">Edit / Promote</button>';
   }
@@ -5695,7 +5700,152 @@ function generateGeneralTermsPDF(){
 
 
 
+// ---------- Editing a saved form ----------
+// Re-opens the original form with every answer (and signature) filled back in.
+// Saving replaces the original submission (same id, original author/date kept)
+// and, when a ServiceM8 job is set, re-sends the updated PDF.
+function commitFormSubmission(submission){
+  var id = state.editingSubmissionId;
+  state.editingSubmissionId = null;
+  var idx = -1;
+  if(id){
+    state.formSubmissions.forEach(function(x, i){ if(x.id===id && x.formType===submission.formType) idx = i; });
+  }
+  if(idx < 0){ state.formSubmissions.push(submission); return false; }
+  var old = state.formSubmissions[idx];
+  submission.id = old.id;
+  submission.submittedBy = old.submittedBy;
+  submission.submittedAt = old.submittedAt;
+  submission.editedAt = new Date().toISOString();
+  var me = currentPerson();
+  submission.editedBy = me ? me.name : 'Unknown';
+  state.formSubmissions[idx] = submission;
+  return true;
+}
+function editSetVal(id, v){ var el = document.getElementById(id); if(el && v!==undefined && v!==null) el.value = v; }
+function editSetChecked(id, on){ var el = document.getElementById(id); if(el) el.checked = !!on; }
+function editLoadSignature(id, url){
+  if(!url || String(url).indexOf('data:')!==0) return;
+  var canvas = document.getElementById(id);
+  if(!canvas) return;
+  var img = new Image();
+  img.onload = function(){
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if(signaturePads[id]) signaturePads[id].hasContent = true; else signaturePads[id] = { hasContent:true };
+  };
+  img.src = url;
+}
+function editSetChecks(prefix, list, items){
+  items.forEach(function(item, i){
+    var a = (list||[]).filter(function(x){ return x.item===item; })[0];
+    editSetVal(prefix+i, a ? a.answer : '');
+  });
+}
+function applyFormEdit(sub){
+  var f = sub.fields || {};
+  var jn = (sub.syncStatus!=null) ? (sub.jobNumber||'') : '';
+  var t = sub.formType;
+  if(t==='service_report'){
+    editSetVal('sr-jobnumber', f.jobNumber || sub.jobNumber);
+    editSetVal('sr-systype', f.systemType); editSetVal('sr-monitoring', f.monitoringType);
+    editSetVal('sr-makemodel', f.makeModel); editSetVal('sr-backupbatt', f.backupBattery);
+    editSetVal('sr-wirelessbatt', f.wirelessBattery); editSetVal('sr-actiontaken', f.actionTaken);
+    editSetVal('sr-furtheraction', f.furtherAction);
+    editSetChecks('sr-check-', f.checks, BS9263_CHECKS);
+    editSetVal('sr-disconnected', f.disconnected); editSetVal('sr-materials', f.materials);
+    editSetVal('sr-engineer', f.engineer); editSetVal('sr-customer', f.customer);
+    editSetVal('sr-date', f.date); editSetVal('sr-arrival', f.arrival); editSetVal('sr-departure', f.departure);
+    editSetVal('sr-signature', f.signature);
+  } else if(t==='risk_assessment'){
+    editSetVal('ra-jobnumber', jn); editSetVal('ra-site', f.site); editSetVal('ra-client', f.client);
+    editSetVal('ra-sitecontact', f.siteContact); editSetVal('ra-startdate', f.startDate);
+    editSetVal('ra-enddate', f.endDate); editSetVal('ra-hours', f.hours); editSetVal('ra-scope', f.scope);
+    editSetVal('ra-prep', f.preparation); editSetVal('ra-equipment', f.equipment);
+    editSetVal('ra-process', f.workProcess); editSetVal('ra-completion', f.completion);
+    editSetVal('ra-emergency', f.emergency); editSetVal('ra-training', f.training);
+    editSetVal('ra-environmental', f.environmental); editSetVal('ra-preparedby', f.preparedBy);
+    editSetVal('ra-dateprepared', f.datePrepared);
+    var hz = f.hazards || [];
+    STANDARD_HAZARDS.forEach(function(h, i){
+      var found = hz.filter(function(x){ return x.name===h.name; })[0];
+      editSetChecked('ra-haz-'+i+'-check', !!found);
+      var wrap = document.getElementById('ra-haz-'+i+'-wrap');
+      if(wrap) wrap.style.display = found ? 'block' : 'none';
+      if(found) editSetVal('ra-haz-'+i+'-controls', found.controls);
+    });
+    var others = hz.filter(function(x){ return !STANDARD_HAZARDS.some(function(h){ return h.name===x.name; }); });
+    if(others.length){
+      editSetChecked('ra-haz-other-check', true);
+      var ow = document.getElementById('ra-haz-other-wrap'); if(ow) ow.style.display = 'block';
+      editSetVal('ra-haz-other-name', others[0].name); editSetVal('ra-haz-other-controls', others[0].controls);
+    }
+    STANDARD_PPE.forEach(function(p, i){ editSetChecked('ra-ppe-'+i, (f.ppe||[]).indexOf(p)!==-1); });
+  } else if(t==='commissioning'){
+    editSetVal('cc-jobnumber', jn); editSetVal('cc-site', f.site); editSetVal('cc-unit', f.unitRef);
+    editSetVal('cc-engineer', f.engineer); editSetVal('cc-date', f.date); editSetVal('cc-notes', f.notes);
+    COMMISSIONING_TASKS.forEach(function(task, i){
+      var a = (f.tasks||[]).filter(function(x){ return x.task===task; })[0];
+      editSetChecked('cc-task-'+i, a && a.done);
+    });
+    editLoadSignature('cc-sig', f.signature);
+  } else if(t==='handover'){
+    editSetVal('ho-jobnumber', jn); editSetVal('ho-site', f.site); editSetVal('ho-unit', f.unitRef);
+    editSetVal('ho-date', f.date); editSetVal('ho-clientname', f.clientName);
+    editSetVal('ho-clientposition', f.clientPosition); editSetVal('ho-repname', f.repName);
+    HANDOVER_ACKNOWLEDGEMENTS.forEach(function(pt, i){ editSetChecked('ho-ack-'+i, true); });
+    editLoadSignature('ho-client-sig', f.clientSignature); editLoadSignature('ho-rep-sig', f.repSignature);
+  } else if(t==='terms_acceptance'){
+    editSetVal('ta-site', f.site); editSetVal('ta-clientname', f.clientName);
+    editSetVal('ta-clientcompany', f.clientCompany); editSetVal('ta-clientposition', f.clientPosition);
+    editSetVal('ta-date', f.date); editSetChecked('ta-accept', true); editSetVal('ta-repname', f.repName);
+    editLoadSignature('ta-client-sig', f.clientSignature); editLoadSignature('ta-rep-sig', f.repSignature);
+  } else if(t==='variation'){
+    editSetVal('va-jobnumber', jn); editSetVal('va-site', f.site); editSetVal('va-proptype', f.propertyType);
+    editSetVal('va-signatoryname', f.signatoryName); editSetVal('va-signatoryposition', f.signatoryPosition);
+    editSetChecked('va-authority', true); editSetVal('va-description', f.description);
+    editSetVal('va-cost', f.cost); editSetVal('va-notes', f.notes); editSetVal('va-date', f.date);
+    editSetVal('va-engineer', f.engineer);
+    editLoadSignature('va-client-sig', f.clientSignature); editLoadSignature('va-eng-sig', f.engineerSignature);
+  } else if(t==='works_commissioning'){
+    editSetVal('wc-jobnumber', f.jobNumber || jn); editSetVal('wc-site', f.site); editSetVal('wc-customer', f.customer);
+    editSetVal('wc-proptype', f.propertyType); editSetVal('wc-makemodel', f.makeModel);
+    editSetVal('wc-works', f.works); editSetVal('wc-materials', f.materials);
+    editSetChecks('wc-check-', f.checks, WORKS_COMMISSIONING_CHECKS);
+    editSetVal('wc-furtheraction', f.furtherAction); editSetVal('wc-date', f.date);
+    editSetVal('wc-arrival', f.arrival); editSetVal('wc-departure', f.departure);
+    editSetVal('wc-signname', f.signName); editSetVal('wc-signposition', f.signPosition);
+    editSetVal('wc-engineer', f.engineer);
+    editLoadSignature('wc-client-sig', f.clientSignature); editLoadSignature('wc-eng-sig', f.engineerSignature);
+  } else if(t==='disconnection'){
+    editSetVal('dc-jobnumber', jn); editSetVal('dc-customername', f.customerName);
+    editSetVal('dc-customeraddress', f.customerAddress); editSetVal('dc-description', f.description);
+    editSetVal('dc-date', f.date); editSetVal('dc-repairby', f.repairBy);
+    VS.checkDisconnectionRepairDate();
+    editSetChecked('dc-extended', f.extendedAgreed); editSetVal('dc-engineer', f.engineer);
+    editLoadSignature('dc-customer-sig', f.customerSignature); editLoadSignature('dc-eng-sig', f.engineerSignature);
+  }
+}
+var EDITABLE_FORM_TYPES = ['service_report','risk_assessment','commissioning','handover','terms_acceptance','variation','works_commissioning','disconnection'];
+
+function showEditBanner(){
+  var c = document.getElementById('vs-forms-content');
+  if(!c) return;
+  var banner = document.createElement('div');
+  banner.style.cssText = 'background:var(--amber-dim,#3a2f10);border:1px solid var(--amber,#e0a030);border-radius:8px;padding:10px 12px;margin:0 0 14px 0;font-size:12.5px;color:var(--text);';
+  banner.innerHTML = '<b>Editing a saved report.</b> Saving replaces the original'+
+    ' <button type="button" class="vs-btn small" style="margin-left:8px;" onclick="VS.cancelEditSubmission()">Cancel</button>';
+  c.insertBefore(banner, c.firstChild);
+  var btns = c.querySelectorAll('button.vs-btn.primary');
+  for(var i=0;i<btns.length;i++){
+    var oc = btns[i].getAttribute('onclick') || '';
+    if(oc.indexOf('VS.submit')===0){ btns[i].textContent = 'Save changes'; }
+  }
+}
+
 function renderMyFormSubmissions(c){
+  state.editingSubmissionId = null;
   var me = currentPerson();
   var mine = state.formSubmissions.filter(function(s){ return s.submittedBy===(me?me.name:''); }).slice().reverse();
   var html = formsBackLink();
@@ -7201,7 +7351,25 @@ var VS = {
     renderFollowUpsScreen();
     toast('Marked resolved');
   },
-  setFormsTab:function(t){ confirmDiscardIfDirty(function(){ state.formsTab=t; renderFormsScreen(); }); },
+  setFormsTab:function(t){ confirmDiscardIfDirty(function(){ state.editingSubmissionId=null; state.formsTab=t; renderFormsScreen(); }); },
+  editFormSubmission:function(id){
+    var sub = (state.formSubmissions||[]).filter(function(x){ return x.id===id; })[0];
+    if(!sub){ toast('Report not found'); return; }
+    if(EDITABLE_FORM_TYPES.indexOf(sub.formType)===-1){ toast('This report type can\u2019t be edited'); return; }
+    state.formsTab = sub.formType;
+    renderFormsScreen();
+    applyFormEdit(sub);
+    state.editingSubmissionId = id;
+    showEditBanner();
+    resetFormDirty();
+    window.scrollTo(0,0);
+  },
+  cancelEditSubmission:function(){
+    state.editingSubmissionId = null;
+    resetFormDirty();
+    state.formsTab = 'mine';
+    renderFormsScreen();
+  },
   submitCommissioning:function(){
     var site = document.getElementById('cc-site').value.trim();
     if(!site){ toast('Enter the site name/address'); return; }
@@ -7226,7 +7394,7 @@ var VS = {
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
     };
-    state.formSubmissions.push(submission);
+    commitFormSubmission(submission);
     saveFormSubmissions();
     toast('Commissioning checklist saved'+(jobNumber?' — sending to ServiceM8…':''));
     state.formsTab = 'mine';
@@ -7261,7 +7429,7 @@ var VS = {
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
     };
-    state.formSubmissions.push(submission);
+    commitFormSubmission(submission);
     saveFormSubmissions();
     toast('Handover form saved'+(jobNumber?' — sending to ServiceM8…':''));
     state.formsTab = 'mine';
@@ -7324,7 +7492,7 @@ var VS = {
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
     };
-    state.formSubmissions.push(submission);
+    commitFormSubmission(submission);
     saveFormSubmissions();
     toast('Terms acceptance saved'+(jobNumber?' — sending to ServiceM8…':''));
     state.formsTab = 'mine';
@@ -7362,7 +7530,7 @@ var VS = {
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
     };
-    state.formSubmissions.push(submission);
+    commitFormSubmission(submission);
     saveFormSubmissions();
     toast('Variation saved'+(jobNumber?' — sending to ServiceM8…':''));
     state.formsTab = 'mine';
@@ -7413,7 +7581,7 @@ var VS = {
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
     };
-    state.formSubmissions.push(submission);
+    commitFormSubmission(submission);
     saveFormSubmissions();
     toast('Commissioning certificate saved'+(jobNumber?' — sending to ServiceM8…':''));
     state.formsTab = 'mine';
@@ -7668,26 +7836,34 @@ var VS = {
       engineer: document.getElementById('dc-engineer').value.trim(),
       engineerSignature: getSignatureDataUrl('dc-eng-sig')
     };
-    var formSubmissionId = uid();
-    state.formSubmissions.push({
-      id: formSubmissionId, formType:'disconnection', jobNumber: jobNumber || customerName,
+    var dcSubmission = {
+      id: uid(), formType:'disconnection', jobNumber: jobNumber || customerName,
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
-    });
+    };
+    var wasEdit = commitFormSubmission(dcSubmission);
+    var formSubmissionId = dcSubmission.id;
     saveFormSubmissions();
 
-    state.followUps.push({
-      id: uid(), type:'disconnection_repair',
-      customerName: customerName, customerAddress: customerAddress,
-      description: description, repairBy: repairBy,
-      createdById: me?me.id:null, createdByName: me?me.name:'Unknown',
-      createdAt: new Date().toISOString(), status:'open',
-      formSubmissionId: formSubmissionId
-    });
-    saveFollowUps();
-    sendPushNotification(officeAndAdminIds(), 'Follow-up created', customerName+': repair due by '+repairBy);
+    var existingFu = wasEdit ? (state.followUps||[]).filter(function(x){ return x.formSubmissionId===formSubmissionId; })[0] : null;
+    if(existingFu){
+      existingFu.customerName = customerName; existingFu.customerAddress = customerAddress;
+      existingFu.description = description; existingFu.repairBy = repairBy;
+      saveFollowUps();
+    } else {
+      state.followUps.push({
+        id: uid(), type:'disconnection_repair',
+        customerName: customerName, customerAddress: customerAddress,
+        description: description, repairBy: repairBy,
+        createdById: me?me.id:null, createdByName: me?me.name:'Unknown',
+        createdAt: new Date().toISOString(), status:'open',
+        formSubmissionId: formSubmissionId
+      });
+      saveFollowUps();
+      sendPushNotification(officeAndAdminIds(), 'Follow-up created', customerName+': repair due by '+repairBy);
+    }
 
-    toast('Disconnection form saved \u2014 follow-up reminder created'+(jobNumber?' \u2014 sending to ServiceM8\u2026':''));
+    toast((wasEdit?'Disconnection form updated':'Disconnection form saved \u2014 follow-up reminder created')+(jobNumber?' \u2014 sending to ServiceM8\u2026':''));
     state.formsTab = 'mine';
     resetFormDirty();
     renderFormsScreen();
@@ -7745,7 +7921,7 @@ var VS = {
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus: jobNumber ? 'pending' : null, syncError:null
     };
-    state.formSubmissions.push(raSubmission);
+    commitFormSubmission(raSubmission);
     saveFormSubmissions();
     toast('Risk assessment saved'+(jobNumber?' — sending to ServiceM8…':''));
     state.formsTab = 'mine';
@@ -7785,7 +7961,7 @@ var VS = {
       submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(),
       fields: fields, syncStatus:'pending', syncError:null
     };
-    state.formSubmissions.push(submission);
+    commitFormSubmission(submission);
     saveFormSubmissions();
     toast('Saved \u2014 sending to ServiceM8\u2026');
     state.formsTab = 'mine';
@@ -7933,6 +8109,7 @@ var VS = {
     this.startFormForJob(jobNumber, formType);
   },
   startFormForJob:function(jobNumber, formType){
+    state.editingSubmissionId = null;
     state.prefillJobNumber = jobNumber;
     closeModal();
     enterForms();
