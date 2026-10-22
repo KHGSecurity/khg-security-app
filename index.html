@@ -80,6 +80,12 @@ html, body{ margin:0; padding:0; background:var(--bg); }
   display:flex; gap:4px; overflow-x:auto; padding-bottom:0; scrollbar-width:none;
 }
 .vs-tabs::-webkit-scrollbar{display:none;}
+
+.vs-sh{ position:sticky; width:0; flex:0 0 0; align-self:stretch; z-index:4; overflow:visible; pointer-events:none; }
+.vs-sh-l{ left:0; } .vs-sh-r{ right:0; }
+.vs-sh b{ position:absolute; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; background:var(--accent); color:#0B1B33; display:none; align-items:center; justify-content:center; font-size:18px; line-height:1; font-weight:800; cursor:pointer; pointer-events:auto; box-shadow:0 1px 6px rgba(0,0,0,.45); }
+.vs-sh-l b{ left:2px; } .vs-sh-r b{ right:2px; }
+.vs-sh.on b{ display:flex; }
 .vs-tab{
   background:transparent; border:none; color:var(--muted); font-family:'Inter'; font-size:13.5px; font-weight:600;
   padding:10px 14px; cursor:pointer; white-space:nowrap; border-bottom:2px solid transparent; transition:color .15s, border-color .15s;
@@ -5481,8 +5487,8 @@ function fireDesignChecks(f){
     if(areas.indexOf('Kitchen')!==-1) add(heatish>0, 'Kitchen is protected: a heat alarm (or heat/multi-sensor) is needed there, not a smoke alarm.');
     if(devs.some(function(d){ return /kitchen/i.test(d.loc) && fireItemByName(d.type) && /smoke/.test(fireItemByName(d.type).kind); })) add(false, 'A smoke alarm is placed in the kitchen. Use a heat alarm.');
     if(/^Grade (D|F)/.test(f.grade||'') && detectors>1) add((f.interlinked||'').indexOf('Yes')===0, 'More than one alarm is fitted, so the alarms must be interlinked so all sound together.');
-    if(/^Grade A/.test(f.grade||'')) add(/Ajax|addressable|conventional/.test(f.cie||''), 'Grade A needs an EN 54-2 control panel.');
-    if(/^Grade (B|C)/.test(f.grade||'')) add(/Grade B/.test(f.cie||''), 'Grade B/C needs central control equipment.');
+    if(/^Grade A/.test(f.grade||'')) add(/Ajax|addressable|conventional/i.test(f.cie||''), 'Grade A needs an EN 54-2 control panel.');
+    if(/^Grade (B|C)/.test(f.grade||'')) add((f.cie||'')!=='' && (f.cie||'').indexOf('Not applicable')!==0, 'Grade B/C needs central control equipment.');
     if((f.occupants||[]).indexOf('Hearing impaired')!==-1) add((k.hearing||0)>0 || (f.sounderTarget||'').indexOf('hearing')!==-1, 'Hearing impaired occupant: a hearing-impaired kit (strobe and vibrating pad) is needed.');
     if((f.tenure||'').indexOf('Private rented')===0) out.push({ ok:null, text:'Rented property: the Smoke and Carbon Monoxide Alarm (England) Regulations 2015 require a smoke alarm on every storey and a CO alarm in rooms with a solid fuel appliance. Scottish and Welsh rules differ.' });
     if((f.build||'')==='New build') out.push({ ok:null, text:'New build: Building Regulations Approved Document B normally requires Grade D1 LD2 as a minimum.' });
@@ -7984,6 +7990,42 @@ function doAddItem(){
 }
 
 // ---------- Actions exposed globally ----------
+
+
+// ===== Scroll hints: arrows on horizontally scrolling menus when items are off screen =====
+function scrollHintUpdate(el){
+  var l = el.querySelector(':scope > .vs-sh-l'), r = el.querySelector(':scope > .vs-sh-r');
+  if(!l || !r) return;
+  var over = el.scrollWidth > el.clientWidth + 4;
+  l.classList.toggle('on', over && el.scrollLeft > 4);
+  r.classList.toggle('on', over && el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+}
+function scrollHintEnhance(){
+  var els = document.querySelectorAll('.vs-tabs, .vs-van-chips, [data-scroll-hint]');
+  for(var i=0;i<els.length;i++){
+    (function(el){
+      if(!el.querySelector(':scope > .vs-sh-l')){
+        var l = document.createElement('span'); l.className = 'vs-sh vs-sh-l'; l.setAttribute('aria-hidden','true');
+        l.innerHTML = '<b>&#8249;</b>';
+        l.firstChild.onclick = function(e){ e.stopPropagation(); el.scrollBy({ left:-Math.max(120, el.clientWidth*0.6), behavior:'smooth' }); };
+        var r = document.createElement('span'); r.className = 'vs-sh vs-sh-r'; r.setAttribute('aria-hidden','true');
+        r.innerHTML = '<b>&#8250;</b>';
+        r.firstChild.onclick = function(e){ e.stopPropagation(); el.scrollBy({ left:Math.max(120, el.clientWidth*0.6), behavior:'smooth' }); };
+        el.insertBefore(l, el.firstChild); el.appendChild(r);
+      }
+      if(!el._shBound){ el._shBound = true; el.addEventListener('scroll', function(){ scrollHintUpdate(el); }, { passive:true }); }
+      scrollHintUpdate(el);
+    })(els[i]);
+  }
+}
+(function(){
+  var t = null;
+  function sched(){ if(t) return; t = setTimeout(function(){ t = null; try{ scrollHintEnhance(); }catch(e){} }, 60); }
+  try{ new MutationObserver(sched).observe(document.body, { childList:true, subtree:true }); }catch(e){}
+  window.addEventListener('resize', sched);
+  window.addEventListener('load', sched);
+  setTimeout(sched, 500);
+})();
 
 var VS = {
   showHome:function(){ confirmDiscardIfDirty(showHome); },
