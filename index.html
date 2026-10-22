@@ -3653,10 +3653,10 @@ var SDP_ZONE_NUMBERS = (function(){ var a=[]; for(var i=1;i<=128;i++){ a.push(St
 var SDP_ZONE_TYPES = ['Entry/Exit','Entry Follow','Intruder','Part Set','24hr/Panic','Tamper','Fire','Other'];
 var SDP_SECURITY_GRADES = ['Grade 1','Grade 2','Grade 3','Grade 4'];
 var SDP_NOTIFICATION_OPTIONS = ['Option X - Bells only','Option B - Siren + Single link to ARC','Option C - Two links to ARC','Option D - Single link to ARC'];
-var SDP_DETECTOR_TYPES = ['Surface Door Contact','Flush Door Contact','Heavy Duty Door Contact','Roller Shutter Contact','PIR','Pet Friendly PIR','Dual Technology Detector','Pet Friendly Dual Technology Detector','360\u00b0 Motion Detector','Shock Detector','Combined Shock and Contact Detector','Beyond External Detector','Panic Button'];
+var SDP_DETECTOR_TYPES = ['Surface Door Contact','Flush Door Contact','Heavy Duty Door Contact','Roller Shutter Contact','PIR','Pet Friendly PIR','Dual Technology Detector','Pet Friendly Dual Technology Detector','360\u00b0 Motion Detector','Shock Detector','Combined Shock and Contact Detector','Beyond External Detector','Smoke Detector','Heat Detector','Panic Button'];
 var SDP_DOOR_SHOCK_TYPES = ['Surface Door Contact','Flush Door Contact','Heavy Duty Door Contact','Roller Shutter Contact','Shock Detector','Combined Shock and Contact Detector'];
-var SDP_POSITIONS = ['Front Left','Front Right','Rear Left','Rear Right','Other'];
-var SDP_POSITIONS_DOOR = ['Front Left','Front Right','Rear Left','Rear Right','Top','Bottom','Other'];
+var SDP_POSITIONS = ['Front Left','Front Right','Rear Left','Rear Right','Ceiling','Other'];
+var SDP_POSITIONS_DOOR = ['Front Left','Front Right','Rear Left','Rear Right','Top','Bottom','Ceiling','Other'];
 var SDP_MOUNTING_HEIGHTS = (function(){ var arr=[]; for(var hI=15; hI<=35; hI++){ arr.push((hI/10).toFixed(1)); } return arr; })();
 var SDP_PANEL_TYPES = ['LightSYS Plus','LightSYS Air','Risco Agility','Other'];
 var SDP_AUDIBLE_TYPES = ['External Sounder','Internal Sounder','Sounder/Strobe Combined','Other'];
@@ -4444,7 +4444,7 @@ function generateSurveyPDF(sub){
       doc.setFont(undefined,'bold'); doc.setFontSize(10);
       doc.text('Zone No. '+(p.zoneNo||'-')+'   Zone type: '+(p.zoneType||'-'), margin, y); y += 6;
       doc.setFont(undefined,'normal');
-      var sentence = 'A '+p.detectorType+' will be fitted in '+(p.room||'the property')+', mounted at a height of '+p.mountingHeight+'m, located to the '+p.position+' of the room.'+(p.notes?' ('+p.notes+')':'');
+      var sentence = 'A '+p.detectorType+' will be fitted in '+(p.room||'the property')+', mounted at a height of '+p.mountingHeight+'m, located '+(p.position==='Ceiling'?'on the ceiling':'to the '+p.position+' of the room')+'.'+(p.notes?' ('+p.notes+')':'');
       var wrapped = doc.splitTextToSize(sentence, pageWidth-margin*2);
       ensureSpace(wrapped.length*5.5+4);
       doc.text(wrapped, margin, y); y += wrapped.length*5.5+4;
