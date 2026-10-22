@@ -3441,6 +3441,7 @@ function renderFormsScreen(){
   if(state.formsTab==='service_report') return renderServiceReportForm(c);
   if(state.formsTab==='cctv_service') return renderCctvServiceForm(c);
   if(state.formsTab==='cctv_survey') return renderCctvSurveyForm(c);
+  if(state.formsTab==='fire_survey') return renderFireSurveyForm(c);
   if(state.formsTab==='risk_assessment') return renderRiskAssessmentForm(c);
   if(state.formsTab==='commissioning') return renderCommissioningForm(c);
   if(state.formsTab==='handover') return renderHandoverForm(c);
@@ -3521,6 +3522,11 @@ function renderFormsMenu(c){
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/></svg>'+
     '<span class="vs-home-tile-label">CCTV Survey (VSS)</span>'+
     '<span class="vs-home-tile-sub">Quote &amp; design proposal</span>'+
+  '</button>';
+  html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'fire_survey\')">'+
+    '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M12 3c1 3-2 4-2 7a3 3 0 0 0 6 0c0-1-.5-2-1-3 3 1 5 4 5 7a8 8 0 0 1-16 0c0-4 3-6 8-11z"/></svg>'+
+    '<span class="vs-home-tile-label">Fire Alarm Survey (SDP)</span>'+
+    '<span class="vs-home-tile-sub">BS 5839-1 / BS 5839-6</span>'+
   '</button>';
   html += '<button class="vs-home-tile" onclick="VS.setFormsTab(\'survey\')">'+
     '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><path d="M9 21V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v12"/><path d="M3 21h18"/><path d="M5 21V6a1 1 0 0 1 1-1h3v16"/><path d="M15 21V9h3a1 1 0 0 1 1 1v11"/></svg>'+
@@ -4735,7 +4741,7 @@ function generateCctvServicePDF(sub){
   return { doc: doc, filename: 'CCTV-Service-Report-Job-'+(sub.jobNumber||'unknown')+'.pdf' };
 }
 
-function resetCctvSurveyState(){ state.cctvSurveyDraft=null; state.cctvSurveyCams=null; state.cctvSurveyStage='proposal'; state.editingCctvSurveyId=null; }
+function resetCctvSurveyState(){ state.cctvSurveyDraft=null; state.cctvSurveyCams=null; state.cctvSurveyStage='proposal'; state.editingCctvSurveyId=null; resetFireSurveyState(); }
 // ---------- CCTV / VSS System Design Proposal (quote form -> SDP / Specification / As Fitted) ----------
 var CCTV_SDP_STANDARDS = [
   'BS EN 62676-4 — Video surveillance systems for use in security applications: application guidelines (operational requirement, camera selection and image quality)',
@@ -5073,6 +5079,600 @@ function generateCctvSurveyPDF(sub){
   return { doc: doc, filename: prefix+'-'+fileSafeName(f.client,'client')+'.pdf' };
 }
 
+// ===== Fire Alarm Survey (SDP) - BS 5839-1 (commercial) / BS 5839-6 (domestic) =====
+var FIRE_STD_INFO = {
+  c: { label:'Commercial / non-domestic — BS 5839-1:2017',
+       title:'BS 5839-1:2017',
+       text:'BS 5839-1 is the code of practice for the design, installation, commissioning and maintenance of fire detection and fire alarm systems in NON-DOMESTIC premises: offices, shops, factories, warehouses, schools, hotels, care homes, pubs and the shared parts of residential buildings. It is based on a fire risk assessment, gives each system a category (M, L1–L5 or P1–P2) that says where detection is needed, and sets recommendations for zoning, detector spacing, manual call points, alarm sound levels, power supplies, cabling, certification and servicing. Compliance with it is the normal way of showing a system meets the Regulatory Reform (Fire Safety) Order 2005 and insurers’ requirements.' },
+  d: { label:'Domestic — BS 5839-6:2019+A1:2020',
+       title:'BS 5839-6:2019+A1:2020',
+       text:'BS 5839-6 is the code of practice for the design, installation, commissioning and maintenance of fire detection and fire alarm systems in DOMESTIC premises: houses, bungalows, flats and maisonettes, and houses in multiple occupation. It describes six grades of equipment (Grade A to F, from a full EN 54 control panel system down to single battery smoke alarms) and three levels of protection (LD1 detection in all rooms except bathrooms and toilets; LD2 escape routes plus the rooms where fire is most likely to start; LD3 escape routes only). It also covers alarm positions, sound levels at the bedhead, interlinking, power supplies and what the householder must be given at handover.' }
+};
+var FIRE_STANDARDS = {
+  c: ['BS 5839-1:2017 — Fire detection and fire alarm systems for buildings: code of practice for design, installation, commissioning and maintenance of systems in non-domestic premises',
+      'BS EN 54 series — Fire detection and fire alarm systems: components (EN 54-2 control and indicating equipment, EN 54-3 sounders, EN 54-4 power supplies, EN 54-5 heat detectors, EN 54-7 smoke detectors, EN 54-11 manual call points, EN 54-18 input/output devices, EN 54-23 visual alarm devices, EN 54-25 radio-link components)',
+      'The Regulatory Reform (Fire Safety) Order 2005 (England and Wales) and the premises’ fire risk assessment',
+      'BS 5266-1 (emergency lighting) and BS 9999 / BS 9991 (fire safety in buildings) where relevant to the premises'],
+  d: ['BS 5839-6:2019+A1:2020 — Fire detection and fire alarm systems for buildings: code of practice for design, installation, commissioning and maintenance of systems in domestic premises',
+      'BS EN 14604 (smoke alarm devices), BS 5446-2 (heat alarms) and BS EN 50291 (carbon monoxide alarms) for Grade D, E and F alarms',
+      'BS EN 54 series — components for Grade A systems (EN 54-2 control and indicating equipment, EN 54-3 sounders, EN 54-4 power supplies, EN 54-5 heat detectors, EN 54-7 smoke detectors, EN 54-11 manual call points, EN 54-25 radio-link components)',
+      'Building Regulations Approved Document B (England), the Smoke and Carbon Monoxide Alarm (England) Regulations 2015 and the equivalent rules in Scotland, Wales and Northern Ireland, where they apply to the dwelling']
+};
+var FIRE_COM_CATS = {
+  'M — Manual only (call points and sounders, no automatic detection)':'Category M: manual call points and sounders only. There are no automatic detectors, so the system relies on people to raise the alarm.',
+  'L1 — Automatic detection throughout all areas':'Category L1: automatic detection in all areas of the building (apart from a few very low-risk spaces). Aims to give the earliest warning and the maximum time to escape and protect property.',
+  'L2 — Escape routes, rooms opening onto them and defined high-risk areas':'Category L2: detection in all escape routes and rooms opening onto them, plus defined areas of high fire risk or high value (for example plant rooms, kitchens, storerooms).',
+  'L3 — Escape routes and rooms opening onto them':'Category L3: detection in escape routes and the rooms opening onto them. Warns people before smoke reaches the escape route.',
+  'L4 — Escape routes only (corridors and stairways)':'Category L4: detection within escape routes only (corridors and stairways). It does not detect fire in rooms.',
+  'L5 — Bespoke (engineered) coverage':'Category L5: detection only where the fire risk assessment or fire engineering requires it, to meet a stated objective (for example detection in a single plant room that activates a smoke-control system).',
+  'P1 — Automatic detection throughout, to protect property':'Category P1: automatic detection in all areas, with the aim of protecting property and reducing business interruption.',
+  'P2 — Automatic detection in defined high-risk areas, to protect property':'Category P2: automatic detection only in defined areas of high fire hazard or high value, to protect property.'
+};
+var FIRE_DOM_GRADES = {
+  'Grade A — EN 54 control panel system (detectors, call points, sounders)':'Grade A: a fire detection and alarm system with a control and indicating panel conforming to EN 54-2, and EN 54 detectors, sounders and power supply (EN 54-4). The same level of equipment as a commercial system.',
+  'Grade B — Detectors and sounders with control equipment (not EN 54-2)':'Grade B: detectors and sounders connected to central control equipment that does not need to conform to EN 54-2.',
+  'Grade C — Detectors and sounders with common power supply and control':'Grade C: smoke and heat detectors and sounders connected to a common power supply (with back-up), with central control equipment.',
+  'Grade D1 — Mains alarms with sealed tamper-proof standby battery':'Grade D1: one or more mains-powered smoke or heat alarms, each with an integral tamper-proof standby battery (for example a sealed 10-year lithium cell), interlinked.',
+  'Grade D2 — Mains alarms with replaceable standby battery':'Grade D2: one or more mains-powered smoke or heat alarms, each with an integral standby battery that the householder can replace, interlinked.',
+  'Grade F1 — Battery alarms (sealed tamper-proof battery)':'Grade F1: battery-powered smoke or heat alarms with a sealed, tamper-proof battery (for example 10-year lithium).',
+  'Grade F2 — Battery alarms (replaceable battery)':'Grade F2: battery-powered smoke or heat alarms with a battery the householder replaces.'
+};
+var FIRE_DOM_LD = {
+  'LD1 — Detection in all rooms where fire could start (not bathrooms / WCs)':'LD1: detectors in the escape routes and in ALL rooms and areas in which a fire might start, except toilets and bathrooms. The highest level of protection.',
+  'LD2 — Escape routes plus rooms with a high fire risk':'LD2: detectors in the escape routes and in the rooms or areas that present a high fire risk (typically the living room and kitchen, and rooms such as a utility or boiler room or integral garage).',
+  'LD3 — Escape routes only (hallways and landings)':'LD3: detectors in the escape routes only (hallways and landings that form the route out). The minimum level of protection.'
+};
+var FIRE_DOM_AREAS = [
+  { n:'Hallway / landing / stairs (escape route)', need:3 },
+  { n:'Living / sitting room', need:2 },
+  { n:'Kitchen', need:2 },
+  { n:'Utility / boiler room', need:2 },
+  { n:'Integral garage', need:2 },
+  { n:'Dining room', need:1 },
+  { n:'Bedrooms', need:1 },
+  { n:'Study / home office', need:1 },
+  { n:'Loft room / basement', need:1 },
+  { n:'Conservatory', need:1 },
+  { n:'Bathroom / WC (not normally required)', need:9 }
+];
+var FIRE_PING = { '12 seconds':39, '24 seconds':79, '36 seconds (default)':119, '48 seconds':159, '72 seconds':200 };
+
+// kind: smoke heat multi mcp sounder vad sounderbeacon smokesounder heatsounder io rex cie door beam asp co alarm_smoke alarm_heat interlink hearing other
+var FIRE_CATALOGUE = [
+  { g:'Ajax EN54 Jeweller (wireless, EN 54-25 radio link)', std:'cd', items:[
+    { n:'Ajax EN54 FireProtect (Smoke) Jeweller', kind:'smoke', ajax:1, ref:'EN 54-7, EN 54-25' },
+    { n:'Ajax EN54 FireProtect (Heat) Jeweller', kind:'heat', ajax:1, ref:'EN 54-5, EN 54-25' },
+    { n:'Ajax EN54 FireProtect (Smoke/Sounder) Jeweller', kind:'smokesounder', ajax:1, ref:'EN 54-3, EN 54-7, EN 54-25' },
+    { n:'Ajax EN54 FireProtect (Heat/Sounder) Jeweller', kind:'heatsounder', ajax:1, ref:'EN 54-3, EN 54-5, EN 54-25' },
+    { n:'Ajax EN54 FireProtect (Sounder) Jeweller', kind:'sounder', ajax:1, ref:'EN 54-3, EN 54-25' },
+    { n:'Ajax EN54 FireProtect (Sounder/VAD) Jeweller', kind:'sounderbeacon', ajax:1, ref:'EN 54-3, EN 54-23, EN 54-25' },
+    { n:'Ajax EN54 FireProtect (VAD) Jeweller', kind:'vad', ajax:1, ref:'EN 54-23, EN 54-25' },
+    { n:'Ajax EN54 ManualCallPoint (Red) Jeweller', kind:'mcp', ajax:1, ref:'EN 54-11, EN 54-25' },
+    { n:'Ajax EN54 I/O Module (2X2) Jeweller', kind:'io', ajax:1, ref:'EN 54-18, EN 54-25' }
+  ]},
+  { g:'Generic EN 54 devices (addressable or conventional)', std:'cd', items:[
+    { n:'Optical smoke detector (EN 54-7)', kind:'smoke', ref:'EN 54-7' },
+    { n:'Heat detector Class A1R (EN 54-5)', kind:'heat', ref:'EN 54-5' },
+    { n:'Heat detector Class BR (EN 54-5, kitchens / hot areas)', kind:'heat', ref:'EN 54-5' },
+    { n:'Multi-sensor detector (optical + heat)', kind:'multi', ref:'EN 54-5, EN 54-7' },
+    { n:'Multi-criteria detector (optical + heat + CO)', kind:'multi', ref:'EN 54-5, EN 54-7, EN 54-30' },
+    { n:'Manual call point, resettable (EN 54-11)', kind:'mcp', ref:'EN 54-11' },
+    { n:'Sounder (EN 54-3)', kind:'sounder', ref:'EN 54-3' },
+    { n:'Sounder base for detector (EN 54-3)', kind:'sounder', ref:'EN 54-3' },
+    { n:'Sounder beacon (EN 54-3 and EN 54-23)', kind:'sounderbeacon', ref:'EN 54-3, EN 54-23' },
+    { n:'Visual alarm device / VAD (EN 54-23)', kind:'vad', ref:'EN 54-23' },
+    { n:'Input / output interface module (EN 54-18)', kind:'io', ref:'EN 54-18' },
+    { n:'Door holder / retainer (EN 1155)', kind:'door', ref:'EN 1155' },
+    { n:'Short-circuit isolator', kind:'other', ref:'EN 54-17' },
+    { n:'Repeater panel (EN 54-2)', kind:'other', ref:'EN 54-2' }
+  ]},
+  { g:'Generic special detection (commercial)', std:'c', items:[
+    { n:'Linear (optical beam) smoke detector (EN 54-12)', kind:'beam', ref:'EN 54-12' },
+    { n:'Aspirating smoke detection system (EN 54-20)', kind:'asp', ref:'EN 54-20' },
+    { n:'Flame detector (EN 54-10)', kind:'other', ref:'EN 54-10' }
+  ]},
+  { g:'Domestic alarms and accessories', std:'d', items:[
+    { n:'Grade D1 mains smoke alarm, sealed battery (BS EN 14604)', kind:'alarm_smoke', ref:'BS EN 14604' },
+    { n:'Grade D1 mains heat alarm, sealed battery (BS 5446-2)', kind:'alarm_heat', ref:'BS 5446-2' },
+    { n:'Grade D2 mains smoke alarm, replaceable battery (BS EN 14604)', kind:'alarm_smoke', ref:'BS EN 14604' },
+    { n:'Grade D2 mains heat alarm, replaceable battery (BS 5446-2)', kind:'alarm_heat', ref:'BS 5446-2' },
+    { n:'Grade F1 battery smoke alarm, sealed 10-year battery (BS EN 14604)', kind:'alarm_smoke', ref:'BS EN 14604' },
+    { n:'Grade F1 battery heat alarm, sealed 10-year battery (BS 5446-2)', kind:'alarm_heat', ref:'BS 5446-2' },
+    { n:'Grade F2 battery smoke alarm, replaceable battery (BS EN 14604)', kind:'alarm_smoke', ref:'BS EN 14604' },
+    { n:'Radio interlink module', kind:'interlink', ref:'' },
+    { n:'Carbon monoxide alarm (BS EN 50291)', kind:'co', ref:'BS EN 50291' },
+    { n:'Hearing-impaired kit (strobe and vibrating pad)', kind:'hearing', ref:'' }
+  ]}
+];
+function fireCatalogueFor(std){
+  var out = [];
+  FIRE_CATALOGUE.forEach(function(g){ if(g.std.indexOf(std)!==-1) out.push(g); });
+  return out;
+}
+function fireItemByName(n){
+  var r = null;
+  FIRE_CATALOGUE.forEach(function(g){ g.items.forEach(function(i){ if(i.n===n) r = i; }); });
+  return r;
+}
+var FIRE_CIE = {
+  c: ['Ajax EN54 Fire Hub Jeweller (wireless CIE, EN 54-2 / -4 / -21 / -25)', 'Generic addressable fire alarm panel (EN 54-2 / EN 54-4)', 'Generic conventional fire alarm panel (EN 54-2 / EN 54-4)'],
+  d: ['Not applicable — Grade D / F alarms (no control panel)', 'Ajax EN54 Fire Hub Jeweller (wireless CIE, EN 54-2 / -4 / -21 / -25)', 'Generic addressable fire alarm panel (EN 54-2 / EN 54-4)', 'Generic conventional fire alarm panel (EN 54-2 / EN 54-4)', 'Grade B / C control unit (not EN 54-2)']
+};
+var FIRE_ACTIVE_STANDBY = ['24 hours standby + 30 minutes alarm load', '72 hours standby + 30 minutes alarm load'];
+var FIRE_MAINTENANCE_CHECKLIST_C = ['Review of the system logbook and any false alarms or faults since the last visit','Control panel operation, indicators, fault and disablement checks','Battery condition and charger operation (standby capacity check)','Test of every manual call point and a representative sample of detectors, so that all are tested within each year','Functional test of every sounder and visual alarm device, with sound levels checked where changes have been made','Operation of every interface (door holders, lift recall, ARC link) and the cause-and-effect programme','Radio signal strength and battery status of every wireless device','Check for changes to the building that affect detection, such as new partitions, extensions or a change of use','Zone chart and logbook updated, and a service certificate issued'];
+var FIRE_MAINTENANCE_CHECKLIST_D = ['Operation of every alarm tested by pressing the test button, and interlinking checked so all alarms sound','Alarm positions and the condition of each unit checked, including cleaning of vents where dust has built up','Standby battery condition checked or replaced as required (Grade D and F)','Control panel, power supply and standby battery checked (Grades A to C)','Check that bedroom doors, furniture or new works have not affected alarm coverage or sound levels','Householder instructions reviewed, and the weekly test routine confirmed'];
+var FIRE_LIMITATIONS = 'A fire detection and alarm system gives warning of a fire so that people can escape; it does not prevent or extinguish a fire. No system can guarantee that every fire will be detected or that every person will hear or respond to the alarm. Detectors respond to smoke or heat that reaches them and can be affected by air movement, ceiling height and obstructions. Wireless systems depend on radio signal strength, which is checked at survey and commissioning and may be affected by later building work. The system depends on a reliable mains supply and on the standby battery being maintained. It is the responsibility of the premises’ responsible person (or the householder) to keep the system tested and serviced, to keep the logbook up to date and to tell KHG Security Ltd of any change to the building that could affect the system.';
+var FIRE_STD_FOOTNOTE = 'Design values in this document are KHG’s working summary of the recommendations of the standard named above. The standard itself, its current amendments and the premises’ fire risk assessment take precedence, and any departure from them is recorded in the Variations section.';
+
+var FIRE_DEVICE_HEIGHTS = ['Ceiling','Wall (high level)','Wall 1.4m (call point)','Wall 2.0m','Other'];
+
+// Section specs. only: 'c' or 'd' or undefined (both). Fields: k,label,t,opts,def,rows,ph; opts may be a function(std).
+var FIRE_SECTIONS = [
+  { title:'Client & premises', fields:[
+    { k:'client', label:'Client name', t:'text' },
+    { k:'address', label:'Client address', t:'textarea', rows:3 },
+    { k:'surveyor', label:'Surveyor / designer', t:'text', def:'@me' },
+    { k:'date', label:'Date', t:'date', def:'@today' },
+    { k:'premisesType', label:'Type of premises', t:'text', ph:'e.g. Office, Warehouse, Detached house' },
+    { k:'projectType', label:'Type of work', t:'select', opts:['New installation','Replacement of an existing system','Extension / alteration of an existing system'] }
+  ]},
+  { only:'c', title:'Premises & fire risk assessment (BS 5839-1)', intro:'BS 5839-1 starts from the fire risk assessment, which decides the system category and the evacuation strategy.', fields:[
+    { k:'fra', label:'Fire risk assessment', t:'select', opts:['Completed — copy held by KHG','Completed — customer to supply a copy','In progress','None available — customer to arrange one'] },
+    { k:'fraBy', label:'Assessor / reference / date (optional)', t:'text' },
+    { k:'responsiblePerson', label:'Responsible person / duty holder', t:'text' },
+    { k:'use', label:'Use of premises', t:'select', opts:['Office','Shop / retail','Factory / industrial','Warehouse / storage','School / education','Care home / residential care','Hotel / guest house','Healthcare','Pub / restaurant / assembly','Communal areas of flats','Mixed use','Other'] },
+    { k:'sleeping', label:'Sleeping risk', t:'select', opts:['No people sleep in the premises','People sleep in the premises (sleeping risk)'] },
+    { k:'floors', label:'Number of floors (including basement / roof)', t:'text', def:'1' },
+    { k:'floorArea', label:'Total floor area (m²)', t:'text' },
+    { k:'maxCeiling', label:'Highest ceiling (m)', t:'text', def:'3' },
+    { k:'occupancy', label:'Maximum number of people in the building', t:'text' },
+    { k:'vulnerable', label:'People who need extra consideration', t:'checks', opts:['Hearing impaired','Mobility impaired','Members of the public unfamiliar with the building','Children','People asleep','Noisy working areas (alarm may not be heard)'] },
+    { k:'evac', label:'Evacuation strategy', t:'select', opts:['Simultaneous evacuation','Phased evacuation','Progressive horizontal evacuation','Staff alarm (delayed evacuation)'] },
+    { k:'exits', label:'Number of final exits and storey exits', t:'text', def:'2' }
+  ]},
+  { only:'c', title:'System category (BS 5839-1)', intro:'The category says where automatic detection is provided. It should come from the fire risk assessment.', fields:[
+    { k:'cat', label:'System category', t:'select', opts:Object.keys(FIRE_COM_CATS), def:'L2 — Escape routes, rooms opening onto them and defined high-risk areas' },
+    { k:'catAreas', label:'Areas protected and any areas not covered (give the objective for L5)', t:'textarea', rows:3 },
+    { k:'zoneCount', label:'Number of detection zones', t:'text', def:'2' },
+    { k:'maxZoneArea', label:'Largest detection zone floor area (m², 2,000 m² maximum)', t:'text' },
+    { k:'falseRisks', label:'False alarm risks in the premises', t:'checks', opts:['Kitchen or cooking','Steam or shower rooms','Dust, fibres or fumes','Vehicle exhaust','Insects','Extreme temperatures','Aerosols or smoke from processes'] },
+    { k:'highRisk', label:'High-risk areas needing detection (plant rooms, stores, voids)', t:'text' }
+  ]},
+  { only:'d', title:'Dwelling & occupants (BS 5839-6)', intro:'BS 5839-6 grades the equipment (A to F) and sets the level of protection (LD1 to LD3) from the type of home and who lives in it.', fields:[
+    { k:'dwelling', label:'Type of dwelling', t:'select', opts:['House — detached','House — semi-detached / terraced','Bungalow','Flat / maisonette','House in multiple occupation (HMO)','Sheltered / supported housing','Holiday let'] },
+    { k:'tenure', label:'Occupancy', t:'select', opts:['Owner-occupied','Private rented (landlord)','Social housing','HMO / shared house'] },
+    { k:'storeys', label:'Number of storeys', t:'select', opts:['1','2','3','4 or more (including loft conversion)'] },
+    { k:'bedrooms', label:'Number of bedrooms', t:'text' },
+    { k:'build', label:'Building status', t:'select', opts:['Existing dwelling','New build','Refurbishment or loft conversion'] },
+    { k:'occupants', label:'Occupants who need extra consideration', t:'checks', opts:['Hearing impaired','Mobility impaired','Elderly','Young children','Smokers','Sleeps with bedroom door closed','Lives alone'] }
+  ]},
+  { only:'d', title:'Grade & level of protection (BS 5839-6)', intro:'Choose the grade of equipment and the level of protection. Tick the rooms that will have a detector.', fields:[
+    { k:'grade', label:'Grade of system', t:'select', opts:Object.keys(FIRE_DOM_GRADES), def:'Grade D1 — Mains alarms with sealed tamper-proof standby battery' },
+    { k:'ld', label:'Level of protection', t:'select', opts:Object.keys(FIRE_DOM_LD), def:'LD2 — Escape routes plus rooms with a high fire risk' },
+    { k:'areas', label:'Rooms and areas protected', t:'checks', opts:FIRE_DOM_AREAS.map(function(a){ return a.n; }) },
+    { k:'interlinked', label:'Alarms interlinked (all sound together)', t:'select', opts:['Yes — radio interlinked','Yes — hard-wired','No (single alarm only)'] },
+    { k:'coAlarm', label:'Carbon monoxide', t:'select', opts:['Not included','CO alarm(s) to BS EN 50291 included (separate from the fire system)','Customer / landlord to arrange'] }
+  ]},
+  { title:'Control equipment & power', fields:[
+    { k:'cie', label:'Control and indicating equipment', t:'select', opts:function(std){ return FIRE_CIE[std]; } },
+    { k:'cieLoc', label:'Control panel location (near the main fire service entrance)', t:'text' },
+    { k:'standby', label:'Standby power', t:'select', opts:FIRE_ACTIVE_STANDBY },
+    { k:'mains', label:'Mains supply', t:'select', opts:['Dedicated fused spur (labelled FIRE ALARM — DO NOT SWITCH OFF)','Fused spur from a lighting circuit (Grade D alarms only)','Existing supply retained (to be verified at installation)'] },
+    { k:'fusedSpurSupplied', label:'Mains supply provided by customer?', t:'select', opts:['No — KHG to provide','Yes'] },
+    { k:'pingInterval', label:'Ajax hub ping interval (sets how many devices the hub can run)', t:'select', opts:Object.keys(FIRE_PING), def:'36 seconds (default)' },
+    { k:'ajaxRex', label:'Ajax EN54 Fire ReX range extenders (quantity)', t:'text', def:'0' },
+    { k:'ajaxGland', label:'Ajax GlandBox (lateral cable entry)', t:'select', opts:['No','Yes'] },
+    { k:'radioSurvey', label:'Radio signal survey (wireless systems)', t:'select', opts:['Not applicable (wired / battery alarms)','Carried out — every device Medium or Strong signal','To be carried out before installation'] },
+    { k:'comms', label:'Panel / hub communications', t:'select', opts:['Ethernet','Wi-Fi','Cellular (SIM)','Ethernet with cellular back-up','Not applicable'] },
+    { k:'arc', label:'Remote monitoring', t:'select', opts:['None — local alarm only','Alarm receiving centre (ARC) via digital communicator','Notification to keyholders by app or SMS only'] },
+    { k:'keyholders', label:'Keyholders / persons to contact (optional)', t:'text' }
+  ]},
+  { title:'Alarm signals', fields:[
+    { k:'sounderTarget', label:'Alarm sound level target', t:'select', opts:function(std){ return std==='c' ? ['65 dB(A) in all areas, 75 dB(A) at the bedhead in sleeping areas, and at least 5 dB(A) above any background noise','65 dB(A) minimum in all areas, and 5 dB(A) above background noise'] : ['75 dB(A) at the bedhead with the bedroom door closed','Increased level plus hearing-impaired kit (strobe and vibrating pad)']; } },
+    { k:'visual', label:'Visual alarm devices (VADs)', t:'select', opts:['None required','In specific areas (hearing impaired, noisy areas, plant rooms)','Throughout the premises'] },
+    { k:'vadCat', label:'VAD coverage category (EN 54-23)', t:'select', opts:['Not applicable','Category C (ceiling mounted)','Category W (wall mounted)','Category O (open class)'] }
+  ]},
+  { only:'c', title:'Manual call points (BS 5839-1)', fields:[
+    { k:'mcpTravel', label:'Maximum travel distance to a call point', t:'select', opts:['45 m (standard)','25 m (mobility impaired occupants or high-risk areas)'] },
+    { k:'mcpHeight', label:'Mounting height (m)', t:'text', def:'1.4' },
+    { k:'mcpNotes', label:'Call point notes (optional)', t:'text', ph:'e.g. Covers fitted in public areas to prevent misuse' }
+  ]},
+  { only:'c', title:'Interfaces & cause and effect', fields:[
+    { k:'interfaces', label:'Other systems controlled by the fire alarm', t:'checks', opts:['Door holders / magnetic door release','Lift recall','Smoke ventilation / AOV','Gas shut-off','Ventilation shut-down','Access control release (fail safe)','Roller shutter / fire shutter','Sprinkler or suppression signal'] },
+    { k:'delay', label:'Delay before sounding the alarm', t:'select', opts:['No delay — alarm sounds immediately','Investigation delay (staffed premises only, agreed with the responsible person)'] },
+    { k:'causeEffect', label:'Cause and effect (what happens on an alarm)', t:'textarea', rows:3, ph:'e.g. Any detector or call point sounds all sounders in the building and signals the ARC' }
+  ]},
+  { title:'Variations, documentation & servicing', fields:[
+    { k:'variations', label:'Variations from the recommendations of the standard (write “None” if there are none)', t:'textarea', rows:3, def:'None' },
+    { k:'certBody', label:'Certification body (optional)', t:'text', ph:'e.g. NSI, SSAIB' },
+    { k:'service', label:'Servicing', t:'select', opts:['Every 6 months (recommended)','Annual','Quarterly'] },
+    { k:'training', label:'User training and logbook', t:'select', opts:['KHG to train the responsible person / householder at handover and supply a logbook','Customer to arrange'] },
+    { k:'maintVisits', label:'Maintenance visits per year', t:'text', def:'2' },
+    { k:'price', label:'Quotation price (optional, ex VAT)', t:'text', ph:'e.g. £4,850 + VAT' },
+    { k:'validDays', label:'Quotation valid for (days)', t:'text', def:'30' },
+    { k:'notes', label:'General notes (optional)', t:'textarea', rows:3 }
+  ]}
+];
+
+function fireOpts(fd, std){ return (typeof fd.opts==='function') ? fd.opts(std) : fd.opts; }
+function fireDefault(fd){
+  if(fd.def==='@me'){ var me = currentPerson(); return me ? me.name : ''; }
+  if(fd.def==='@today') return new Date().toISOString().slice(0,10);
+  if(fd.def!==undefined) return fd.def;
+  return fd.t==='checks' ? [] : '';
+}
+function fireFieldHtml(fd, val, std){
+  var id = 'fa-'+fd.k, label = '<label>'+fd.label+'</label>', h = '';
+  if(fd.t==='text') h = '<div class="vs-field">'+label+'<input id="'+id+'" value="'+escapeAttr(val)+'" placeholder="'+escapeAttr(fd.ph||'')+'"></div>';
+  else if(fd.t==='date') h = '<div class="vs-field">'+label+'<input type="date" id="'+id+'" value="'+escapeAttr(val)+'"></div>';
+  else if(fd.t==='textarea') h = '<div class="vs-field">'+label+'<textarea id="'+id+'" rows="'+(fd.rows||3)+'" placeholder="'+escapeAttr(fd.ph||'')+'">'+escapeAttr(val)+'</textarea></div>';
+  else if(fd.t==='select'){
+    var opts = fireOpts(fd, std).slice();
+    if(val && opts.indexOf(val)===-1) opts.push(val);
+    h = '<div class="vs-field">'+label+'<select id="'+id+'">'+opts.map(function(o){ return '<option value="'+escapeAttr(o)+'"'+(val===o?' selected':'')+'>'+escapeAttr(o)+'</option>'; }).join('')+'</select></div>';
+  } else if(fd.t==='checks'){
+    h = '<div class="vs-field">'+label+fd.opts.map(function(o, i){
+      return '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;color:var(--text);margin:6px 0;"><input type="checkbox" id="'+id+'-'+i+'" style="width:auto;margin-top:3px;flex-shrink:0;"'+((val||[]).indexOf(o)!==-1?' checked':'')+'>'+escapeAttr(o)+'</label>';
+    }).join('')+'</div>';
+  }
+  return h;
+}
+function fireReadField(fd){
+  var id = 'fa-'+fd.k;
+  if(fd.t==='checks') return fd.opts.filter(function(o, i){ var el = document.getElementById(id+'-'+i); return el && el.checked; });
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : undefined;
+}
+function fireDeviceRowHtml(n, d, std){
+  d = d || {};
+  var groups = fireCatalogueFor(std);
+  var cur = d.type || '';
+  var known = false;
+  var opts = groups.map(function(g){
+    return '<optgroup label="'+escapeAttr(g.g)+'">'+g.items.map(function(i){ if(i.n===cur) known = true; return '<option value="'+escapeAttr(i.n)+'"'+(i.n===cur?' selected':'')+'>'+escapeAttr(i.n)+'</option>'; }).join('')+'</optgroup>';
+  }).join('');
+  if(cur && !known) opts += '<option value="'+escapeAttr(cur)+'" selected>'+escapeAttr(cur)+'</option>';
+  return '<div class="vs-fire-dev" data-dev="'+n+'" id="fd-'+n+'" style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:6px;"><span class="fire-dev-title" style="font-family:\'Archivo\';font-weight:800;font-size:12.5px;color:var(--muted);">Device</span>'+
+    '<span><button type="button" class="vs-btn small" onclick="VS.duplicateFireDevice('+n+')">Duplicate</button> <button type="button" class="vs-btn small danger" onclick="VS.removeFireDevice('+n+')">Remove</button></span></div>'+
+    '<div class="vs-field"><label>Device</label><select id="fd-'+n+'-type">'+opts+'</select></div>'+
+    '<div class="vs-field"><label>Room / location</label><input id="fd-'+n+'-loc" list="fa-rooms" value="'+escapeAttr(d.loc||'')+'" placeholder="e.g. Ground floor corridor"></div>'+
+    '<div class="vs-field"><label>Zone / floor</label><input id="fd-'+n+'-zone" value="'+escapeAttr(d.zone||'')+'" placeholder="e.g. Zone 1, Ground floor"></div>'+
+    '<div class="vs-field"><label>Mounting</label><select id="fd-'+n+'-mount">'+FIRE_DEVICE_HEIGHTS.map(function(o){ return '<option value="'+escapeAttr(o)+'"'+((d.mount||'Ceiling')===o?' selected':'')+'>'+escapeAttr(o)+'</option>'; }).join('')+'</select></div>'+
+    '<div class="vs-field"><label>Quantity</label><input id="fd-'+n+'-qty" inputmode="numeric" value="'+escapeAttr(d.qty||'1')+'"></div>'+
+    '<div class="vs-field"><label>Notes (optional)</label><input id="fd-'+n+'-notes" value="'+escapeAttr(d.notes||'')+'"></div>'+
+  '</div>';
+}
+function fireRenumber(){
+  var t = document.querySelectorAll('#fa-devs .fire-dev-title');
+  for(var i=0;i<t.length;i++) t[i].textContent = 'Device '+(i+1);
+}
+function fireReadDevices(){
+  var out = [], rows = document.querySelectorAll('#fa-devs .vs-fire-dev');
+  var keys = ['type','loc','zone','mount','qty','notes'];
+  for(var i=0;i<rows.length;i++){
+    var n = rows[i].getAttribute('data-dev'), o = {};
+    keys.forEach(function(k){ var e = document.getElementById('fd-'+n+'-'+k); o[k] = e ? e.value.trim() : ''; });
+    out.push(o);
+  }
+  return out;
+}
+function fireStdOf(){ var el = document.getElementById('fa-std'); return el ? el.value : ''; }
+function fireReadAll(){
+  var base = {}, prev = state.fireDraft || {};
+  Object.keys(prev).forEach(function(k){ base[k] = prev[k]; });
+  base.std = fireStdOf() || prev.std || '';
+  FIRE_SECTIONS.forEach(function(sec){
+    (sec.fields||[]).forEach(function(fd){ var v = fireReadField(fd); if(v!==undefined) base[fd.k] = v; });
+  });
+  var el = document.getElementById('fa-docstage'); if(el) base._stage = el.value;
+  if(document.getElementById('fa-devs')) base.devices = fireReadDevices();
+  return base;
+}
+function resetFireSurveyState(){ state.fireDraft=null; state.fireDevs=null; state.fireStage='proposal'; state.editingFireSurveyId=null; }
+
+function renderFireSurveyForm(c){
+  var d = state.fireDraft || {};
+  var std = d.std || '';
+  var devs = (state.fireDevs && state.fireDevs.length) ? state.fireDevs : [{}];
+  state.fireSeq = devs.length;
+  var stage = state.fireStage || 'proposal';
+  var html = formsBackLink();
+  html += sectionHead('Fire Alarm Survey (SDP)');
+  html += '<p style="font-size:12.5px;color:var(--muted);margin:-6px 0 16px 0;">Choose the standard first. The questions then change to match it, and the app builds a fire alarm System Design Proposal, Specification or As Fitted document from your answers, with a design check against the standard.</p>';
+  html += '<div class="vs-field"><label>Document type</label><select id="fa-docstage"><option value="proposal"'+(stage==='proposal'?' selected':'')+'>System Design Proposal</option><option value="specification"'+(stage==='specification'?' selected':'')+'>System Specification</option><option value="as_fitted"'+(stage==='as_fitted'?' selected':'')+'>As Fitted Specification</option></select></div>';
+  html += '<div class="vs-field"><label>1. Which standard should the system be installed to?</label><select id="fa-std" onchange="VS.fireStdChanged()"><option value="">— choose the standard —</option>'+
+    ['c','d'].map(function(k){ return '<option value="'+k+'"'+(std===k?' selected':'')+'>'+escapeAttr(FIRE_STD_INFO[k].label)+'</option>'; }).join('')+'</select></div>';
+  html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;line-height:1.5;">'+
+    (std ? '<b>'+escapeAttr(FIRE_STD_INFO[std].title)+'</b><br>'+escapeAttr(FIRE_STD_INFO[std].text)
+         : '<b>BS 5839-1:2017 (commercial)</b><br>'+escapeAttr(FIRE_STD_INFO.c.text)+'<br><br><b>BS 5839-6:2019+A1:2020 (domestic)</b><br>'+escapeAttr(FIRE_STD_INFO.d.text))+
+    '</div>';
+  if(!std){ c.innerHTML = html; return; }
+  html += '<datalist id="fa-rooms">'+getSurveyRooms().map(function(r){ return '<option value="'+escapeAttr(r)+'">'; }).join('')+'</datalist>';
+  FIRE_SECTIONS.forEach(function(sec){
+    if(sec.only && sec.only!==std) return;
+    html += sectionHead(sec.title);
+    if(sec.intro) html += '<p style="font-size:12px;color:var(--muted-2);margin:-6px 0 12px 0;">'+sec.intro+'</p>';
+    sec.fields.forEach(function(fd){
+      var v = d[fd.k]!==undefined ? d[fd.k] : fireDefault(fd);
+      if(fd.t==='select' && fireOpts(fd, std).indexOf(v)===-1 && !d[fd.k]) v = fireOpts(fd, std)[0];
+      html += fireFieldHtml(fd, v, std);
+    });
+    if(sec.title.indexOf('System category')===0 || sec.title.indexOf('Grade & level')===0){
+      html += '<p style="font-size:12px;color:var(--muted);margin:-6px 0 14px 0;">'+(std==='c' ? 'Categories: M manual only; L1 all areas; L2 escape routes, rooms opening onto them and high-risk areas; L3 escape routes and rooms opening onto them; L4 escape routes only; L5 bespoke; P1 and P2 protect property. The PDF explains the category you choose.' : 'Grades: A EN 54 panel system; B and C control equipment; D mains alarms with standby battery; F battery alarms. Levels: LD1 all rooms except bathrooms and WCs; LD2 escape routes and high-risk rooms; LD3 escape routes only. The PDF explains your choices.')+'</p>';
+    }
+    if(sec.title==='Control equipment & power'){
+      html += '<p style="font-size:12px;color:var(--muted);margin:-6px 0 14px 0;">Ajax EN54 options (hub ping interval, range extenders, GlandBox) only apply when the Ajax EN54 Fire Hub is chosen above.</p>';
+    }
+  });
+  html += sectionHead('Devices & locations');
+  html += '<p style="font-size:12px;color:var(--muted-2);margin:-6px 0 12px 0;">Add every detector, call point, sounder and interface. The Ajax EN54 hub and its battery are added to the equipment list for you.</p>';
+  html += '<div id="fa-devs">'+devs.map(function(dv, i){ return fireDeviceRowHtml(i, dv, std); }).join('')+'</div>';
+  html += '<button type="button" class="vs-btn small primary" style="width:100%;margin-bottom:10px;" onclick="VS.addFireDevice()">+ Add another device</button>';
+  html += '<button type="button" class="vs-btn small" style="width:100%;margin-bottom:6px;" onclick="VS.checkFireDesign()">Check design against the standard</button>';
+  html += '<div id="fa-check" style="font-size:12.5px;margin:0 0 16px 0;"></div>';
+  html += '<button class="vs-btn primary" style="width:100%;margin-top:10px;" onclick="VS.submitFireSurvey()">Save &amp; generate document</button>';
+  c.innerHTML = html;
+  fireRenumber();
+}
+
+// ---- Design checks ----
+function fireCounts(devs){
+  var k = {};
+  (devs||[]).forEach(function(dv){
+    var it = fireItemByName(dv.type); if(!it) return;
+    var q = parseInt(dv.qty,10); if(!(q>0)) q = 1;
+    k[it.kind] = (k[it.kind]||0) + q;
+    if(it.ajax) k._ajax = (k._ajax||0) + q;
+  });
+  return k;
+}
+function fireNum(v){ var n = parseFloat(v); return isNaN(n) ? null : n; }
+function fireDesignChecks(f){
+  var out = [], std = f.std, devs = (f.devices||[]).filter(function(d){ return d.type; }), k = fireCounts(devs);
+  function add(ok, text){ out.push({ ok:ok, text:text }); }
+  var smokeish = (k.smoke||0)+(k.smokesounder||0)+(k.multi||0)+(k.alarm_smoke||0)+(k.beam||0)+(k.asp||0);
+  var heatish = (k.heat||0)+(k.heatsounder||0)+(k.alarm_heat||0)+(k.multi||0);
+  var detectors = smokeish + (k.heat||0)+(k.heatsounder||0)+(k.alarm_heat||0);
+  var sounders = (k.sounder||0)+(k.sounderbeacon||0)+(k.smokesounder||0)+(k.heatsounder||0)+(k.alarm_smoke||0)+(k.alarm_heat||0);
+  var isAjax = (f.cie||'').indexOf('Ajax')===0;
+  if(std==='c'){
+    var cat = (f.cat||'').split(' ')[0];
+    add(!!cat, 'System category chosen: '+(cat||'none')+'.');
+    if(cat && cat!=='M') add(detectors>0, 'Automatic detectors are scheduled for category '+cat+' ('+detectors+' fitted).');
+    if(cat==='L1' || cat==='P1'){
+      var fa = fireNum(f.floorArea);
+      if(fa){ add(detectors*100 >= fa, 'Indicative detector count for full coverage: about 1 detector per 100 m² of smoke coverage (floor area '+fa+' m², '+detectors+' detectors scheduled). Confirm with the detailed layout.'); }
+    }
+    var exits = fireNum(f.exits);
+    add((k.mcp||0)>0 && (!exits || (k.mcp||0)>=exits), 'Manual call points: '+(k.mcp||0)+' scheduled'+(exits ? ' against '+exits+' final and storey exits (one at each exit as a minimum)' : '')+'.');
+    add(sounders>0, 'Alarm sounders scheduled: '+sounders+'.');
+    if(f.visual && f.visual!=='None required') add((k.vad||0)+(k.sounderbeacon||0)>0, 'Visual alarm devices are required by the design and '+((k.vad||0)+(k.sounderbeacon||0))+' are scheduled.');
+    if((f.vulnerable||[]).indexOf('Hearing impaired')!==-1) add((k.vad||0)+(k.sounderbeacon||0)>0, 'Hearing impaired occupants are noted, so visual alarm devices are needed.');
+    if((f.sleeping||'').indexOf('People sleep')===0) add((f.sounderTarget||'').indexOf('75 dB(A)')!==-1, 'Sleeping risk: alarm sound target must be 75 dB(A) at the bedhead.');
+    var mz = fireNum(f.maxZoneArea);
+    if(mz!==null) add(mz<=2000, 'Largest detection zone is '+mz+' m² (limit 2,000 m² per zone on each floor).');
+    var fa2 = fireNum(f.floorArea), zc = fireNum(f.zoneCount), fl = fireNum(f.floors) || 1;
+    if(fa2 && zc) add((fa2/zc)<=2000 || (fa2/fl/zc)<=2000, 'Average zone area from '+zc+' zone(s) over '+fa2+' m² is about '+Math.round(fa2/zc)+' m².');
+    var mc = fireNum(f.maxCeiling);
+    if(mc!==null){
+      add(mc<=10.5, 'Highest ceiling is '+mc+' m. Point smoke detectors are suitable to 10.5 m; above this, beam or aspirating detection is needed.');
+      if(mc>9 && mc<=10.5 && (k.heat||0)>0) add(false, 'Ceiling above 9 m: Class A1 heat detectors are not suitable at that height.');
+    }
+    if((f.falseRisks||[]).indexOf('Kitchen or cooking')!==-1 || devs.some(function(d){ return /kitchen/i.test(d.loc); })){
+      var kitchenSmoke = devs.some(function(d){ var it = fireItemByName(d.type); return /kitchen/i.test(d.loc) && it && (it.kind==='smoke'||it.kind==='smokesounder'); });
+      add(!kitchenSmoke, 'Kitchens: use heat detectors, not smoke detectors, to avoid cooking false alarms.');
+    }
+    if((f.interfaces||[]).length) add((k.io||0)>0 || !isAjax, 'Interfaces selected: '+f.interfaces.length+'. '+(isAjax ? 'Ajax I/O Modules scheduled: '+(k.io||0)+'.' : 'Confirm panel outputs or interface modules cover each.'));
+    add((f.variations||'').length>0, 'Variations from the standard are declared (or stated as none).');
+  } else if(std==='d'){
+    var grade = (f.grade||'').split(' ')[1] || '';
+    var ld = (f.ld||'').split(' ')[0];
+    add(!!grade && !!ld, 'Grade '+grade+' and '+ld+' chosen.');
+    var areas = f.areas || [];
+    FIRE_DOM_AREAS.forEach(function(a){ a._on = areas.indexOf(a.n)!==-1; });
+    var need = ld==='LD1' ? 1 : (ld==='LD2' ? 2 : 3);
+    var missing = FIRE_DOM_AREAS.filter(function(a){ return a.need>=need && a.need<9 && !a._on; }).map(function(a){ return a.n; });
+    if(ld==='LD3') missing = FIRE_DOM_AREAS.filter(function(a){ return a.need===3 && !a._on; }).map(function(a){ return a.n; });
+    add(missing.length===0, ld+' needs: '+(missing.length ? 'these rooms are not ticked — '+missing.join(', ')+'.' : 'all required rooms and areas are ticked.'));
+    add(detectors>0, 'Detectors or alarms scheduled: '+detectors+'.');
+    var st = parseInt(f.storeys,10) || 1;
+    add(detectors>=st, 'At least one detector on every storey ('+st+' storey(s), '+detectors+' devices scheduled).');
+    if(areas.indexOf('Kitchen')!==-1) add(heatish>0, 'Kitchen is protected: a heat alarm (or heat/multi-sensor) is needed there, not a smoke alarm.');
+    if(devs.some(function(d){ return /kitchen/i.test(d.loc) && fireItemByName(d.type) && /smoke/.test(fireItemByName(d.type).kind); })) add(false, 'A smoke alarm is placed in the kitchen. Use a heat alarm.');
+    if(/^Grade (D|F)/.test(f.grade||'') && detectors>1) add((f.interlinked||'').indexOf('Yes')===0, 'More than one alarm is fitted, so the alarms must be interlinked so all sound together.');
+    if(/^Grade A/.test(f.grade||'')) add(/Ajax|addressable|conventional/.test(f.cie||''), 'Grade A needs an EN 54-2 control panel.');
+    if(/^Grade (B|C)/.test(f.grade||'')) add(/Grade B/.test(f.cie||''), 'Grade B/C needs central control equipment.');
+    if((f.occupants||[]).indexOf('Hearing impaired')!==-1) add((k.hearing||0)>0 || (f.sounderTarget||'').indexOf('hearing')!==-1, 'Hearing impaired occupant: a hearing-impaired kit (strobe and vibrating pad) is needed.');
+    if((f.tenure||'').indexOf('Private rented')===0) out.push({ ok:null, text:'Rented property: the Smoke and Carbon Monoxide Alarm (England) Regulations 2015 require a smoke alarm on every storey and a CO alarm in rooms with a solid fuel appliance. Scottish and Welsh rules differ.' });
+    if((f.build||'')==='New build') out.push({ ok:null, text:'New build: Building Regulations Approved Document B normally requires Grade D1 LD2 as a minimum.' });
+  }
+  if(k._ajax){
+    add(isAjax, 'Ajax EN54 devices are scheduled, so the Ajax EN54 Fire Hub Jeweller is needed as the control panel.');
+    var cap = FIRE_PING[f.pingInterval] || 119;
+    add(k._ajax<=cap, 'Ajax devices scheduled: '+k._ajax+'. Capacity at the chosen ping interval ('+(f.pingInterval||'36 seconds (default)')+') is '+cap+' (hub maximum 200).');
+    add((f.radioSurvey||'').indexOf('Not applicable')===-1, 'Wireless system: a radio signal survey is recorded (every device must show Medium or Strong signal).');
+  }
+  add((f.standby||'')!=='', 'Standby power duration is recorded: '+(f.standby||'not set')+'.');
+  return out;
+}
+function fireChecksHtml(list){
+  return list.map(function(r){
+    var col = r.ok===true ? 'var(--green,#3fb950)' : (r.ok===false ? 'var(--red,#f85149)' : 'var(--muted)');
+    var tag = r.ok===true ? 'OK' : (r.ok===false ? 'ATTENTION' : 'NOTE');
+    return '<div style="margin:4px 0;"><b style="color:'+col+';">'+tag+'</b> — '+escapeAttr(r.text)+'</div>';
+  }).join('');
+}
+
+function fireEquipmentTotals(f){
+  var totals = {}, order = [];
+  function add(name, q){ if(!name || !(q>0)) return; if(!totals[name]){ totals[name]=0; order.push(name); } totals[name] += q; }
+  (f.devices||[]).forEach(function(d){ if(d.type){ var q = parseInt(d.qty,10); add(d.type, q>0 ? q : 1); } });
+  var cie = f.cie || '';
+  if(cie && cie.indexOf('Not applicable')!==0){
+    add(cie.replace(/ \(.*$/, ''), 1);
+    if(cie.indexOf('Ajax')===0){
+      add(/^72/.test(f.standby||'') ? 'Ajax EN54 Internal Battery (72h)' : 'Ajax EN54 Internal Battery (24h)', 1);
+      add('Ajax EN54 Fire ReX Jeweller (range extender)', parseInt(f.ajaxRex,10)||0);
+      if(f.ajaxGland==='Yes') add('Ajax EN54 GlandBox', 1);
+    }
+  }
+  order.sort();
+  return { totals:totals, order:order };
+}
+
+function generateFireSurveyPDF(sub){
+  var doc = reportDocStart(); if(!doc) return;
+  var f = sub.fields || {};
+  var std = f.std || 'c', info = FIRE_STD_INFO[std];
+  var devs = (f.devices||[]).filter(function(d){ return d.type; });
+  var titles = { proposal:'FIRE ALARM SYSTEM DESIGN PROPOSAL', specification:'FIRE ALARM SYSTEM SPECIFICATION', as_fitted:'FIRE ALARM AS FITTED SPECIFICATION' };
+  var shortTitles = { proposal:'Fire Alarm System Design Proposal', specification:'Fire Alarm System Specification', as_fitted:'Fire Alarm As Fitted Specification' };
+  var stage = sub.docStage || 'proposal';
+  var R = newReport(doc, {
+    title: titles[stage] || titles.proposal,
+    dateText: ordinalDate(f.date),
+    addressLines: [f.client, f.address],
+    footer: 'KHG Security Ltd — '+(shortTitles[stage] || shortTitles.proposal)+' — '+info.title
+  });
+  var n = 0;
+  function sec(t){ n++; R.section(n+'.  '+t); }
+
+  sec('Client & Premises');
+  R.rows([['Client', f.client], ['Address', f.address], ['Type of Premises', f.premisesType], ['Type of Work', f.projectType], ['Designer / Surveyor', f.surveyor], ['Date', ukDateShort(f.date)]]);
+
+  sec('Standard & Scope');
+  R.rows([['Installed to', info.label]]);
+  R.y += 3;
+  R.para(info.text, { size:9 });
+  R.para('The system has been designed with reference to:', { size:9, gap:0 });
+  R.para(FIRE_STANDARDS[std].map(function(s){ return '• '+s; }).join('\n'), { size:9 });
+  R.para(FIRE_STD_FOOTNOTE, { style:'italic', size:8.5, color:[100,100,100] });
+
+  if(std==='c'){
+    sec('Premises & Fire Risk Assessment');
+    R.rows([
+      ['Fire Risk Assessment', f.fra + (f.fraBy ? ' — '+f.fraBy : '')], ['Responsible Person', f.responsiblePerson], ['Use of Premises', f.use],
+      ['Sleeping Risk', f.sleeping], ['Floors / Floor Area', (f.floors||'-')+' floor(s), '+(f.floorArea||'-')+' m²'], ['Highest Ceiling', (f.maxCeiling||'-')+' m'],
+      ['Maximum Occupancy', f.occupancy], ['Occupants Needing Extra Consideration', (f.vulnerable&&f.vulnerable.length)?f.vulnerable.join('; '):'None identified'],
+      ['Evacuation Strategy', f.evac], ['Final / Storey Exits', f.exits]
+    ]);
+    sec('System Category');
+    R.rows([['Category', f.cat], ['Detection Zones', f.zoneCount], ['Largest Zone Area', f.maxZoneArea ? f.maxZoneArea+' m²' : '-']]);
+    R.y += 3;
+    R.para(FIRE_COM_CATS[f.cat] || '', { size:9 });
+    if(f.catAreas) R.box('Areas protected / not covered', f.catAreas, 12);
+    R.rows([['False Alarm Risks', (f.falseRisks&&f.falseRisks.length)?f.falseRisks.join('; '):'None identified'], ['High-Risk Areas', f.highRisk]]);
+  } else {
+    sec('Dwelling & Occupants');
+    R.rows([
+      ['Type of Dwelling', f.dwelling], ['Occupancy', f.tenure], ['Storeys', f.storeys], ['Bedrooms', f.bedrooms], ['Building Status', f.build],
+      ['Occupants Needing Extra Consideration', (f.occupants&&f.occupants.length)?f.occupants.join('; '):'None identified']
+    ]);
+    sec('Grade & Level of Protection');
+    R.rows([['Grade', f.grade], ['Level of Protection', f.ld], ['Interlinking', f.interlinked], ['Carbon Monoxide', f.coAlarm]]);
+    R.y += 3;
+    R.para(FIRE_DOM_GRADES[f.grade] || '', { size:9 });
+    R.para(FIRE_DOM_LD[f.ld] || '', { size:9 });
+    R.rows([['Rooms and Areas Protected', (f.areas&&f.areas.length)?f.areas.join('; '):'-']]);
+  }
+
+  sec('Control Equipment & Power');
+  var isAjax = (f.cie||'').indexOf('Ajax')===0;
+  var ctl = [['Control Equipment', f.cie], ['Control Panel Location', f.cieLoc], ['Standby Power', f.standby], ['Mains Supply', f.mains+' (customer provided: '+(f.fusedSpurSupplied||'No')+')'], ['Communications', f.comms], ['Remote Monitoring', f.arc]];
+  if(f.keyholders) ctl.push(['Keyholders', f.keyholders]);
+  if(isAjax || /radio|wireless/i.test(f.radioSurvey||'') ){
+    ctl.push(['Radio Signal Survey', f.radioSurvey]);
+  }
+  if(isAjax){
+    ctl.push(['Ajax Hub Ping Interval', (f.pingInterval||'36 seconds (default)')+' — up to '+(FIRE_PING[f.pingInterval]||119)+' devices']);
+    ctl.push(['Range Extenders (ReX)', f.ajaxRex||'0']);
+  }
+  R.rows(ctl);
+  R.y += 3;
+  R.para(std==='c'
+    ? 'The mains supply is taken from a dedicated, separately protected circuit labelled FIRE ALARM — DO NOT SWITCH OFF, so that it is not affected by faults on other circuits. The standby battery will keep the system operating for the standby period shown, followed by 30 minutes at full alarm load.'
+    : 'Grade D alarms take their mains supply from a regularly used lighting circuit and have a standby battery in each unit. Grade A to C systems take a dedicated supply with a standby battery. The householder will be shown how to test the system.', { size:9 });
+  if(isAjax){
+    R.para('The Ajax EN54 Fire Hub Jeweller is an EN 54-2, EN 54-4, EN 54-21 and EN 54-25 control and indicating equipment. Ajax EN54 detectors, sounders and call points communicate by Jeweller radio and are certified to EN 54-25. A radio signal survey is carried out so that every device has Medium or Strong signal before installation is signed off, and radio-device batteries are checked at each service.', { size:9 });
+  }
+
+  sec('Device Schedule');
+  R.para('Device positions are described from the front of the building. Each position is confirmed on site against the layout rules of the standard.', { size:9 });
+  R.table(
+    [{h:'No.', w:11, align:'center'}, {h:'Device', w:64}, {h:'Location', w:46}, {h:'Zone / Floor', w:28}, {h:'Mounting', w:27}, {h:'Qty', w:14, align:'center'}],
+    devs.map(function(d, i){
+      return [String(i+1), d.type+(d.notes?'\n'+d.notes:''), d.loc||'-', d.zone||'-', d.mount||'-', d.qty||'1'];
+    })
+  );
+  R.y += 4;
+
+  sec('Alarm Signals');
+  R.rows([['Sound Level Target', f.sounderTarget], ['Visual Alarm Devices', f.visual], ['VAD Category (EN 54-23)', f.vadCat]]);
+  R.y += 3;
+  R.para(std==='c'
+    ? 'Alarm sounders will give at least 65 dB(A) in all areas, 75 dB(A) at the bedhead where people sleep, and at least 5 dB(A) above any background noise likely to persist for more than 30 seconds. Levels are measured at commissioning with doors closed.'
+    : 'Alarms will give at least 75 dB(A) at the bedhead with the bedroom door closed, so that a sleeping person is woken. Where an occupant has impaired hearing, a strobe and vibrating pad is added. Levels are checked at commissioning.', { size:9 });
+  if(std==='c'){
+    sec('Manual Call Points');
+    R.rows([['Maximum Travel Distance', f.mcpTravel], ['Mounting Height', (f.mcpHeight||'1.4')+' m (± 200 mm)'], ['Notes', f.mcpNotes]]);
+    R.y += 3;
+    R.para('A manual call point is fitted at every final exit and storey exit, on the escape routes, so that nobody has to travel further than the distance above to raise the alarm.', { size:9 });
+    sec('Interfaces & Cause and Effect');
+    R.rows([['Interfaces', (f.interfaces&&f.interfaces.length)?f.interfaces.join('; '):'None'], ['Alarm Delay', f.delay]]);
+    if(f.causeEffect) R.box('Cause and Effect', f.causeEffect, 12);
+  }
+
+  sec('Design Check Against '+info.title);
+  var checks = fireDesignChecks(f);
+  R.table(
+    [{h:'Result', w:26, align:'center'}, {h:'Check', w:164}],
+    checks.map(function(r){ return [r.ok===true ? 'OK' : (r.ok===false ? 'ATTENTION' : 'NOTE'), r.text]; })
+  );
+  R.y += 3;
+  var bad = checks.filter(function(r){ return r.ok===false; }).length;
+  R.para(bad ? bad+' item(s) marked ATTENTION must be resolved or recorded as a variation before this design is issued as compliant.' : 'No design issues were found by the check. The design remains subject to the detailed layout and site conditions.', { size:9, style: bad ? 'bold':'normal' });
+
+  sec('Variations from the Standard');
+  R.para(f.variations || 'None', { size:9 });
+
+  sec('Equipment Summary');
+  var et = fireEquipmentTotals(f);
+  R.table([{h:'Item', w:160}, {h:'Qty', w:30, align:'center'}], et.order.map(function(nm){ return [nm, 'x'+et.totals[nm]]; }));
+
+  sec('Documentation, Commissioning & Handover');
+  R.para((std==='c'
+    ? 'On completion KHG Security Ltd will provide the following in line with BS 5839-1: certificate of design, certificate of installation, certificate of commissioning and (where applicable) an acceptance certificate and verification certificate; a zone chart displayed next to the control panel; a system logbook; and operating instructions.'
+    : 'On completion KHG Security Ltd will provide the certificates recommended by BS 5839-6 (design, installation and commissioning), the manufacturers’ instructions for each alarm, and a record of the alarm positions. The householder will be shown how to test the alarms and what to do when one sounds.'), { size:9 });
+  R.rows([['Certification Body', f.certBody], ['User Training & Logbook', f.training]]);
+
+  sec('Maintenance & User Responsibilities');
+  R.para('The system will be serviced '+(f.service||'every 6 months').toLowerCase()+', with '+(f.maintVisits||'2')+' visit(s) per year. Each visit is recorded on a KHG service report and covers:', { size:9, gap:0 });
+  R.para((std==='c' ? FIRE_MAINTENANCE_CHECKLIST_C : FIRE_MAINTENANCE_CHECKLIST_D).map(function(s){ return '• '+s; }).join('\n'), { size:9 });
+  R.para(std==='c'
+    ? 'The responsible person must test a different manual call point every week (at the same time each week), record the test in the logbook, and report any fault. Repair contact (business hours and out of hours): 01565 634211'
+    : 'The householder should test the alarms weekly using the test button, keep vents clear of dust and never remove or disable an alarm. Repair contact (business hours and out of hours): 01565 634211', { size:9 });
+
+  sec('Limitations & Notes');
+  R.para(FIRE_LIMITATIONS, { size:9 });
+  R.para(SDP_HOURS_NOTE, { size:9 });
+  R.para(SDP_RESPONSIBILITY_NOTE, { size:9 });
+  if(f.notes) R.para('Notes: '+f.notes, { size:9 });
+  if(f.price) R.rows([['Quotation Price', f.price], ['Valid For', (f.validDays||'30')+' days from '+ordinalDate(f.date)]]);
+
+  sec('Designer’s Declaration');
+  R.para('I declare that the system described in this document has been designed in accordance with the recommendations of '+info.title+', except for the variations listed above.', { size:9 });
+  R.rows([['Designer', f.surveyor], ['Company', 'KHG Security Ltd'], ['Date', ukDateShort(f.date)]]);
+
+  sec('Terms & Conditions');
+  R.para(GENERAL_TERMS_INTRO, { size:8.5 });
+  GENERAL_TERMS_SECTIONS.forEach(function(s){ R.subhead(s.heading); R.para(s.body, { size:8.5 }); });
+
+  R.finish();
+  var prefix = { proposal:'Fire-SDP', specification:'Fire-Spec', as_fitted:'Fire-As-Fitted' }[stage] || 'Fire-SDP';
+  return { doc: doc, filename: prefix+'-'+fileSafeName(f.client,'client')+'.pdf' };
+}
+
 function renderServiceReportForm(c){
   var me = currentPerson();
   var html = formsBackLink();
@@ -5221,6 +5821,7 @@ function formSubmissionRowHtml(s){
   var stageLabels = { proposal:'SURVEY - PROPOSAL', specification:'SURVEY - SPECIFICATION', as_fitted:'SURVEY - AS FITTED' };
   if(s.formType==='survey') badgeByType.survey = stageLabels[s.docStage] || 'SURVEY - PROPOSAL';
   if(s.formType==='cctv_survey') badgeByType.cctv_survey = 'CCTV ' + (stageLabels[s.docStage] || 'SURVEY - PROPOSAL');
+  if(s.formType==='fire_survey') badgeByType.fire_survey = 'FIRE ' + (stageLabels[s.docStage] || 'SURVEY - PROPOSAL');
   // Once a form has been attached to a ServiceM8 job (syncStatus set), show the
   // real sync status instead of the static type badge, even for form types that
   // don't always sync (e.g. a Risk Assessment with no job picked stays static).
@@ -5250,6 +5851,9 @@ function formSubmissionRowHtml(s){
   }
   if(s.formType==='cctv_survey'){
     html += '<button class="vs-btn small" onclick="VS.editCctvSurvey(\''+s.id+'\')">Edit / Promote</button>';
+  }
+  if(s.formType==='fire_survey'){
+    html += '<button class="vs-btn small" onclick="VS.editFireSurvey(\''+s.id+'\')">Edit / Promote</button>';
   }
   if(!noSyncType && s.syncStatus==='failed'){
     html += '<button class="vs-btn small" onclick="VS.retryFormSync(\''+s.id+'\')">Retry sync</button>';
@@ -5288,6 +5892,7 @@ function buildFormPdf(sub){
   if(sub.formType==='works_commissioning') return generateWorksCommissioningPDF(sub);
   if(sub.formType==='cctv_service') return generateCctvServicePDF(sub);
   if(sub.formType==='cctv_survey') return generateCctvSurveyPDF(sub);
+  if(sub.formType==='fire_survey') return generateFireSurveyPDF(sub);
   if(sub.formType==='disconnection') return generateDisconnectionPDF(sub);
   if(sub.formType==='survey') return generateSurveyPDF(sub);
   return generateServiceReportPDF(sub);
@@ -8654,6 +9259,80 @@ var VS = {
     state.cctvSurveyStage = sub.docStage || 'proposal';
     state.editingCctvSurveyId = id;
     state.formsTab = 'cctv_survey';
+    resetFormDirty();
+    renderFormsScreen();
+    window.scrollTo(0,0);
+  },
+  addFireDevice:function(){
+    var wrap = document.getElementById('fa-devs'); if(!wrap) return;
+    state.fireSeq = (state.fireSeq||0) + 1000;
+    wrap.insertAdjacentHTML('beforeend', fireDeviceRowHtml(state.fireSeq, {}, fireStdOf()));
+    fireRenumber(); markFormDirty();
+  },
+  duplicateFireDevice:function(n){
+    var wrap = document.getElementById('fa-devs'), src = document.getElementById('fd-'+n); if(!wrap || !src) return;
+    var keys = ['type','loc','zone','mount','qty','notes'], o = {};
+    keys.forEach(function(k){ var e = document.getElementById('fd-'+n+'-'+k); o[k] = e ? e.value : ''; });
+    state.fireSeq = (state.fireSeq||0) + 1000;
+    src.insertAdjacentHTML('afterend', fireDeviceRowHtml(state.fireSeq, o, fireStdOf()));
+    fireRenumber(); markFormDirty();
+  },
+  removeFireDevice:function(n){
+    var el = document.getElementById('fd-'+n), wrap = document.getElementById('fa-devs');
+    if(!el || !wrap) return;
+    if(wrap.querySelectorAll('.vs-fire-dev').length<=1){ toast('At least one device is needed'); return; }
+    el.parentNode.removeChild(el); fireRenumber(); markFormDirty();
+  },
+  fireStdChanged:function(){
+    var f = fireReadAll();
+    state.fireDraft = f;
+    if(f._stage) state.fireStage = f._stage;
+    if(f.devices) state.fireDevs = f.devices;
+    markFormDirty();
+    renderFormsScreen();
+  },
+  checkFireDesign:function(){
+    var f = fireReadAll(), box = document.getElementById('fa-check'); if(!box) return;
+    f.devices = (f.devices||[]).filter(function(d){ return d.type; });
+    box.innerHTML = fireChecksHtml(fireDesignChecks(f));
+  },
+  submitFireSurvey:function(){
+    var f = fireReadAll();
+    if(!f.std){ toast('Choose the standard first'); return; }
+    if(!f.client){ toast('Enter the client name'); return; }
+    f.devices = (f.devices||[]).filter(function(d){ return d.type && d.loc; });
+    if(!f.devices.length){ toast('Add at least one device with a location'); return; }
+    var docStage = f._stage || 'proposal'; delete f._stage;
+    var bad = fireDesignChecks(f).filter(function(r){ return r.ok===false; });
+    if(bad.length && !confirm(bad.length+' design check(s) need attention:\n\n- '+bad.map(function(r){ return r.text; }).join('\n- ')+'\n\nSave anyway?')) return;
+    var me = currentPerson();
+    if(state.editingFireSurveyId){
+      var existing = state.formSubmissions.filter(function(s){ return s.id===state.editingFireSurveyId; })[0];
+      if(existing){
+        existing.fields = f; existing.docStage = docStage; existing.jobNumber = f.client;
+        existing.lastEditedBy = me?me.name:'Unknown'; existing.lastEditedAt = new Date().toISOString();
+      }
+    } else {
+      state.formSubmissions.push({
+        id: uid(), formType:'fire_survey', jobNumber: f.client, docStage: docStage,
+        submittedBy: me?me.name:'Unknown', submittedAt: new Date().toISOString(), fields: f
+      });
+    }
+    saveFormSubmissions();
+    toast('Fire alarm survey saved');
+    resetFireSurveyState();
+    state.formsTab = 'mine';
+    resetFormDirty();
+    renderFormsScreen();
+  },
+  editFireSurvey:function(id){
+    var sub = (state.formSubmissions||[]).filter(function(s){ return s.id===id; })[0];
+    if(!sub || sub.formType!=='fire_survey') return;
+    state.fireDraft = sub.fields;
+    state.fireDevs = (sub.fields.devices||[]).slice();
+    state.fireStage = sub.docStage || 'proposal';
+    state.editingFireSurveyId = id;
+    state.formsTab = 'fire_survey';
     resetFormDirty();
     renderFormsScreen();
     window.scrollTo(0,0);
