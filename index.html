@@ -5087,17 +5087,18 @@ function generateCctvSurveyPDF(sub){
 
 // ===== Fire Alarm Survey (SDP) - BS 5839-1 (commercial) / BS 5839-6 (domestic) =====
 var FIRE_STD_INFO = {
-  c: { label:'Commercial / non-domestic — BS 5839-1:2017',
-       title:'BS 5839-1:2017',
-       text:'BS 5839-1 is the code of practice for the design, installation, commissioning and maintenance of fire detection and fire alarm systems in NON-DOMESTIC premises: offices, shops, factories, warehouses, schools, hotels, care homes, pubs and the shared parts of residential buildings. It is based on a fire risk assessment, gives each system a category (M, L1–L5 or P1–P2) that says where detection is needed, and sets recommendations for zoning, detector spacing, manual call points, alarm sound levels, power supplies, cabling, certification and servicing. Compliance with it is the normal way of showing a system meets the Regulatory Reform (Fire Safety) Order 2005 and insurers’ requirements.' },
+  c: { label:'Commercial / non-domestic — BS 5839-1:2025',
+       title:'BS 5839-1:2025',
+       text:'BS 5839-1 is the code of practice for the design, installation, commissioning, maintenance and false alarm management of fire detection and fire alarm systems in NON-DOMESTIC premises: offices, shops, factories, warehouses, schools, hotels, residential care premises, pubs and the shared parts of residential buildings. The 2025 edition took effect on 30 April 2025 and replaced BS 5839-1:2017. It is based on a fire risk assessment, gives each system a category (M, L1–L5 or P1–P2) that says where detection is needed, and sets recommendations for zoning and zone plans, detector siting, manual call points, alarm sound levels, power supplies, cabling, alarm transmission to an alarm receiving centre, cyber security, certification, servicing and false alarm investigation. Compliance with it is the normal way of showing a system meets the Regulatory Reform (Fire Safety) Order 2005 and insurers’ requirements.' },
   d: { label:'Domestic — BS 5839-6:2019+A1:2020',
        title:'BS 5839-6:2019+A1:2020',
-       text:'BS 5839-6 is the code of practice for the design, installation, commissioning and maintenance of fire detection and fire alarm systems in DOMESTIC premises: houses, bungalows, flats and maisonettes, and houses in multiple occupation. It describes six grades of equipment (Grade A to F, from a full EN 54 control panel system down to single battery smoke alarms) and three levels of protection (LD1 detection in all rooms except bathrooms and toilets; LD2 escape routes plus the rooms where fire is most likely to start; LD3 escape routes only). It also covers alarm positions, sound levels at the bedhead, interlinking, power supplies and what the householder must be given at handover.' }
+       text:'BS 5839-6 is the code of practice for the design, installation, commissioning and maintenance of fire detection and fire alarm systems in DOMESTIC premises: houses, bungalows, flats and maisonettes, houses in multiple occupation, sheltered and supported housing, and the communal systems of blocks of flats. The 2019 edition (with Amendment 1:2020) is the current one. It describes six grades of equipment (A, C, D1, D2, F1 and F2, from a full EN 54 control panel system down to single battery smoke alarms; Grades B and E were removed in 2019) and three levels of protection (LD1 detection in all rooms except bathrooms and toilets; LD2 escape routes plus high-risk rooms, including the kitchen and the main living room; LD3 escape routes only, which is limited to owner-occupied bungalows, flats and two-storey houses). It also covers alarm positions, sound levels at the bedhead, interlinking, power supplies, supported housing and what the householder must be given at handover.' }
 };
 var FIRE_STANDARDS = {
-  c: ['BS 5839-1:2017 — Fire detection and fire alarm systems for buildings: code of practice for design, installation, commissioning and maintenance of systems in non-domestic premises',
-      'BS EN 54 series — Fire detection and fire alarm systems: components (EN 54-2 control and indicating equipment, EN 54-3 sounders, EN 54-4 power supplies, EN 54-5 heat detectors, EN 54-7 smoke detectors, EN 54-11 manual call points, EN 54-18 input/output devices, EN 54-23 visual alarm devices, EN 54-25 radio-link components)',
+  c: ['BS 5839-1:2025 — Fire detection and fire alarm systems for buildings: code of practice for design, installation, commissioning, maintenance and false alarm management of systems in non-domestic premises (supersedes BS 5839-1:2017)',
+      'BS EN 54 series — Fire detection and fire alarm systems: components (EN 54-2 control and indicating equipment, EN 54-3 sounders, EN 54-4 power supplies, EN 54-5 heat detectors, EN 54-7 smoke detectors, EN 54-11 manual call points, EN 54-18 input/output devices, EN 54-23 visual alarm devices, EN 54-25 radio-link components, EN 54-22 and EN 54-28 linear heat detection cable)',
       'The Regulatory Reform (Fire Safety) Order 2005 (England and Wales) and the premises’ fire risk assessment',
+      'BS EN 54-4 or BS EN 50131-6 Grade 4 for the power supply of alarm transmission equipment, where the system is monitored',
       'BS 5266-1 (emergency lighting) and BS 9999 / BS 9991 (fire safety in buildings) where relevant to the premises'],
   d: ['BS 5839-6:2019+A1:2020 — Fire detection and fire alarm systems for buildings: code of practice for design, installation, commissioning and maintenance of systems in domestic premises',
       'BS EN 14604 (smoke alarm devices), BS 5446-2 (heat alarms) and BS EN 50291 (carbon monoxide alarms) for Grade D, E and F alarms',
@@ -5107,26 +5108,25 @@ var FIRE_STANDARDS = {
 var FIRE_COM_CATS = {
   'M — Manual only (call points and sounders, no automatic detection)':'Category M: manual call points and sounders only. There are no automatic detectors, so the system relies on people to raise the alarm.',
   'L1 — Automatic detection throughout all areas':'Category L1: automatic detection in all areas of the building (apart from a few very low-risk spaces). Aims to give the earliest warning and the maximum time to escape and protect property.',
-  'L2 — Escape routes, rooms opening onto them and defined high-risk areas':'Category L2: detection in all escape routes and rooms opening onto them, plus defined areas of high fire risk or high value (for example plant rooms, kitchens, storerooms).',
+  'L2 — Escape routes, rooms opening onto them and defined high-risk areas':'Category L2: detection in all escape routes (including stairway lobbies) and rooms opening onto them, plus defined areas of high fire risk or high value (for example plant rooms, kitchens, storerooms). Under BS 5839-1:2025, rooms where people sleep are treated as high-risk rooms and are protected in Category L2, and smoke (or multi-sensor) detection is used there, not heat detection.',
   'L3 — Escape routes and rooms opening onto them':'Category L3: detection in escape routes and the rooms opening onto them. Warns people before smoke reaches the escape route.',
-  'L4 — Escape routes only (corridors and stairways)':'Category L4: detection within escape routes only (corridors and stairways). It does not detect fire in rooms.',
+  'L4 — Escape routes only (corridors and stairways)':'Category L4: detection within escape routes only (corridors and stairways), including stairway lobbies. It does not detect fire in rooms. A detector is recommended at the top of lift shafts and similar flue-like structures.',
   'L5 — Bespoke (engineered) coverage':'Category L5: detection only where the fire risk assessment or fire engineering requires it, to meet a stated objective (for example detection in a single plant room that activates a smoke-control system).',
   'P1 — Automatic detection throughout, to protect property':'Category P1: automatic detection in all areas, with the aim of protecting property and reducing business interruption.',
   'P2 — Automatic detection in defined high-risk areas, to protect property':'Category P2: automatic detection only in defined areas of high fire hazard or high value, to protect property.'
 };
 var FIRE_DOM_GRADES = {
-  'Grade A — EN 54 control panel system (detectors, call points, sounders)':'Grade A: a fire detection and alarm system with a control and indicating panel conforming to EN 54-2, and EN 54 detectors, sounders and power supply (EN 54-4). The same level of equipment as a commercial system.',
-  'Grade B — Detectors and sounders with control equipment (not EN 54-2)':'Grade B: detectors and sounders connected to central control equipment that does not need to conform to EN 54-2.',
-  'Grade C — Detectors and sounders with common power supply and control':'Grade C: smoke and heat detectors and sounders connected to a common power supply (with back-up), with central control equipment.',
+  'Grade A — EN 54 control panel system (detectors, call points, sounders)':'Grade A: separate detectors, sounders and central control equipment, with a back-up power supply, all conforming to BS EN 54 (control and indicating equipment to EN 54-2, power supply to EN 54-4). The same level of equipment as a commercial system, and the grade needed for supported housing.',
+  'Grade C — Mains detectors and sounders with back-up power and central control':'Grade C: separate mains-powered smoke and heat detectors and sounders, with back-up power (battery) and central control equipment.',
   'Grade D1 — Mains alarms with sealed tamper-proof standby battery':'Grade D1: one or more mains-powered smoke or heat alarms, each with an integral tamper-proof standby battery (for example a sealed 10-year lithium cell), interlinked.',
   'Grade D2 — Mains alarms with replaceable standby battery':'Grade D2: one or more mains-powered smoke or heat alarms, each with an integral standby battery that the householder can replace, interlinked.',
   'Grade F1 — Battery alarms (sealed tamper-proof battery)':'Grade F1: battery-powered smoke or heat alarms with a sealed, tamper-proof battery (for example 10-year lithium).',
   'Grade F2 — Battery alarms (replaceable battery)':'Grade F2: battery-powered smoke or heat alarms with a battery the householder replaces.'
 };
 var FIRE_DOM_LD = {
-  'LD1 — Detection in all rooms where fire could start (not bathrooms / WCs)':'LD1: detectors in the escape routes and in ALL rooms and areas in which a fire might start, except toilets and bathrooms. The highest level of protection.',
-  'LD2 — Escape routes plus rooms with a high fire risk':'LD2: detectors in the escape routes and in the rooms or areas that present a high fire risk (typically the living room and kitchen, and rooms such as a utility or boiler room or integral garage).',
-  'LD3 — Escape routes only (hallways and landings)':'LD3: detectors in the escape routes only (hallways and landings that form the route out). The minimum level of protection.'
+  'LD1 — Detection in all rooms where fire could start (not bathrooms / WCs)':'LD1: detectors in the escape routes and in ALL rooms and areas in which a fire might start, except toilets and bathrooms. The highest level of protection, and the level used for sheltered housing flats.',
+  'LD2 — Escape routes plus rooms with a high fire risk':'LD2: detectors in the escape routes and in the rooms that present a high fire risk, which include the kitchen and the principal habitable room (usually the living room), and rooms such as a utility or boiler room or integral garage.',
+  'LD3 — Escape routes only (hallways and landings)':'LD3: detectors in the escape routes only (hallways and landings that form the route out). The minimum level of protection, which BS 5839-6:2019 limits to owner-occupied bungalows, flats and maisonettes (no floor more than 4.5 m above ground), and owner-occupied two-storey houses.',
 };
 var FIRE_DOM_AREAS = [
   { n:'Hallway / landing / stairs (escape route)', need:3 },
@@ -5202,13 +5202,13 @@ function fireItemByName(n){
 }
 var FIRE_CIE = {
   c: ['Ajax EN54 Fire Hub Jeweller (wireless CIE, EN 54-2 / -4 / -21 / -25)', 'Generic addressable fire alarm panel (EN 54-2 / EN 54-4)', 'Generic conventional fire alarm panel (EN 54-2 / EN 54-4)'],
-  d: ['Not applicable — Grade D / F alarms (no control panel)', 'Ajax EN54 Fire Hub Jeweller (wireless CIE, EN 54-2 / -4 / -21 / -25)', 'Generic addressable fire alarm panel (EN 54-2 / EN 54-4)', 'Generic conventional fire alarm panel (EN 54-2 / EN 54-4)', 'Grade B / C control unit (not EN 54-2)']
+  d: ['Not applicable — Grade D / F alarms (no control panel)', 'Ajax EN54 Fire Hub Jeweller (wireless CIE, EN 54-2 / -4 / -21 / -25)', 'Generic addressable fire alarm panel (EN 54-2 / EN 54-4)', 'Generic conventional fire alarm panel (EN 54-2 / EN 54-4)', 'Grade C control equipment (mains detectors, back-up power, central control)']
 };
 var FIRE_ACTIVE_STANDBY = ['24 hours standby + 30 minutes alarm load', '72 hours standby + 30 minutes alarm load'];
-var FIRE_MAINTENANCE_CHECKLIST_C = ['Review of the system logbook and any false alarms or faults since the last visit','Control panel operation, indicators, fault and disablement checks','Battery condition and charger operation (standby capacity check)','Test of every manual call point and a representative sample of detectors, so that all are tested within each year','Functional test of every sounder and visual alarm device, with sound levels checked where changes have been made','Operation of every interface (door holders, lift recall, ARC link) and the cause-and-effect programme','Radio signal strength and battery status of every wireless device','Check for changes to the building that affect detection, such as new partitions, extensions or a change of use','Zone chart and logbook updated, and a service certificate issued'];
+var FIRE_MAINTENANCE_CHECKLIST_C = ['Review of the system logbook and the false alarms and faults since the last visit, including the false alarm rate (100 × false alarms ÷ number of automatic detectors)','Control panel operation, indicators, fault and disablement checks, with the panel clock checked and corrected','Battery condition and charger operation (standby capacity check), with the installation date marked on each battery','Test of every manual call point and a representative sample of detectors, so that all are tested within each year; smoke detectors in ventilation ducts functionally tested at the 12-monthly visit','Functional test of every sounder and visual alarm device, with sound levels checked where changes have been made','Alarm receiving centre signals checked at every visit (each signal type, such as fire and fault, received correctly)','Interfaces (door holders, lift recall, ARC link) tested and confirmed accessible for maintenance, and the cause-and-effect programme checked','Zone identification on the panel checked against the zone plan; remote indicators checked to be unobstructed','Radio signal strength and battery status of every wireless device','Check for changes to the building that affect detection, such as new partitions, extensions or a change of use; redundant equipment removed or clearly marked out of use','Logbook and zone plan updated, and a service certificate issued'];
 var FIRE_MAINTENANCE_CHECKLIST_D = ['Operation of every alarm tested by pressing the test button, and interlinking checked so all alarms sound','Alarm positions and the condition of each unit checked, including cleaning of vents where dust has built up','Standby battery condition checked or replaced as required (Grade D and F)','Control panel, power supply and standby battery checked (Grades A to C)','Check that bedroom doors, furniture or new works have not affected alarm coverage or sound levels','Householder instructions reviewed, and the weekly test routine confirmed'];
 var FIRE_LIMITATIONS = 'A fire detection and alarm system gives warning of a fire so that people can escape; it does not prevent or extinguish a fire. No system can guarantee that every fire will be detected or that every person will hear or respond to the alarm. Detectors respond to smoke or heat that reaches them and can be affected by air movement, ceiling height and obstructions. Wireless systems depend on radio signal strength, which is checked at survey and commissioning and may be affected by later building work. The system depends on a reliable mains supply and on the standby battery being maintained. It is the responsibility of the premises’ responsible person (or the householder) to keep the system tested and serviced, to keep the logbook up to date and to tell KHG Security Ltd of any change to the building that could affect the system.';
-var FIRE_STD_FOOTNOTE = 'Design values in this document are KHG’s working summary of the recommendations of the standard named above. The standard itself, its current amendments and the premises’ fire risk assessment take precedence, and any departure from them is recorded in the Variations section.';
+var FIRE_STD_FOOTNOTE = 'Design values in this document are KHG’s working summary of the recommendations of the standard named above, including the changes introduced by BS 5839-1:2025 (which replaced the 2017 edition from 30 April 2025). The standard itself, its current amendments and the premises’ fire risk assessment take precedence, and any departure from them is recorded, with its justification, in the Variations section.';
 
 var FIRE_DEVICE_HEIGHTS = ['Ceiling','Wall (high level)','Wall 1.4m (call point)','Wall 2.0m','Other'];
 
@@ -5226,7 +5226,7 @@ var FIRE_SECTIONS = [
     { k:'fra', label:'Fire risk assessment', t:'select', opts:['Completed — copy held by KHG','Completed — customer to supply a copy','In progress','None available — customer to arrange one'] },
     { k:'fraBy', label:'Assessor / reference / date (optional)', t:'text' },
     { k:'responsiblePerson', label:'Responsible person / duty holder', t:'text' },
-    { k:'use', label:'Use of premises', t:'select', opts:['Office','Shop / retail','Factory / industrial','Warehouse / storage','School / education','Care home / residential care','Hotel / guest house','Healthcare','Pub / restaurant / assembly','Communal areas of flats','Mixed use','Other'] },
+    { k:'use', label:'Use of premises', t:'select', opts:['Office','Shop / retail','Factory / industrial','Warehouse / storage','School / education','Residential care premises','Hotel / guest house','Healthcare','Pub / restaurant / assembly','Communal areas of flats','Mixed use','Other'] },
     { k:'sleeping', label:'Sleeping risk', t:'select', opts:['No people sleep in the premises','People sleep in the premises (sleeping risk)'] },
     { k:'floors', label:'Number of floors (including basement / roof)', t:'text', def:'1' },
     { k:'floorArea', label:'Total floor area (m²)', t:'text' },
@@ -5240,6 +5240,7 @@ var FIRE_SECTIONS = [
     { k:'cat', label:'System category', t:'select', opts:Object.keys(FIRE_COM_CATS), def:'L2 — Escape routes, rooms opening onto them and defined high-risk areas' },
     { k:'catAreas', label:'Areas protected and any areas not covered (give the objective for L5)', t:'textarea', rows:3 },
     { k:'zoneCount', label:'Number of detection zones', t:'text', def:'2' },
+    { k:'zonePlan', label:'Zone plan (required wherever there is more than one zone on a storey)', t:'select', opts:['Zone plan displayed next to the control panel','Not required (one zone per storey)'] },
     { k:'maxZoneArea', label:'Largest detection zone floor area (m², 2,000 m² maximum)', t:'text' },
     { k:'falseRisks', label:'False alarm risks in the premises', t:'checks', opts:['Kitchen or cooking','Steam or shower rooms','Dust, fibres or fumes','Vehicle exhaust','Insects','Extreme temperatures','Aerosols or smoke from processes'] },
     { k:'highRisk', label:'High-risk areas needing detection (plant rooms, stores, voids)', t:'text' }
@@ -5270,28 +5271,29 @@ var FIRE_SECTIONS = [
     { k:'ajaxGland', label:'Ajax GlandBox (lateral cable entry)', t:'select', opts:['No','Yes'] },
     { k:'radioSurvey', label:'Radio signal survey (wireless systems)', t:'select', opts:['Not applicable (wired / battery alarms)','Carried out — every device Medium or Strong signal','To be carried out before installation'] },
     { k:'comms', label:'Panel / hub communications', t:'select', opts:['Ethernet','Wi-Fi','Cellular (SIM)','Ethernet with cellular back-up','Not applicable'] },
-    { k:'arc', label:'Remote monitoring', t:'select', opts:['None — local alarm only','Alarm receiving centre (ARC) via digital communicator','Notification to keyholders by app or SMS only'] },
-    { k:'keyholders', label:'Keyholders / persons to contact (optional)', t:'text' }
+    { k:'arc', label:'Remote monitoring', t:'select', opts:['None — local alarm only','Alarm receiving centre (ARC) via digital communicator (IP / cellular)','Notification to keyholders by app or SMS only'] },
+    { k:'keyholders', label:'Keyholders / persons to contact (optional)', t:'text' },
+    { k:'remoteAccess', label:'Remote access to the panel (cyber security, BS 5839-1:2025)', t:'select', opts:['No remote access','Remote status viewing only','Remote control or programming (cyber security risk assessment required)'] }
   ]},
   { title:'Alarm signals', fields:[
     { k:'sounderTarget', label:'Alarm sound level target', t:'select', opts:function(std){ return std==='c' ? ['65 dB(A) in all areas, 75 dB(A) at the bedhead in sleeping areas, and at least 5 dB(A) above any background noise','65 dB(A) minimum in all areas, and 5 dB(A) above background noise'] : ['75 dB(A) at the bedhead with the bedroom door closed','Increased level plus hearing-impaired kit (strobe and vibrating pad)']; } },
-    { k:'visual', label:'Visual alarm devices (VADs)', t:'select', opts:['None required','In specific areas (hearing impaired, noisy areas, plant rooms)','Throughout the premises'] },
+    { k:'visual', label:'Visual alarm devices (VADs)', t:'select', opts:['None required','In specific areas (hearing impaired, noisy areas, plant rooms, WCs, staff rooms, ear protection areas)','Throughout the premises'] },
     { k:'vadCat', label:'VAD coverage category (EN 54-23)', t:'select', opts:['Not applicable','Category C (ceiling mounted)','Category W (wall mounted)','Category O (open class)'] }
   ]},
   { only:'c', title:'Manual call points (BS 5839-1)', fields:[
-    { k:'mcpTravel', label:'Maximum travel distance to a call point', t:'select', opts:['45 m (standard)','25 m (mobility impaired occupants or high-risk areas)'] },
-    { k:'mcpHeight', label:'Mounting height (m)', t:'text', def:'1.4' },
+    { k:'mcpTravel', label:'Maximum travel distance to a call point', t:'select', opts:['Standard maximums: 30 m straight line, 45 m travel','Reduced by the designer (state the distance in the notes)'] },
+    { k:'mcpHeight', label:'Mounting height (m, 1.4 m +200 mm / −300 mm)', t:'text', def:'1.4' },
     { k:'mcpNotes', label:'Call point notes (optional)', t:'text', ph:'e.g. Covers fitted in public areas to prevent misuse' }
   ]},
   { only:'c', title:'Interfaces & cause and effect', fields:[
-    { k:'interfaces', label:'Other systems controlled by the fire alarm', t:'checks', opts:['Door holders / magnetic door release','Lift recall','Smoke ventilation / AOV','Gas shut-off','Ventilation shut-down','Access control release (fail safe)','Roller shutter / fire shutter','Sprinkler or suppression signal'] },
+    { k:'interfaces', label:'Other systems controlled by the fire alarm', t:'checks', opts:['Door holders / magnetic door release','Lift recall','Smoke ventilation / AOV','Gas shut-off','Ventilation shut-down','Access control release (fail safe)','Roller shutter / fire shutter','Sprinkler or suppression signal','Lockdown or other signal sharing the sounders (distinct tone or message)'] },
     { k:'delay', label:'Delay before sounding the alarm', t:'select', opts:['No delay — alarm sounds immediately','Investigation delay (staffed premises only, agreed with the responsible person)'] },
     { k:'causeEffect', label:'Cause and effect (what happens on an alarm)', t:'textarea', rows:3, ph:'e.g. Any detector or call point sounds all sounders in the building and signals the ARC' }
   ]},
   { title:'Variations, documentation & servicing', fields:[
-    { k:'variations', label:'Variations from the recommendations of the standard (write “None” if there are none)', t:'textarea', rows:3, def:'None' },
+    { k:'variations', label:'Variations from the recommendations of the standard, each with its justification (write “None” if there are none)', t:'textarea', rows:3, def:'None' },
     { k:'certBody', label:'Certification body (optional)', t:'text', ph:'e.g. NSI, SSAIB' },
-    { k:'service', label:'Servicing', t:'select', opts:['Every 6 months (recommended)','Annual','Quarterly'] },
+    { k:'service', label:'Servicing', t:'select', opts:['Every 6 months (recommended, 5 to 7 month window)','Annual','Quarterly'] },
     { k:'training', label:'User training and logbook', t:'select', opts:['KHG to train the responsible person / householder at handover and supply a logbook','Customer to arrange'] },
     { k:'maintVisits', label:'Maintenance visits per year', t:'text', def:'2' },
     { k:'price', label:'Quotation price (optional, ex VAT)', t:'text', ph:'e.g. £4,850 + VAT' },
@@ -5391,7 +5393,7 @@ function renderFireSurveyForm(c){
     ['c','d'].map(function(k){ return '<option value="'+k+'"'+(std===k?' selected':'')+'>'+escapeAttr(FIRE_STD_INFO[k].label)+'</option>'; }).join('')+'</select></div>';
   html += '<div style="background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;line-height:1.5;">'+
     (std ? '<b>'+escapeAttr(FIRE_STD_INFO[std].title)+'</b><br>'+escapeAttr(FIRE_STD_INFO[std].text)
-         : '<b>BS 5839-1:2017 (commercial)</b><br>'+escapeAttr(FIRE_STD_INFO.c.text)+'<br><br><b>BS 5839-6:2019+A1:2020 (domestic)</b><br>'+escapeAttr(FIRE_STD_INFO.d.text))+
+         : '<b>BS 5839-1:2025 (commercial)</b><br>'+escapeAttr(FIRE_STD_INFO.c.text)+'<br><br><b>BS 5839-6:2019+A1:2020 (domestic)</b><br>'+escapeAttr(FIRE_STD_INFO.d.text))+
     '</div>';
   if(!std){ c.innerHTML = html; return; }
   html += '<datalist id="fa-rooms">'+getSurveyRooms().map(function(r){ return '<option value="'+escapeAttr(r)+'">'; }).join('')+'</datalist>';
@@ -5405,7 +5407,7 @@ function renderFireSurveyForm(c){
       html += fireFieldHtml(fd, v, std);
     });
     if(sec.title.indexOf('System category')===0 || sec.title.indexOf('Grade & level')===0){
-      html += '<p style="font-size:12px;color:var(--muted);margin:-6px 0 14px 0;">'+(std==='c' ? 'Categories: M manual only; L1 all areas; L2 escape routes, rooms opening onto them and high-risk areas; L3 escape routes and rooms opening onto them; L4 escape routes only; L5 bespoke; P1 and P2 protect property. The PDF explains the category you choose.' : 'Grades: A EN 54 panel system; B and C control equipment; D mains alarms with standby battery; F battery alarms. Levels: LD1 all rooms except bathrooms and WCs; LD2 escape routes and high-risk rooms; LD3 escape routes only. The PDF explains your choices.')+'</p>';
+      html += '<p style="font-size:12px;color:var(--muted);margin:-6px 0 14px 0;">'+(std==='c' ? 'Categories: M manual only; L1 all areas; L2 escape routes, rooms opening onto them and high-risk areas; L3 escape routes and rooms opening onto them; L4 escape routes only; L5 bespoke; P1 and P2 protect property. The PDF explains the category you choose.' : 'Grades: A EN 54 panel system; C mains detectors with back-up power and central control; D1 and D2 mains alarms with standby battery; F1 and F2 battery alarms (B and E were removed in 2019). Levels: LD1 all rooms except bathrooms and WCs; LD2 escape routes and high-risk rooms; LD3 escape routes only. The PDF explains your choices.')+'</p>';
     }
     if(sec.title==='Control equipment & power'){
       html += '<p style="font-size:12px;color:var(--muted);margin:-6px 0 14px 0;">Ajax EN54 options (hub ping interval, range extenders, GlandBox) only apply when the Ajax EN54 Fire Hub is chosen above.</p>';
@@ -5450,8 +5452,24 @@ function fireDesignChecks(f){
       var fa = fireNum(f.floorArea);
       if(fa){ add(detectors*100 >= fa, 'Indicative detector count for full coverage: about 1 detector per 100 m² of smoke coverage (floor area '+fa+' m², '+detectors+' detectors scheduled). Confirm with the detailed layout.'); }
     }
+    // BS 5839-1:2025 specific checks
+    var sleepRoom = /bed|sleep|dorm|guest room|hotel room|resident/i;
+    var heatInSleep = devs.filter(function(d){ var it = fireItemByName(d.type); return it && (it.kind==='heat'||it.kind==='heatsounder') && sleepRoom.test(d.loc||''); });
+    if(heatInSleep.length || (f.sleeping||'').indexOf('People sleep')===0) add(heatInSleep.length===0, 'Rooms where people sleep: use smoke or multi-sensor detectors, not heat detectors (BS 5839-1:2025, L2).');
+    if(cat==='L2' && (f.sleeping||'').indexOf('People sleep')===0) out.push({ ok:null, text:'BS 5839-1:2025 treats rooms where people sleep as high-risk rooms in Category L2, so each sleeping room needs detection.' });
+    if(['L1','L2','L3','L4'].indexOf(cat)!==-1) out.push({ ok:null, text:'Stairway lobbies on escape routes need automatic detection (BS 5839-1:2025).' });
+    if(cat==='L4') out.push({ ok:null, text:'Category L4: fit a detector at the top of lift shafts and flue-like structures.' });
+    var zc0 = fireNum(f.zoneCount);
+    if(zc0 && zc0>1) add((f.zonePlan||'').indexOf('Zone plan')===0, 'More than one zone: a zone plan next to the panel is required and cannot be omitted as a variation (BS 5839-1:2025).');
+    add((f.causeEffect||'').length>0, 'A cause-and-effect matrix or description is required in the handover documentation (BS 5839-1:2025).');
+    if((f.use||'')==='Residential care premises') add((f.arc||'').indexOf('Alarm receiving centre')===0, 'Residential care premises: transmission to an alarm receiving centre cannot be omitted as a variation (BS 5839-1:2025).');
+    if((f.arc||'').indexOf('Alarm receiving centre')===0) out.push({ ok:null, text:'ARC link: Category L alarm signal must reach the ARC within 90 seconds, and a transmission fault must show at the ARC and panel within 3 minutes. Fit a False Alarm Notice label at the panel. Transmission equipment needs its own power supply to EN 54-4 or EN 50131-6 Grade 4. PSTN lines are due to be withdrawn by 2027, so use IP or cellular signalling.' });
+    if((f.remoteAccess||'').indexOf('Remote control')===0) out.push({ ok:null, text:'Remote control or programming access: carry out a cyber security risk assessment, authenticate remote connections at the panel or gateway, and keep communications equipment physically secured (BS 5839-1:2025).' });
+    var vsc = (f.variations||'').trim().toLowerCase();
+    if(vsc && vsc!=='none' && vsc!=='n/a') out.push({ ok:null, text:'Every variation needs a written justification, and all agreed variations are recorded in the logbook (BS 5839-1:2025).' });
     var exits = fireNum(f.exits);
     add((k.mcp||0)>0 && (!exits || (k.mcp||0)>=exits), 'Manual call points: '+(k.mcp||0)+' scheduled'+(exits ? ' against '+exits+' final and storey exits (one at each exit as a minimum)' : '')+'.');
+    if((f.mcpTravel||'').indexOf('Standard')===0) out.push({ ok:null, text:'Call points: no point on an escape route more than 30 m in a straight line, or 45 m of actual travel, from a call point (maximums; the designer can reduce them).' });
     add(sounders>0, 'Alarm sounders scheduled: '+sounders+'.');
     if(f.visual && f.visual!=='None required') add((k.vad||0)+(k.sounderbeacon||0)>0, 'Visual alarm devices are required by the design and '+((k.vad||0)+(k.sounderbeacon||0))+' are scheduled.');
     if((f.vulnerable||[]).indexOf('Hearing impaired')!==-1) add((k.vad||0)+(k.sounderbeacon||0)>0, 'Hearing impaired occupants are noted, so visual alarm devices are needed.');
@@ -5475,6 +5493,17 @@ function fireDesignChecks(f){
     var grade = (f.grade||'').split(' ')[1] || '';
     var ld = (f.ld||'').split(' ')[0];
     add(!!grade && !!ld, 'Grade '+grade+' and '+ld+' chosen.');
+    var dw = f.dwelling||'', ten = f.tenure||'', sto = parseInt(f.storeys,10)||1;
+    if(ld==='LD3'){
+      var ld3ok = ten==='Owner-occupied' && !/multiple occupation|Sheltered/.test(dw) && sto<=2;
+      add(ld3ok, 'LD3 is limited to owner-occupied bungalows, flats and two-storey houses. This dwelling ('+(dw||'not set')+', '+(ten||'occupancy not set')+', '+sto+' storey(s)) needs LD2 or LD1.');
+    }
+    if(/Sheltered|supported/i.test(dw)){
+      add(grade==='A', 'Sheltered or supported housing: a Grade A system is needed (BS 5839-6:2019).');
+      add(ld==='LD1', 'Sheltered housing flats are protected to LD1.');
+      add((f.arc||'').indexOf('Alarm receiving centre')===0, 'Supported housing: transmission to an alarm receiving centre is needed (BS 5839-1:2025 does not allow it to be left out).');
+    }
+    if(/multiple occupation/.test(dw)) out.push({ ok:null, text:'HMO: check Table 1 of BS 5839-6 for the minimum grade and level of protection for this type of house in multiple occupation, and any local authority licence conditions.' });
     var areas = f.areas || [];
     FIRE_DOM_AREAS.forEach(function(a){ a._on = areas.indexOf(a.n)!==-1; });
     var need = ld==='LD1' ? 1 : (ld==='LD2' ? 2 : 3);
@@ -5488,7 +5517,8 @@ function fireDesignChecks(f){
     if(devs.some(function(d){ return /kitchen/i.test(d.loc) && fireItemByName(d.type) && /smoke/.test(fireItemByName(d.type).kind); })) add(false, 'A smoke alarm is placed in the kitchen. Use a heat alarm.');
     if(/^Grade (D|F)/.test(f.grade||'') && detectors>1) add((f.interlinked||'').indexOf('Yes')===0, 'More than one alarm is fitted, so the alarms must be interlinked so all sound together.');
     if(/^Grade A/.test(f.grade||'')) add(/Ajax|addressable|conventional/i.test(f.cie||''), 'Grade A needs an EN 54-2 control panel.');
-    if(/^Grade (B|C)/.test(f.grade||'')) add((f.cie||'')!=='' && (f.cie||'').indexOf('Not applicable')!==0, 'Grade B/C needs central control equipment.');
+    if(/^Grade C/.test(f.grade||'')) add((f.cie||'')!=='' && (f.cie||'').indexOf('Not applicable')!==0, 'Grade C needs central control equipment with back-up power.');
+    if(/^Grade B/.test(f.grade||'')) add(false, 'Grade B was removed from BS 5839-6 in 2019. Choose Grade A or Grade C.');
     if((f.occupants||[]).indexOf('Hearing impaired')!==-1) add((k.hearing||0)>0 || (f.sounderTarget||'').indexOf('hearing')!==-1, 'Hearing impaired occupant: a hearing-impaired kit (strobe and vibrating pad) is needed.');
     if((f.tenure||'').indexOf('Private rented')===0) out.push({ ok:null, text:'Rented property: the Smoke and Carbon Monoxide Alarm (England) Regulations 2015 require a smoke alarm on every storey and a CO alarm in rooms with a solid fuel appliance. Scottish and Welsh rules differ.' });
     if((f.build||'')==='New build') out.push({ ok:null, text:'New build: Building Regulations Approved Document B normally requires Grade D1 LD2 as a minimum.' });
@@ -5564,7 +5594,7 @@ function generateFireSurveyPDF(sub){
       ['Evacuation Strategy', f.evac], ['Final / Storey Exits', f.exits]
     ]);
     sec('System Category');
-    R.rows([['Category', f.cat], ['Detection Zones', f.zoneCount], ['Largest Zone Area', f.maxZoneArea ? f.maxZoneArea+' m²' : '-']]);
+    R.rows([['Category', f.cat], ['Detection Zones', f.zoneCount], ['Zone Plan', f.zonePlan || '-'], ['Largest Zone Area', f.maxZoneArea ? f.maxZoneArea+' m²' : '-']]);
     R.y += 3;
     R.para(FIRE_COM_CATS[f.cat] || '', { size:9 });
     if(f.catAreas) R.box('Areas protected / not covered', f.catAreas, 12);
@@ -5597,12 +5627,19 @@ function generateFireSurveyPDF(sub){
   R.rows(ctl);
   R.y += 3;
   R.para(std==='c'
-    ? 'The mains supply is taken from a dedicated, separately protected circuit labelled FIRE ALARM — DO NOT SWITCH OFF, so that it is not affected by faults on other circuits. The standby battery will keep the system operating for the standby period shown, followed by 30 minutes at full alarm load.'
+    ? 'The mains supply is taken from a dedicated, separately protected circuit labelled FIRE ALARM — DO NOT SWITCH OFF, so that it is not affected by faults on other circuits. The standby battery will keep the system operating for the standby period shown, followed by 30 minutes at full alarm load. The battery capacity is calculated to Annex E of BS 5839-1:2025 and each battery is labelled with its installation date. Mains and fire alarm cables are red, and the functional earth is pink or marked FE.'
     : 'Grade D alarms take their mains supply from a regularly used lighting circuit and have a standby battery in each unit. Grade A to C systems take a dedicated supply with a standby battery. The householder will be shown how to test the system.', { size:9 });
   if(isAjax){
     R.para('The Ajax EN54 Fire Hub Jeweller is an EN 54-2, EN 54-4, EN 54-21 and EN 54-25 control and indicating equipment. Ajax EN54 detectors, sounders and call points communicate by Jeweller radio and are certified to EN 54-25. A radio signal survey is carried out so that every device has Medium or Strong signal before installation is signed off, and radio-device batteries are checked at each service.', { size:9 });
   }
 
+  if(std==='c'){
+    var arcOn = (f.arc||'').indexOf('Alarm receiving centre')===0;
+    if(arcOn) R.para('Alarm transmission: a Category L fire signal reaches the alarm receiving centre within 90 seconds, and a transmission fault is shown at the ARC and the control panel within 3 minutes. The transmission equipment has its own power supply (BS EN 54-4 or BS EN 50131-6 Grade 4), signalling uses IP or cellular paths, and a False Alarm Notice label is fitted at the panel. Premises information, such as sleeping accommodation, is held by the ARC for the fire and rescue service.', { size:9 });
+    R.rows([['Remote Access (Cyber Security)', f.remoteAccess || 'No remote access']]);
+    R.y += 3;
+    if((f.remoteAccess||'').indexOf('No remote')!==0 && f.remoteAccess) R.para('Remote services are risk assessed before they are enabled. Remote connections are authenticated at the control panel or gateway, communications equipment is physically secured, and the system is checked to be fully operational after any remote change.', { size:9 });
+  }
   sec('Device Schedule');
   R.para('Device positions are described from the front of the building. Each position is confirmed on site against the layout rules of the standard.', { size:9 });
   R.table(
@@ -5621,9 +5658,9 @@ function generateFireSurveyPDF(sub){
     : 'Alarms will give at least 75 dB(A) at the bedhead with the bedroom door closed, so that a sleeping person is woken. Where an occupant has impaired hearing, a strobe and vibrating pad is added. Levels are checked at commissioning.', { size:9 });
   if(std==='c'){
     sec('Manual Call Points');
-    R.rows([['Maximum Travel Distance', f.mcpTravel], ['Mounting Height', (f.mcpHeight||'1.4')+' m (± 200 mm)'], ['Notes', f.mcpNotes]]);
+    R.rows([['Maximum Travel Distance', f.mcpTravel], ['Mounting Height', (f.mcpHeight||'1.4')+' m (+200 mm / −300 mm)'], ['Notes', f.mcpNotes]]);
     R.y += 3;
-    R.para('A manual call point is fitted at every final exit and storey exit, on the escape routes, so that nobody has to travel further than the distance above to raise the alarm.', { size:9 });
+    R.para('A manual call point is fitted at every final exit and storey exit, on the escape routes and in normally occupied areas, so that nobody has to travel further than the distance above to raise the alarm. The maximum distances are 30 m in a straight line and 45 m of actual travel, and the designer may reduce them. Covers, where fitted, are transparent.', { size:9 });
     sec('Interfaces & Cause and Effect');
     R.rows([['Interfaces', (f.interfaces&&f.interfaces.length)?f.interfaces.join('; '):'None'], ['Alarm Delay', f.delay]]);
     if(f.causeEffect) R.box('Cause and Effect', f.causeEffect, 12);
@@ -5641,6 +5678,7 @@ function generateFireSurveyPDF(sub){
 
   sec('Variations from the Standard');
   R.para(f.variations || 'None', { size:9 });
+  if(std==='c') R.para('Every variation from BS 5839-1:2025 is justified in writing and recorded in the system logbook. Two departures are not acceptable as variations: leaving out a zone plan where there is more than one zone on a storey, and leaving out transmission to an alarm receiving centre in supported housing or residential care premises.', { size:9 });
 
   sec('Equipment Summary');
   var et = fireEquipmentTotals(f);
@@ -5648,15 +5686,15 @@ function generateFireSurveyPDF(sub){
 
   sec('Documentation, Commissioning & Handover');
   R.para((std==='c'
-    ? 'On completion KHG Security Ltd will provide the following in line with BS 5839-1: certificate of design, certificate of installation, certificate of commissioning and (where applicable) an acceptance certificate and verification certificate; a zone chart displayed next to the control panel; a system logbook; and operating instructions.'
+    ? 'On completion KHG Security Ltd will provide the following in line with BS 5839-1:2025: certificate of design, certificate of installation, certificate of commissioning and (where applicable) an acceptance certificate and verification certificate; the detector types and configuration chosen for each area; a cause-and-effect matrix or description; a zone plan displayed next to the control panel; a system logbook recording every variation; and operating and maintenance instructions. Any later extension or modification, including a control panel firmware update, is recorded on an extension or modification certificate. The responsible person is advised to keep the documentation up to date and available.'
     : 'On completion KHG Security Ltd will provide the certificates recommended by BS 5839-6 (design, installation and commissioning), the manufacturers’ instructions for each alarm, and a record of the alarm positions. The householder will be shown how to test the alarms and what to do when one sounds.'), { size:9 });
   R.rows([['Certification Body', f.certBody], ['User Training & Logbook', f.training]]);
 
   sec('Maintenance & User Responsibilities');
-  R.para('The system will be serviced '+(f.service||'every 6 months').toLowerCase()+', with '+(f.maintVisits||'2')+' visit(s) per year. Each visit is recorded on a KHG service report and covers:', { size:9, gap:0 });
+  R.para('The system will be serviced '+(f.service||'every 6 months').toLowerCase()+', with '+(f.maintVisits||'2')+' visit(s) per year'+(std==='c' ? ' (a visit between 5 and 7 months after the previous one meets the six-monthly recommendation)' : '')+'. Each visit is recorded on a KHG service report and covers:', { size:9, gap:0 });
   R.para((std==='c' ? FIRE_MAINTENANCE_CHECKLIST_C : FIRE_MAINTENANCE_CHECKLIST_D).map(function(s){ return '• '+s; }).join('\n'), { size:9 });
   R.para(std==='c'
-    ? 'The responsible person must test a different manual call point every week (at the same time each week), record the test in the logbook, and report any fault. Repair contact (business hours and out of hours): 01565 634211'
+    ? 'The responsible person must test a different manual call point every week (at the same time each week), record the test in the logbook, and report any fault. Every false alarm must be investigated and recorded; a preliminary investigation is needed when there are more than 4 false alarms per 100 automatic detectors in a year. Repair contact (business hours and out of hours): 01565 634211'
     : 'The householder should test the alarms weekly using the test button, keep vents clear of dust and never remove or disable an alarm. Repair contact (business hours and out of hours): 01565 634211', { size:9 });
 
   sec('Limitations & Notes');
