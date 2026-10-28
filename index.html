@@ -170,7 +170,8 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
 .vs-hist-what b{ color:var(--accent); font-weight:700; }
 .vs-empty{ text-align:center; padding:30px 10px; color:var(--muted-2); font-size:13.5px; }
 .vs-modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; overflow-y:auto; }
-.vs-modal{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; width:100%; max-width:380px; max-height:calc(100vh - 40px); overflow-y:auto; box-sizing:border-box; }
+.vs-modal{ background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:20px; width:100%; max-width:380px; max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; box-sizing:border-box; }
+#vs-memberships-content{ color:var(--text); }
 .vs-modal h3{ font-size:16px; margin:0 0 14px 0; font-weight:800; }
 .vs-field{ margin-bottom:12px; }
 .vs-field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600; }
@@ -6072,7 +6073,7 @@ function renderMembershipsScreen(){
   '</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">'+
     [['Active',cnt.active],['To activate',cnt.issued],['Renew ≤60d',cnt.soon],['Expired',cnt.expired]].map(function(x){
-      return '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 4px;text-align:center;"><div style="font-size:18px;font-weight:800;">'+x[1]+'</div><div style="font-size:10px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.03em;">'+x[0]+'</div></div>';
+      return '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 4px;text-align:center;"><div style="font-size:18px;font-weight:800;">'+x[1]+'</div><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;">'+x[0]+'</div></div>';
     }).join('')+'</div>';
 
   var tabs = [['cards','Cards'],['renewals','Renewals']];
@@ -6209,15 +6210,15 @@ function memShowCard(serial){
   html += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;">'+
     '<div style="font-weight:800;font-size:16px;">'+memEsc(m.customerName)+'</div>'+
     '<div style="font-size:13px;color:var(--muted);margin-top:2px;">'+memEsc(m.customerAddress||'No address on file')+'</div>'+
-    '<div style="font-size:12px;color:var(--muted-2);margin-top:6px;font-family:monospace;">'+m.serial+'</div></div>';
+    '<div style="font-size:12px;color:var(--muted);margin-top:6px;font-family:monospace;">'+m.serial+'</div></div>';
   var ben = ((memConfig().tiers[m.tier]||{}).benefits||'').trim();
-  html += '<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Cover included</div>'+
+  html += '<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Cover included</div>'+
     '<div style="font-size:13.5px;white-space:pre-wrap;">'+(ben?memEsc(ben):'<span style="color:var(--muted);">Cover details not entered yet.</span>')+'</div></div>';
-  if(m.notes) html += '<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Notes</div><div style="font-size:13px;white-space:pre-wrap;">'+memEsc(m.notes)+'</div></div>';
+  if(m.notes) html += '<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Notes</div><div style="font-size:13px;white-space:pre-wrap;">'+memEsc(m.notes)+'</div></div>';
 
   // customer's jobs -> start the worksheet
   var jobs = (state.jobsCache||[]).filter(function(j){ return j.companyUuid && j.companyUuid===m.customerUuid; }).slice(0,12);
-  html += '<div style="font-size:11px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 6px 0;">Open jobs for this customer<span id="mem-jobs-marker"></span></div>';
+  html += '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 6px 0;">Open jobs for this customer<span id="mem-jobs-marker"></span></div>';
   if(state.jobsCache===null){
     html += '<p style="font-size:12.5px;color:var(--muted);">Jobs are still loading…</p>';
   } else if(!jobs.length){
