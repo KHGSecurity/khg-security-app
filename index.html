@@ -521,6 +521,21 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   <main id="vs-customers-content"></main>
 </div>
 
+<div id="vs-memberships-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
+        <h1>Memberships</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+      <div class="vs-shared-note">Customer service-level cards &mdash; scan to check cover</div>
+    </div>
+    <div class="vs-who-badge" id="vs-memberships-who-badge"></div>
+  </div>
+  <main id="vs-memberships-content"></main>
+</div>
+
 <div id="vs-help-wrap" style="display:none">
   <div class="vs-header">
     <div class="vs-header-top">
@@ -594,6 +609,7 @@ var HOME_TILES = [
   { key:'leave', label:'Leave &amp; Rota', sub:'', onclick:'VS.enterLeave()', icon:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>', badgeFn: leaveRotaSectionBadgeCount },
   { key:'jobs', label:'Jobs', sub:'Live from ServiceM8', onclick:'VS.enterJobs()', icon:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/><path d="M7 13h4M7 16h7"/>' },
   { key:'customers', label:'Customers', sub:'Live from ServiceM8', onclick:'VS.enterCustomers()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 8h4M18.5 6v4"/>' },
+  { key:'memberships', label:'Memberships', sub:'Customer cards', onclick:'VS.enterMemberships()', icon:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/><path d="M7 15h4"/>', defaultOff:true },
   { key:'training', label:'Training', sub:'', onclick:"window.open('https://skillsondemand.co.uk/#/login','_blank')", icon:'<path d="M2 9l10-5 10 5-10 5-10-5z"/><path d="M6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5"/>' },
   { key:'manuals', label:'Manuals', sub:'', onclick:"VS.openPlaceholder('Manuals')", icon:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>' },
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
@@ -608,6 +624,7 @@ var HOME_TILES = [
 function personCanSeeSection(person, key){
   if(!person) return false;
   if(isAdminPerson(person)) return true;
+  if(key==='memberships') return !!(person.sectionAccess && person.sectionAccess[key]===true); // off unless an admin ticks it
   if(!person.sectionAccess) return true;
   return person.sectionAccess[key] !== false;
 }
@@ -709,7 +726,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap','vs-hr-wrap','vs-customers-wrap','vs-help-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap','vs-hr-wrap','vs-customers-wrap','vs-memberships-wrap','vs-help-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -787,6 +804,10 @@ function refreshAppScreen(){
   } else if(appView==='customers'){
     document.getElementById('vs-customers-wrap').style.display = 'block';
     renderCustomersScreen();
+  } else if(appView==='memberships'){
+    if(!personCanSeeSection(currentPerson(),'memberships')){ appView='home'; refreshAppScreen(); return; }
+    document.getElementById('vs-memberships-wrap').style.display = 'block';
+    renderMembershipsScreen();
   } else if(appView==='help'){
     document.getElementById('vs-help-wrap').style.display = 'block';
     renderHelpScreen();
@@ -798,6 +819,7 @@ function refreshAppScreen(){
     renderHomeTiles();
     renderHomeNotifications();
     renderNotificationPermissionPrompt();
+    memHandlePending();
   }
 }
 
@@ -1286,7 +1308,7 @@ function renderWhoBadge(){
     (faceIdSupported() ? ' \u00b7 '+(getFaceId() ? '<button class="vs-transfer-link" style="font-size:12px;" onclick="VS.faceIdOff()">turn off Face ID</button>' : '<button class="vs-transfer-link" style="font-size:12px;" onclick="VS.faceIdOn()">turn on Face ID</button>') : '')+
     '</div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge','vs-customers-who-badge','vs-help-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge','vs-customers-who-badge','vs-memberships-who-badge','vs-help-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -1543,6 +1565,20 @@ function startLiveSync(){
     liveLoaded.customerInfo = true;
     onSharedUpdate('customerInfo');
   });
+  subscribeShared('memberships', function(value, exists){
+    try{ state.memberships = exists ? JSON.parse(value) : []; }catch(e){ state.memberships = []; }
+    liveLoaded.memberships = true;
+    onSharedUpdate('memberships');
+    memHandlePending();
+  });
+  subscribeShared('membership-config', function(value, exists){
+    try{ state.memConfig = exists ? JSON.parse(value) : {}; }catch(e){ state.memConfig = {}; }
+    onSharedUpdate('memConfig');
+  });
+  subscribeShared('membership-scans', function(value, exists){
+    try{ state.memScans = exists ? JSON.parse(value) : []; }catch(e){ state.memScans = []; }
+    onSharedUpdate('memScans');
+  });
 }
 
 function subscribeShared(key, onData){
@@ -1598,6 +1634,7 @@ function onSharedUpdate(changedKey){
   if(appView==='home' && ['catalog','leave','swaps','overtime','feedback','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
   if(appView==='hr' && ['catalog','feedback','hrDocuments'].indexOf(changedKey)!==-1){ renderHRScreen(); }
   if(appView==='customers' && changedKey==='customerInfo'){ renderCustomersScreen(); }
+  if(appView==='memberships' && ['memberships','memConfig','memScans'].indexOf(changedKey)!==-1){ renderMembershipsScreen(); }
   if(appView==='home' && ['catalog','stock','stockAlertsSeen','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
   else if(state.currentUser && ['catalog','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
   if(appView==='leave' && ['catalog','leave','rota','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderLeaveScreen(); }
@@ -3178,13 +3215,13 @@ function fetchCustomers(){
       } else {
         toast('Could not refresh customers — showing the saved copy from earlier');
       }
-      renderCustomersScreen();
+      renderCustomersScreen(); memCustomersChanged();
     })
     .catch(function(){
       state.customersLoading = false;
       if(!hadCache){ state.customersError = 'Could not reach the server to load customers.'; }
       else { toast('Could not refresh customers — showing the saved copy from earlier'); }
-      renderCustomersScreen();
+      renderCustomersScreen(); memCustomersChanged();
     });
 }
 
@@ -3414,14 +3451,14 @@ function fetchJobs(){
         toast('Could not refresh jobs \u2014 showing the saved copy from earlier');
       }
       renderJobsScreen();
-      refreshJobPickerIfOpen();
+      refreshJobPickerIfOpen(); memJobsChanged();
     })
     .catch(function(){
       state.jobsLoading = false;
       if(!hadCache){ state.jobsError = 'Could not reach the server to load jobs.'; }
       else { toast('Could not refresh jobs \u2014 showing the saved copy from earlier'); }
       renderJobsScreen();
-      refreshJobPickerIfOpen();
+      refreshJobPickerIfOpen(); memJobsChanged();
     });
 }
 
@@ -5715,6 +5752,618 @@ function generateFireSurveyPDF(sub){
   R.finish();
   var prefix = { proposal:'Fire-SDP', specification:'Fire-Spec', as_fitted:'Fire-As-Fitted' }[stage] || 'Fire-SDP';
   return { doc: doc, filename: prefix+'-'+fileSafeName(f.client,'client')+'.pdf' };
+}
+
+// ===== QR generator =====
+// ===== Minimal QR code generator (byte mode, error correction level Q, versions 1-10) =====
+var KHGQR = (function(){
+  var RS = {1:[[1,26,13]],2:[[1,44,22]],3:[[2,35,17]],4:[[2,50,24]],5:[[2,33,15],[2,34,16]],6:[[4,43,19]],7:[[2,32,14],[4,33,15]],8:[[4,40,18],[2,41,19]],9:[[4,36,16],[4,37,17]],10:[[6,43,19],[2,44,20]]};
+  var EXP = [], LOG = [], x = 1, i;
+  for(i=0;i<255;i++){ EXP[i]=x; LOG[x]=i; x<<=1; if(x&256) x^=0x11d; }
+  for(i=255;i<512;i++) EXP[i]=EXP[i-255];
+  function gmul(a,b){ return (!a||!b) ? 0 : EXP[LOG[a]+LOG[b]]; }
+  function rsGen(deg){
+    var g=[1];
+    for(var k=0;k<deg;k++){
+      var ng=[]; for(var j=0;j<=g.length;j++) ng.push(0);
+      for(var m=0;m<g.length;m++){ ng[m]^=g[m]; ng[m+1]^=gmul(g[m],EXP[k]); }
+      g=ng;
+    }
+    return g;
+  }
+  function rsEcc(data,deg){
+    var g=rsGen(deg), res=[]; for(var k=0;k<deg;k++) res.push(0);
+    data.forEach(function(b){
+      var f=b^res[0]; res.shift(); res.push(0);
+      for(var k=0;k<deg;k++) res[k]^=gmul(g[k+1],f);
+    });
+    return res;
+  }
+  function utf8(str){
+    var out=[], s=unescape(encodeURIComponent(str));
+    for(var k=0;k<s.length;k++) out.push(s.charCodeAt(k));
+    return out;
+  }
+  function bit(v,k){ return ((v>>>k)&1)!==0; }
+  function make(text){
+    var bytes = utf8(text), ver = 0, dataCw = 0;
+    for(var v=1; v<=10; v++){
+      var cw = 0; RS[v].forEach(function(g){ cw += g[0]*g[2]; });
+      var need = 4 + (v<10?8:16) + 8*bytes.length;
+      if(need <= cw*8){ ver = v; dataCw = cw; break; }
+    }
+    if(!ver) throw new Error('QR text too long');
+    var bits = [];
+    function push(val,len){ for(var k=len-1;k>=0;k--) bits.push((val>>>k)&1); }
+    push(4,4); push(bytes.length, ver<10?8:16); bytes.forEach(function(b){ push(b,8); });
+    push(0, Math.min(4, dataCw*8-bits.length));
+    while(bits.length%8) bits.push(0);
+    var pad=[0xEC,0x11], pi=0;
+    while(bits.length < dataCw*8){ push(pad[pi%2],8); pi++; }
+    var data=[]; for(var k=0;k<bits.length;k+=8){ var b=0; for(var j=0;j<8;j++) b=(b<<1)|bits[k+j]; data.push(b); }
+    // blocks
+    var blocks=[], pos=0, eccLen=0;
+    RS[ver].forEach(function(g){
+      for(var n=0;n<g[0];n++){
+        var d=data.slice(pos,pos+g[2]); pos+=g[2];
+        eccLen = g[1]-g[2];
+        blocks.push({ data:d, ecc:rsEcc(d,eccLen) });
+      }
+    });
+    var maxData=0; blocks.forEach(function(b){ if(b.data.length>maxData) maxData=b.data.length; });
+    var all=[];
+    for(var a=0;a<maxData;a++) blocks.forEach(function(b){ if(a<b.data.length) all.push(b.data[a]); });
+    for(var e=0;e<eccLen;e++) blocks.forEach(function(b){ all.push(b.ecc[e]); });
+    // matrix
+    var size=ver*4+17, mod=[], fn=[];
+    for(var r=0;r<size;r++){ mod.push([]); fn.push([]); for(var c=0;c<size;c++){ mod[r].push(false); fn[r].push(false); } }
+    function setFn(cx,cy,dark){ mod[cy][cx]=dark; fn[cy][cx]=true; }
+    for(var t=0;t<size;t++){ setFn(6,t,t%2===0); setFn(t,6,t%2===0); }
+    function finder(cx,cy){
+      for(var dy=-4;dy<=4;dy++) for(var dx=-4;dx<=4;dx++){
+        var d=Math.max(Math.abs(dx),Math.abs(dy)), xx=cx+dx, yy=cy+dy;
+        if(xx>=0&&xx<size&&yy>=0&&yy<size) setFn(xx,yy,d!==2&&d!==4);
+      }
+    }
+    finder(3,3); finder(size-4,3); finder(3,size-4);
+    if(ver>1){
+      var n=Math.floor(ver/7)+2, step=Math.ceil((ver*4+4)/(n*2-2))*2, ap=[6];
+      for(var p=size-7; ap.length<n; p-=step) ap.splice(1,0,p);
+      for(var ia=0;ia<n;ia++) for(var ja=0;ja<n;ja++){
+        if((ia===0&&ja===0)||(ia===0&&ja===n-1)||(ia===n-1&&ja===0)) continue;
+        for(var dy=-2;dy<=2;dy++) for(var dx=-2;dx<=2;dx++) setFn(ap[ia]+dx,ap[ja]+dy,Math.max(Math.abs(dx),Math.abs(dy))!==1);
+      }
+    }
+    function formatBits(mask){
+      var d=(3<<3)|mask, rem=d;
+      for(var k=0;k<10;k++) rem=(rem<<1)^((rem>>>9)*0x537);
+      var bits2=((d<<10)|rem)^0x5412;
+      for(var k=0;k<=5;k++) setFn(8,k,bit(bits2,k));
+      setFn(8,7,bit(bits2,6)); setFn(8,8,bit(bits2,7)); setFn(7,8,bit(bits2,8));
+      for(var k=9;k<15;k++) setFn(14-k,8,bit(bits2,k));
+      for(var k=0;k<8;k++) setFn(size-1-k,8,bit(bits2,k));
+      for(var k=8;k<15;k++) setFn(8,size-15+k,bit(bits2,k));
+      setFn(8,size-8,true);
+    }
+    formatBits(0);
+    if(ver>=7){
+      var rem=ver; for(var k=0;k<12;k++) rem=(rem<<1)^((rem>>>11)*0x1F25);
+      var vb=(ver<<12)|rem;
+      for(var k=0;k<18;k++){ var col=bit(vb,k), a2=size-11+k%3, b2=Math.floor(k/3); setFn(a2,b2,col); setFn(b2,a2,col); }
+    }
+    // data placement
+    var bi=0;
+    for(var right=size-1; right>=1; right-=2){
+      if(right===6) right=5;
+      for(var vert=0; vert<size; vert++){
+        for(var j=0;j<2;j++){
+          var xx2=right-j, upward=((right+1)&2)===0, yy2=upward?size-1-vert:vert;
+          if(!fn[yy2][xx2] && bi<all.length*8){ mod[yy2][xx2]=bit(all[bi>>>3],7-(bi&7)); bi++; }
+        }
+      }
+    }
+    function applyMask(m){
+      for(var yy=0;yy<size;yy++) for(var xx=0;xx<size;xx++){
+        var inv;
+        switch(m){
+          case 0: inv=(xx+yy)%2===0; break;
+          case 1: inv=yy%2===0; break;
+          case 2: inv=xx%3===0; break;
+          case 3: inv=(xx+yy)%3===0; break;
+          case 4: inv=(Math.floor(xx/3)+Math.floor(yy/2))%2===0; break;
+          case 5: inv=(xx*yy)%2+(xx*yy)%3===0; break;
+          case 6: inv=((xx*yy)%2+(xx*yy)%3)%2===0; break;
+          default: inv=((xx+yy)%2+(xx*yy)%3)%2===0;
+        }
+        if(!fn[yy][xx] && inv) mod[yy][xx]=!mod[yy][xx];
+      }
+    }
+    function penalty(){
+      var score=0, yy, xx, k;
+      for(var pass=0;pass<2;pass++){
+        for(yy=0;yy<size;yy++){
+          var run=1;
+          for(xx=1;xx<size;xx++){
+            var cur=pass?mod[xx][yy]:mod[yy][xx], prev=pass?mod[xx-1][yy]:mod[yy][xx-1];
+            if(cur===prev){ run++; if(run===5) score+=3; else if(run>5) score++; } else run=1;
+          }
+        }
+      }
+      for(yy=0;yy<size-1;yy++) for(xx=0;xx<size-1;xx++){
+        var c0=mod[yy][xx]; if(c0===mod[yy][xx+1]&&c0===mod[yy+1][xx]&&c0===mod[yy+1][xx+1]) score+=3;
+      }
+      var pat=[true,false,true,true,true,false,true];
+      for(var pass2=0;pass2<2;pass2++){
+        for(yy=0;yy<size;yy++) for(xx=0;xx<=size-7;xx++){
+          var ok=true;
+          for(k=0;k<7;k++){ var v2=pass2?mod[xx+k][yy]:mod[yy][xx+k]; if(v2!==pat[k]){ ok=false; break; } }
+          if(!ok) continue;
+          var wl=true, wr=true;
+          for(k=1;k<=4;k++){
+            var l=xx-k, r2=xx+6+k;
+            var lv=(l>=0)?(pass2?mod[l][yy]:mod[yy][l]):false, rv=(r2<size)?(pass2?mod[r2][yy]:mod[yy][r2]):false;
+            if(lv) wl=false; if(rv) wr=false;
+          }
+          if(wl||wr) score+=40;
+        }
+      }
+      var dark=0; for(yy=0;yy<size;yy++) for(xx=0;xx<size;xx++) if(mod[yy][xx]) dark++;
+      var pct=dark*100/(size*size); score+=Math.floor(Math.abs(pct-50)/5)*10;
+      return score;
+    }
+    var best=0, bestScore=1e9;
+    for(var m=0;m<8;m++){
+      applyMask(m); formatBits(m);
+      var sc=penalty(); if(sc<bestScore){ bestScore=sc; best=m; }
+      applyMask(m);
+    }
+    applyMask(best); formatBits(best);
+    return mod;
+  }
+  return { make:make };
+})();
+
+
+// ===================== MEMBERSHIPS (customer service-level cards) =====================
+var MEM_TIERS = {
+  SILVER:   { code:'SLV', label:'Silver',   colour:'#aeb9cf', text:'#0e142c', ink:[14,20,44],   sub:[30,40,72],    accent:[30,42,84],    light:true  },
+  GOLD:     { code:'GLD', label:'Gold',     colour:'#e2b04a', text:'#2a1c04', ink:[255,255,255],sub:[224,214,196], accent:[238,200,110], light:false },
+  PLATINUM: { code:'PLT', label:'Platinum', colour:'#bfe2ff', text:'#06223a', ink:[255,255,255],sub:[214,228,244], accent:[190,226,255], light:false },
+  BLACK:    { code:'BLK', label:'Black',    colour:'#1d2330', text:'#46c8be', ink:[255,255,255],sub:[190,196,208], accent:[70,200,190],  light:false }
+};
+var MEM_ORDER = ['SILVER','GOLD','PLATINUM','BLACK'];
+var MEM_ALPH = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+var memUI = { tab:'cards', search:'', filter:'all', issueSearch:'', issueCustomer:null, pendingSerial:null };
+try{ memUI.pendingSerial = new URLSearchParams(window.location.search).get('m'); }catch(e){}
+
+function memEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function memList(){ if(!Array.isArray(state.memberships)) state.memberships = []; return state.memberships; }
+function memConfig(){
+  var c = state.memConfig || {};
+  if(!c.tiers) c.tiers = {};
+  state.memConfig = c;
+  return c;
+}
+function memQrBase(){
+  var c = memConfig();
+  if(c.qrBase) return c.qrBase;
+  try{ return window.location.origin + window.location.pathname.replace(/[^\/]*$/,'') + '?m='; }catch(e){ return 'https://khgsecurity.com/?m='; }
+}
+function memCheckChar(body){
+  var total = 0;
+  for(var i=0;i<body.length;i++){ total += (MEM_ALPH.indexOf(body.charAt(i))+1)*(i+3); }
+  return MEM_ALPH.charAt(total % MEM_ALPH.length);
+}
+function memNewSerial(tierKey){
+  var code = MEM_TIERS[tierKey].code;
+  for(var attempt=0; attempt<50; attempt++){
+    var body = '';
+    var rnd = new Uint8Array(8);
+    if(window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(rnd);
+    else for(var k=0;k<8;k++) rnd[k] = Math.floor(Math.random()*256);
+    for(var i=0;i<8;i++) body += MEM_ALPH.charAt(rnd[i] % MEM_ALPH.length);
+    var s = code+'-'+body.slice(0,4)+'-'+body.slice(4)+'-'+memCheckChar(body);
+    if(!memFind(s)) return s;
+  }
+  return null;
+}
+// Accepts a bare serial, a typed serial without dashes, or the full URL from a QR code.
+function memParseSerial(text){
+  if(!text) return null;
+  var t = String(text).trim().toUpperCase();
+  var m = t.match(/(SLV|GLD|PLT|BLK)-?([A-Z0-9]{4})-?([A-Z0-9]{4})-?([A-Z0-9])(?![A-Z0-9])/);
+  if(!m) return null;
+  var body = m[2]+m[3];
+  for(var i=0;i<body.length;i++){ if(MEM_ALPH.indexOf(body.charAt(i))===-1) return null; }
+  if(memCheckChar(body)!==m[4]) return null;
+  return m[1]+'-'+m[2]+'-'+m[3]+'-'+m[4];
+}
+function memFind(serial){
+  var l = memList();
+  for(var i=0;i<l.length;i++){ if(l[i].serial===serial) return l[i]; }
+  return null;
+}
+function memToday(){ return new Date().toISOString().slice(0,10); }
+function memAddYear(iso){
+  var d = new Date(iso+'T00:00:00Z');
+  d.setUTCFullYear(d.getUTCFullYear()+1);
+  d.setUTCDate(d.getUTCDate()-1);
+  return d.toISOString().slice(0,10);
+}
+function memFmtDate(iso){ return iso ? shortDate(iso) : '—'; }
+function memDaysTo(iso){ return Math.round((new Date(iso+'T00:00:00Z') - new Date(memToday()+'T00:00:00Z'))/86400000); }
+// 'revoked' | 'replaced' | 'issued' (not yet activated) | 'expired' | 'active'
+function memStatus(m){
+  if(m.revoked) return 'revoked';
+  if(m.replacedBy) return 'replaced';
+  if(!m.activatedAt) return (m.validUntil && memDaysTo(m.validUntil)<0) ? 'expired' : 'issued';
+  if(m.validUntil && memDaysTo(m.validUntil)<0) return 'expired';
+  return 'active';
+}
+var MEM_STATUS_LABEL = { active:'ACTIVE', issued:'AWAITING ACTIVATION', expired:'EXPIRED', revoked:'REVOKED / LOST', replaced:'REPLACED' };
+function memStatusBadge(m){
+  var s = memStatus(m);
+  var cls = s==='active' ? 'ok' : (s==='issued' ? 'low' : 'out');
+  return '<span class="vs-stock-badge '+cls+'">'+MEM_STATUS_LABEL[s]+'</span>';
+}
+function memTierBadge(tier){
+  var t = MEM_TIERS[tier]; if(!t) return '';
+  return '<span class="vs-stock-badge" style="background:'+t.colour+';color:'+t.text+';border:1px solid rgba(255,255,255,.25);">'+t.label.toUpperCase()+'</span>';
+}
+function memBestCardFor(uuid){
+  var best = null;
+  memList().forEach(function(m){
+    if(m.customerUuid!==uuid) return;
+    var s = memStatus(m);
+    if(s!=='active') return;
+    if(!best || m.validUntil > best.validUntil) best = m;
+  });
+  return best;
+}
+function memLog(m, what){
+  var me = currentPerson();
+  if(!m.log) m.log = [];
+  m.log.push({ at:new Date().toISOString(), by: me?me.name:'Unknown', what:what });
+}
+function saveMemberships(){
+  return trackSave(function(){ return storageSet('memberships', JSON.stringify(memList()), true); });
+}
+function saveMembershipConfig(){
+  return trackSave(function(){ return storageSet('membership-config', JSON.stringify(memConfig()), true); });
+}
+function saveMembershipScans(){
+  return trackSave(function(){ return storageSet('membership-scans', JSON.stringify(state.memScans||[]), true); });
+}
+function memIsAdmin(){ return isAdminPerson(currentPerson()); }
+
+function enterMemberships(){ appView = 'memberships'; refreshAppScreen(); }
+
+function memCounts(){
+  var c = { active:0, issued:0, soon:0, expired:0 };
+  memList().forEach(function(m){
+    var s = memStatus(m);
+    if(s==='active'){ c.active++; if(memDaysTo(m.validUntil)<=60) c.soon++; }
+    else if(s==='issued') c.issued++;
+    else if(s==='expired') c.expired++;
+  });
+  return c;
+}
+
+function memRowHtml(m, withRenew){
+  var s = memStatus(m);
+  var d = m.validUntil ? memDaysTo(m.validUntil) : null;
+  var dueTxt = (s==='active' && d!==null && d<=60) ? ' · <span style="color:var(--amber,#e0a030);">renews in '+d+' day'+(d===1?'':'s')+'</span>' : '';
+  return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.memOpen(\''+m.serial+'\')">'+
+    '<div class="vs-item-info"><div class="vs-item-name">'+memEsc(m.customerName)+' '+memTierBadge(m.tier)+' '+memStatusBadge(m)+'</div>'+
+    '<div class="vs-item-meta"><span style="font-family:monospace;">'+m.serial+'</span> · valid to '+memFmtDate(m.validUntil)+dueTxt+'</div></div>'+
+    (withRenew && memIsAdmin() ? '<button class="vs-btn small primary" onclick="event.stopPropagation();VS.memRenewForm(\''+m.serial+'\')">Renew</button>' : '')+
+  '</div>';
+}
+
+function renderMembershipsScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-memberships-content');
+  if(!c) return;
+  var admin = memIsAdmin();
+  var cnt = memCounts();
+  var html = '<div style="display:flex;gap:8px;margin-bottom:10px;">'+
+    '<button class="vs-btn primary" style="flex:1;font-size:15px;padding:13px;" onclick="VS.memScan()">Scan a card</button>'+
+    (admin ? '<button class="vs-btn" style="flex:1;font-size:15px;padding:13px;" onclick="VS.memIssueForm()">Issue new card</button>' : '')+
+  '</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">'+
+    [['Active',cnt.active],['To activate',cnt.issued],['Renew ≤60d',cnt.soon],['Expired',cnt.expired]].map(function(x){
+      return '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 4px;text-align:center;"><div style="font-size:18px;font-weight:800;">'+x[1]+'</div><div style="font-size:10px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.03em;">'+x[0]+'</div></div>';
+    }).join('')+'</div>';
+
+  var tabs = [['cards','Cards'],['renewals','Renewals']];
+  if(admin) tabs.push(['setup','Tiers & setup']);
+  html += '<div style="display:flex;gap:6px;margin-bottom:12px;">'+tabs.map(function(t){
+    var on = memUI.tab===t[0];
+    return '<button class="vs-btn small'+(on?' primary':'')+'" style="flex:1;" onclick="VS.memTab(\''+t[0]+'\')">'+t[1]+'</button>';
+  }).join('')+'</div>';
+
+  if(memUI.tab==='setup' && admin){ html += memSetupHtml(); }
+  else if(memUI.tab==='renewals'){
+    var rows = memList().filter(function(m){
+      var s = memStatus(m);
+      if(s==='active') return memDaysTo(m.validUntil)<=60;
+      if(s==='expired') return !memBestCardFor(m.customerUuid) && !memList().some(function(o){ return o.customerUuid===m.customerUuid && (memStatus(o)==='issued' || memStatus(o)==='active'); });
+      return false;
+    }).sort(function(a,b){ return (a.validUntil||'').localeCompare(b.validUntil||''); });
+    html += rows.length ? rows.map(function(m){ return memRowHtml(m,true); }).join('') :
+      '<p style="font-size:13px;color:var(--muted);">No cards due for renewal in the next 60 days.</p>';
+  } else {
+    html += '<input value="'+memEsc(memUI.search)+'" placeholder="Search customer or serial…" oninput="VS.memSearch(this.value)" style="width:100%;box-sizing:border-box;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:8px;">';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">'+
+      [['all','All'],['active','Active'],['issued','To activate'],['expired','Expired'],['revoked','Revoked']].map(function(f){
+        return '<button class="vs-btn small'+(memUI.filter===f[0]?' primary':'')+'" onclick="VS.memFilter(\''+f[0]+'\')">'+f[1]+'</button>';
+      }).join('')+'</div>';
+    var q = memUI.search.trim().toLowerCase();
+    var list = memList().filter(function(m){
+      if(memUI.filter!=='all' && memStatus(m)!==memUI.filter) return false;
+      if(!q) return true;
+      return (m.customerName||'').toLowerCase().indexOf(q)!==-1 || m.serial.toLowerCase().indexOf(q)!==-1 || (m.customerAddress||'').toLowerCase().indexOf(q)!==-1;
+    }).sort(function(a,b){ return (a.customerName||'').localeCompare(b.customerName||''); });
+    html += list.length ? list.map(function(m){ return memRowHtml(m,false); }).join('') :
+      '<p style="font-size:13px;color:var(--muted);">'+(memList().length ? 'No cards match.' : 'No cards issued yet. '+(admin?'Tap “Issue new card” to create the first one.':''))+'</p>';
+  }
+  var active = document.activeElement, keep = active && active.tagName==='INPUT' && c.contains(active) ? active.selectionStart : null;
+  c.innerHTML = html;
+  if(keep!==null){ var inp = c.querySelector('input'); if(inp){ inp.focus(); try{ inp.setSelectionRange(keep,keep); }catch(e){} } }
+}
+
+function memSetupHtml(){
+  var cfg = memConfig();
+  var html = '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px;">'+
+    '<div style="font-weight:800;margin-bottom:6px;">QR code address</div>'+
+    '<p style="font-size:12px;color:var(--muted);margin:0 0 8px 0;">The card QR contains this address followed by the serial number. Customers who scan with a phone camera will open it. <b>Confirm this before printing real cards — it cannot be changed on cards already printed.</b></p>'+
+    '<input id="mem-qrbase" value="'+memEsc(memQrBase())+'" style="width:100%;box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;">'+
+    '<button class="vs-btn small primary" style="margin-top:8px;" onclick="VS.memSaveSettings()">Save address</button></div>';
+  html += '<div style="font-weight:800;margin:4px 0 8px 0;">What each level includes</div>'+
+    '<p style="font-size:12px;color:var(--muted);margin:0 0 10px 0;">Shown to the engineer when they scan a card. Write plainly: response times, visits per year, labour/parts cover, etc.</p>';
+  MEM_ORDER.forEach(function(k){
+    var t = cfg.tiers[k] || {};
+    html += '<div style="margin-bottom:12px;"><div style="margin-bottom:4px;">'+memTierBadge(k)+'</div>'+
+      '<textarea id="mem-ben-'+k+'" rows="4" placeholder="e.g. 4-hour response, 2 services a year, parts at cost…" style="width:100%;box-sizing:border-box;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:13px;font-family:inherit;">'+memEsc(t.benefits||'')+'</textarea></div>';
+  });
+  html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.memSaveTiers()">Save tier details</button>';
+  var scans = (state.memScans||[]).slice().reverse().slice(0,25);
+  html += '<div style="font-weight:800;margin:18px 0 8px 0;">Recent scans</div>';
+  html += scans.length ? scans.map(function(s){
+    return '<div style="font-size:12px;color:var(--muted);padding:4px 0;border-bottom:1px solid var(--line);">'+new Date(s.at).toLocaleString()+' — '+memEsc(s.by)+' — '+memEsc(s.customer||s.serial)+'</div>';
+  }).join('') : '<p style="font-size:12px;color:var(--muted);">No scans recorded yet.</p>';
+  return html;
+}
+
+// ---------- scan / lookup ----------
+function memOpenScanner(){
+  var html = '<h3>Scan membership card</h3>'+
+    '<div id="qr-reader" style="width:100%;border-radius:8px;overflow:hidden;background:var(--panel-2);"></div>'+
+    '<div id="qr-result" style="margin-top:10px;"></div>'+
+    '<div class="vs-field" style="margin-top:12px;"><label>Or type the serial number</label>'+
+    '<div style="display:flex;gap:6px;"><input id="mem-manual" placeholder="e.g. GLD-R5TN-8HC3-B" autocapitalize="characters" style="flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;font-family:monospace;">'+
+    '<button class="vs-btn primary" onclick="VS.memScanManual()">Look up</button></div></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button></div>';
+  openModal(html);
+  if(typeof Html5Qrcode==='undefined'){
+    document.getElementById('qr-result').innerHTML = '<p style="color:var(--red);font-size:13px;">Camera scanner failed to load — type the serial number instead.</p>';
+    return;
+  }
+  scannerInstance = new Html5Qrcode('qr-reader');
+  var done = false;
+  scannerInstance.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:230, height:230 } },
+    function(text){ if(done) return; done = true; memOpenSerial(text, true); },
+    function(){}
+  ).catch(function(err){
+    var el = document.getElementById('qr-result');
+    if(el) el.innerHTML = '<p style="color:var(--red);font-size:13px;">Could not start the camera ('+memEsc(String(err))+'). Type the serial number instead.</p>';
+  });
+}
+
+function memOpenSerial(text, fromScan){
+  var serial = memParseSerial(text);
+  if(!serial){
+    var el = document.getElementById('qr-result');
+    if(el){ el.innerHTML = '<p style="color:var(--red);font-size:13px;">That doesn’t look like a KHG membership card. Check the serial and try again.</p>'; }
+    else toast('Not a valid KHG membership code');
+    if(fromScan && scannerInstance){ try{ scannerInstance.resume(); }catch(e){} }
+    return;
+  }
+  if(scannerInstance){
+    var si = scannerInstance; scannerInstance = null; scannerContext = null;
+    si.stop().then(function(){ si.clear(); }).catch(function(){});
+  }
+  var m = memFind(serial);
+  if(fromScan !== 'nolog' && m){
+    var me = currentPerson();
+    if(!state.memScans) state.memScans = [];
+    state.memScans.push({ at:new Date().toISOString(), by:me?me.name:'?', serial:serial, customer:m.customerName });
+    if(state.memScans.length>200) state.memScans = state.memScans.slice(-200);
+    saveMembershipScans();
+  }
+  memShowCard(serial);
+}
+
+function memShowCard(serial){
+  var m = memFind(serial);
+  var admin = memIsAdmin();
+  if(!m){
+    openModal('<h3>Card not found</h3><p style="font-size:13px;color:var(--muted);">Serial <span style="font-family:monospace;">'+memEsc(serial)+'</span> isn’t in the membership register. It may not have been issued yet.</p>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>');
+    return;
+  }
+  memUI.shownSerial = serial;
+  if(state.jobsCache===null && !state.jobsLoading){ loadJobsFromLocalCache(); }
+  var t = MEM_TIERS[m.tier];
+  var s = memStatus(m);
+  var good = s==='active';
+  var banner = '<div style="background:'+(t.colour)+';color:'+t.text+';border-radius:12px;padding:16px;margin-bottom:12px;">'+
+    '<div style="font-size:11px;letter-spacing:.14em;font-weight:700;opacity:.8;">KHG SERVICE MEMBERSHIP</div>'+
+    '<div style="font-size:26px;font-weight:800;letter-spacing:.04em;margin:2px 0;">'+t.label.toUpperCase()+'</div>'+
+    '<div style="font-size:13px;font-weight:700;">'+(good?'✓ ':'⚠ ')+MEM_STATUS_LABEL[s]+(good&&m.validUntil?' · valid to '+memFmtDate(m.validUntil):'')+'</div></div>';
+  var html = banner;
+  if(s==='expired') html += '<div class="vs-error" style="margin-bottom:10px;">This card expired on '+memFmtDate(m.validUntil)+'. Cover level is not guaranteed — check with the office.</div>';
+  if(s==='revoked') html += '<div class="vs-error" style="margin-bottom:10px;">This card has been reported lost or cancelled. Do not honour it — check with the office.</div>';
+  if(s==='replaced') html += '<div class="vs-error" style="margin-bottom:10px;">This card has been replaced by a newer one'+(m.replacedBy?' ('+memEsc(m.replacedBy)+')':'')+'.</div>';
+  if(s==='issued') html += '<div class="vs-error" style="margin-bottom:10px;">This card has been issued but not yet activated. Activate it below if you are handing it over.</div>';
+  html += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;">'+
+    '<div style="font-weight:800;font-size:16px;">'+memEsc(m.customerName)+'</div>'+
+    '<div style="font-size:13px;color:var(--muted);margin-top:2px;">'+memEsc(m.customerAddress||'No address on file')+'</div>'+
+    '<div style="font-size:12px;color:var(--muted-2);margin-top:6px;font-family:monospace;">'+m.serial+'</div></div>';
+  var ben = ((memConfig().tiers[m.tier]||{}).benefits||'').trim();
+  html += '<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Cover included</div>'+
+    '<div style="font-size:13.5px;white-space:pre-wrap;">'+(ben?memEsc(ben):'<span style="color:var(--muted);">Cover details not entered yet.</span>')+'</div></div>';
+  if(m.notes) html += '<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;">Notes</div><div style="font-size:13px;white-space:pre-wrap;">'+memEsc(m.notes)+'</div></div>';
+
+  // customer's jobs -> start the worksheet
+  var jobs = (state.jobsCache||[]).filter(function(j){ return j.companyUuid && j.companyUuid===m.customerUuid; }).slice(0,12);
+  html += '<div style="font-size:11px;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em;margin:4px 0 6px 0;">Open jobs for this customer<span id="mem-jobs-marker"></span></div>';
+  if(state.jobsCache===null){
+    html += '<p style="font-size:12.5px;color:var(--muted);">Jobs are still loading…</p>';
+  } else if(!jobs.length){
+    html += '<p style="font-size:12.5px;color:var(--muted);">No active ServiceM8 jobs found for this customer.</p>';
+  } else {
+    html += jobs.map(function(j){
+      return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.viewJob(\''+j.uuid+'\')"><div class="vs-item-info"><div class="vs-item-name">'+(j.jobNumber?'#'+memEsc(j.jobNumber)+' — ':'')+memEsc(j.description||'(no description)')+'</div>'+
+        '<div class="vs-item-meta">'+memEsc(j.address||'')+'</div></div></div>';
+    }).join('');
+  }
+  html += '<div style="margin-top:14px;display:flex;flex-direction:column;gap:6px;">';
+  if(s==='issued') html += '<button class="vs-btn primary" style="width:100%;" onclick="VS.memActivate(\''+m.serial+'\')">Activate card (handed to customer)</button>';
+  html += '<button class="vs-btn" style="width:100%;" onclick="VS.memDownload(\''+m.serial+'\')">Download card PDF (print file)</button>';
+  if(admin){
+    html += '<div style="display:flex;gap:6px;">'+
+      '<button class="vs-btn small" style="flex:1;" onclick="VS.memRenewForm(\''+m.serial+'\')">Renew / change level</button>'+
+      '<button class="vs-btn small" style="flex:1;" onclick="VS.memReissue(\''+m.serial+'\')">Replace lost card</button>'+
+      (s!=='revoked' ? '<button class="vs-btn small danger" style="flex:1;" onclick="VS.memRevokeAsk(\''+m.serial+'\')">Revoke</button>' : '')+'</div>';
+    html += '<button class="vs-btn small" style="width:100%;" onclick="VS.memEditNotes(\''+m.serial+'\')">Edit notes / dates</button>';
+    var log = (m.log||[]).slice().reverse().slice(0,10);
+    if(log.length) html += '<div style="margin-top:8px;font-size:11.5px;color:var(--muted);">'+log.map(function(l){ return '<div>'+new Date(l.at).toLocaleDateString()+' — '+memEsc(l.what)+' ('+memEsc(l.by)+')</div>'; }).join('')+'</div>';
+  }
+  html += '</div><div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+  openModal(html);
+}
+
+// ---------- issue / renew ----------
+function memTierSelectHtml(id, sel){
+  return '<select id="'+id+'">'+MEM_ORDER.map(function(k){ return '<option value="'+k+'"'+(k===sel?' selected':'')+'>'+MEM_TIERS[k].label+'</option>'; }).join('')+'</select>';
+}
+function memIssueListHtml(){
+  var q = (memUI.issueSearch||'').trim().toLowerCase();
+  if(state.customersCache===null) return '<p style="font-size:12.5px;color:var(--muted);">Loading customers from ServiceM8…</p>';
+  if(!q) return '<p style="font-size:12.5px;color:var(--muted);">Type to search customers.</p>';
+  var list = state.customersCache.filter(function(co){
+    return (co.name||'').toLowerCase().indexOf(q)!==-1 || (co.address||'').toLowerCase().indexOf(q)!==-1;
+  }).slice(0,25);
+  if(!list.length) return '<p style="font-size:12.5px;color:var(--muted);">No customers match.</p>';
+  return list.map(function(co){
+    return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.memIssuePick(\''+co.uuid+'\')"><div class="vs-item-info"><div class="vs-item-name">'+memEsc(co.name)+'</div><div class="vs-item-meta">'+memEsc(co.address||'')+'</div></div></div>';
+  }).join('');
+}
+function memRenderIssueList(){ var el = document.getElementById('mem-issue-list'); if(el) el.innerHTML = memIssueListHtml(); }
+function memCustomersChanged(){ memRenderIssueList(); }
+
+function memIssueStep2(){
+  var co = memUI.issueCustomer;
+  var today = memToday();
+  var html = '<h3>Issue membership card</h3>'+
+    '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px;"><div style="font-weight:800;">'+memEsc(co.name)+'</div><div style="font-size:12.5px;color:var(--muted);">'+memEsc(co.address||'')+'</div></div>'+
+    '<div class="vs-field"><label>Level</label>'+memTierSelectHtml('mem-new-tier','GOLD')+'</div>'+
+    '<div class="vs-field"><label>Valid from</label><input type="date" id="mem-new-from" value="'+today+'" onchange="document.getElementById(\'mem-new-to\').value=VS.memYearAfter(this.value)"></div>'+
+    '<div class="vs-field"><label>Valid until</label><input type="date" id="mem-new-to" value="'+memAddYear(today)+'"></div>'+
+    '<div class="vs-field"><label>Notes (optional)</label><textarea id="mem-new-notes" rows="2"></textarea></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.memIssueCreate()">Create card</button></div>';
+  openModal(html);
+}
+
+function memCreateCard(co, tier, from, to, notes, logText){
+  var serial = memNewSerial(tier);
+  if(!serial){ toast('Could not generate a serial — try again'); return null; }
+  var m = {
+    serial:serial, tier:tier, customerUuid:co.uuid, customerName:co.name, customerAddress:co.address||'',
+    validFrom:from, validUntil:to, issuedAt:new Date().toISOString(), activatedAt:null, notes:notes||'', log:[]
+  };
+  memLog(m, logText||'Card created');
+  memList().push(m);
+  saveMemberships();
+  return m;
+}
+
+// ---------- card PDF ----------
+var memArtCache = {};
+function memLoadArt(name){
+  if(memArtCache[name]) return Promise.resolve(memArtCache[name]);
+  return fetch('card-art/'+name+'.jpg').then(function(r){ if(!r.ok) throw new Error('missing '+name); return r.blob(); }).then(function(b){
+    return new Promise(function(res, rej){ var fr = new FileReader(); fr.onload = function(){ memArtCache[name] = fr.result; res(fr.result); }; fr.onerror = rej; fr.readAsDataURL(b); });
+  });
+}
+function memBuildCardPdf(m){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection'); return Promise.resolve(null); }
+  var t = MEM_TIERS[m.tier], key = m.tier.toLowerCase();
+  return Promise.all([memLoadArt(key+'-front'), memLoadArt(key+'-back')]).then(function(imgs){
+    var BL = 3, TW = 85.6, TH = 53.98, PW = TW+6, PH = TH+6;
+    var doc = new window.jspdf.jsPDF({ unit:'mm', format:[PW,PH], orientation:'landscape' });
+    function txt(s, x, y, size, rgb, o){
+      o = o || {};
+      doc.setFont(o.font||'helvetica', o.style||'normal'); doc.setFontSize(size); doc.setTextColor(rgb[0],rgb[1],rgb[2]);
+      if(o.track){
+        var total = 0, i, ws = [];
+        for(i=0;i<s.length;i++){ ws.push(doc.getTextWidth(s.charAt(i))); total += ws[i]+o.track; }
+        total -= o.track;
+        var cx = o.align==='right' ? x-total : x;
+        for(i=0;i<s.length;i++){ doc.text(s.charAt(i), cx, y); cx += ws[i]+o.track; }
+      } else doc.text(s, x, y, { align:o.align||'left' });
+    }
+    var X = function(v){ return BL+v; }, Y = function(v){ return BL+v; };
+    var A = t.accent, I = t.ink, S = t.sub;
+    // front
+    doc.addImage(imgs[0], 'JPEG', 0, 0, PW, PH);
+    txt('SERVICE MEMBERSHIP', X(TW-5.2), Y(6.6), 4.6, A, { align:'right', track:.5, style:'bold' });
+    txt('MEMBER', X(5.2), Y(TH-12.4), 3.6, A, { track:.4, style:'bold' });
+    var nm = m.customerName || '', nsz = 7.4;
+    doc.setFont('helvetica','bold'); doc.setFontSize(nsz);
+    while(doc.getTextWidth(nm) > 46 && nsz > 4.5){ nsz -= .3; doc.setFontSize(nsz); }
+    txt(nm, X(5.2), Y(TH-8.7), nsz, I, { style:'bold' });
+    txt(m.serial, X(5.2), Y(TH-5.0), 6.0, S, { font:'courier', style:'bold' });
+    var d = new Date(m.validUntil+'T00:00:00');
+    var valid = ('0'+d.getDate()).slice(-2)+' / '+('0'+(d.getMonth()+1)).slice(-2)+' / '+d.getFullYear();
+    txt('VALID UNTIL', X(TW-5.2), Y(TH-12.4), 3.6, A, { align:'right', track:.4, style:'bold' });
+    txt(valid, X(TW-5.2), Y(TH-8.7), 7.4, I, { align:'right', style:'bold' });
+    txt('khgsecurity.com', X(TW-5.2), Y(TH-5.0), 4.4, S, { align:'right' });
+    // back
+    doc.addPage([PW,PH], 'landscape');
+    doc.addImage(imgs[1], 'JPEG', 0, 0, PW, PH);
+    txt(t.label.toUpperCase()+' MEMBER', X(TW-5.2), Y(6.6), 4.6, A, { align:'right', track:.5, style:'bold' });
+    var px = 5.2, py = 13.2, ps = 31;
+    doc.setFillColor(250,252,255); doc.roundedRect(X(px), Y(py), ps, ps, 2.2, 2.2, 'F');
+    var mat = KHGQR.make(memQrBase()+m.serial), n = mat.length, mod = (ps-6)/n;
+    doc.setFillColor(8,13,26);
+    for(var r=0;r<n;r++) for(var c2=0;c2<n;c2++) if(mat[r][c2]) doc.rect(X(px+3)+c2*mod, Y(py+3)+r*mod, mod+0.03, mod+0.03, 'F');
+    var x0 = 40.5;
+    txt('Present this card', X(x0), Y(16.8), 8.6, I, { style:'bold' });
+    txt('on every visit', X(x0), Y(21.0), 8.6, I, { style:'bold' });
+    ['Your KHG engineer will scan the code','to confirm your level of cover and','bring up your details.'].forEach(function(l,i){ txt(l, X(x0), Y(25.6+i*3.1), 5.0, S); });
+    txt('SERIAL', X(x0), Y(35.8), 3.6, A, { track:.4, style:'bold' });
+    txt(m.serial, X(x0), Y(39.0), 6.6, I, { font:'courier', style:'bold' });
+    txt('01565 634211', X(x0), Y(43.6), 5.0, I, { style:'bold' });
+    txt('office@khgsecurity.com', X(x0), Y(46.4), 4.6, S);
+    txt('Property of KHG Security Ltd. Valid only with an active service agreement.', X(5.2), Y(TH-5.6), 3.3, S);
+    txt('Gilbert House, Haig Road, Parkgate Industrial Estate, Knutsford WA16 8DX', X(5.2), Y(TH-3.4), 3.3, S);
+    return doc;
+  }).catch(function(e){ toast('Card artwork could not be loaded — is the card-art folder uploaded?'); return null; });
+}
+
+function memJobsChanged(){ if(document.getElementById('mem-jobs-marker') && memUI.shownSerial) memShowCard(memUI.shownSerial); }
+function memHandlePending(){
+  var ser = memUI.pendingSerial;
+  if(!ser || !liveLoaded.memberships) return;
+  var p = currentPerson();
+  if(!p || appView!=='home') return;
+  memUI.pendingSerial = null;
+  try{ window.history.replaceState(null, '', window.location.pathname); }catch(e){}
+  if(!personCanSeeSection(p,'memberships')) return;
+  appView = 'memberships'; refreshAppScreen();
+  memOpenSerial(ser, 'link');
 }
 
 function renderServiceReportForm(c){
@@ -9416,6 +10065,154 @@ var VS = {
     resetFormDirty();
     renderFormsScreen();
     window.scrollTo(0,0);
+  },
+  // ---------- Memberships ----------
+  enterMemberships:enterMemberships,
+  memTab:function(t){ memUI.tab = t; renderMembershipsScreen(); },
+  memSearch:function(v){ memUI.search = v; renderMembershipsScreen(); },
+  memFilter:function(f){ memUI.filter = f; renderMembershipsScreen(); },
+  memYearAfter:function(iso){ return iso ? memAddYear(iso) : ''; },
+  memScan:function(){ memOpenScanner(); },
+  memScanManual:function(){
+    var el = document.getElementById('mem-manual');
+    memOpenSerial(el ? el.value : '', false);
+  },
+  memOpen:function(serial){ memShowCard(serial); },
+  memActivate:function(serial){
+    var m = memFind(serial); if(!m) return;
+    m.activatedAt = new Date().toISOString();
+    memLog(m, 'Activated (handed to customer)');
+    // an activated renewal supersedes the customer's earlier cards
+    memList().forEach(function(o){
+      if(o!==m && o.customerUuid===m.customerUuid && !o.revoked && !o.replacedBy && o.issuedAt < m.issuedAt){
+        o.replacedBy = m.serial; memLog(o, 'Replaced by '+m.serial);
+      }
+    });
+    saveMemberships();
+    toast('Card activated');
+    memShowCard(serial);
+    if(appView==='memberships') renderMembershipsScreen();
+  },
+  memIssueForm:function(){
+    if(!memIsAdmin()) return;
+    memUI.issueSearch = ''; memUI.issueCustomer = null;
+    if(state.customersCache===null){ loadCustomersFromLocalCache(); }
+    openModal('<h3>Issue membership card</h3><p style="font-size:13px;color:var(--muted);margin:0 0 10px 0;">Choose the customer (from ServiceM8).</p>'+
+      '<input id="mem-issue-search" placeholder="Search customers…" oninput="VS.memIssueSearch(this.value)" style="width:100%;box-sizing:border-box;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:8px;">'+
+      '<div id="mem-issue-list">'+memIssueListHtml()+'</div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button></div>');
+  },
+  memIssueSearch:function(v){ memUI.issueSearch = v; memRenderIssueList(); },
+  memIssuePick:function(uuid){
+    var co = (state.customersCache||[]).filter(function(x){ return x.uuid===uuid; })[0];
+    if(!co) return;
+    memUI.issueCustomer = co;
+    memIssueStep2();
+  },
+  memIssueCreate:function(){
+    var co = memUI.issueCustomer; if(!co) return;
+    var tier = document.getElementById('mem-new-tier').value;
+    var from = document.getElementById('mem-new-from').value;
+    var to = document.getElementById('mem-new-to').value;
+    var notes = document.getElementById('mem-new-notes').value.trim();
+    if(!from || !to || to < from){ toast('Check the dates'); return; }
+    var m = memCreateCard(co, tier, from, to, notes, 'Card created ('+MEM_TIERS[tier].label+')');
+    if(!m) return;
+    toast('Card '+m.serial+' created');
+    memShowCard(m.serial);
+    if(appView==='memberships') renderMembershipsScreen();
+  },
+  memRenewForm:function(serial){
+    var old = memFind(serial); if(!old || !memIsAdmin()) return;
+    var from = (old.validUntil && memDaysTo(old.validUntil)>=0) ? new Date(new Date(old.validUntil+'T00:00:00Z').getTime()+86400000).toISOString().slice(0,10) : memToday();
+    openModal('<h3>Renew membership</h3>'+
+      '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px;"><div style="font-weight:800;">'+memEsc(old.customerName)+'</div><div style="font-size:12.5px;color:var(--muted);">Current: '+MEM_TIERS[old.tier].label+' · '+old.serial+' · to '+memFmtDate(old.validUntil)+'</div></div>'+
+      '<p style="font-size:12.5px;color:var(--muted);margin:0 0 10px 0;">A new card with a new serial is created. The old card stays valid until the new one is activated at handover.</p>'+
+      '<div class="vs-field"><label>Level</label>'+memTierSelectHtml('mem-ren-tier', old.tier)+'</div>'+
+      '<div class="vs-field"><label>Valid from</label><input type="date" id="mem-ren-from" value="'+from+'" onchange="document.getElementById(\'mem-ren-to\').value=VS.memYearAfter(this.value)"></div>'+
+      '<div class="vs-field"><label>Valid until</label><input type="date" id="mem-ren-to" value="'+memAddYear(from)+'"></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.memRenewCreate(\''+serial+'\')">Create renewal card</button></div>');
+  },
+  memRenewCreate:function(serial){
+    var old = memFind(serial); if(!old) return;
+    var tier = document.getElementById('mem-ren-tier').value;
+    var from = document.getElementById('mem-ren-from').value;
+    var to = document.getElementById('mem-ren-to').value;
+    if(!from || !to || to < from){ toast('Check the dates'); return; }
+    var m = memCreateCard({ uuid:old.customerUuid, name:old.customerName, address:old.customerAddress }, tier, from, to, old.notes, 'Renewal of '+old.serial+' ('+MEM_TIERS[tier].label+')');
+    if(!m) return;
+    memLog(old, 'Renewal card '+m.serial+' created');
+    saveMemberships();
+    toast('Renewal card '+m.serial+' created');
+    memShowCard(m.serial);
+    if(appView==='memberships') renderMembershipsScreen();
+  },
+  memReissue:function(serial){
+    var old = memFind(serial); if(!old || !memIsAdmin()) return;
+    openModal('<h3>Replace lost card</h3><p style="font-size:13px;color:var(--muted);">This revokes <span style="font-family:monospace;">'+old.serial+'</span> so it can no longer be used, and creates a replacement with a new serial and the same level and dates.</p>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.memShowAgain(\''+serial+'\')">Cancel</button><button class="vs-btn primary" onclick="VS.memReissueDo(\''+serial+'\')">Replace card</button></div>');
+  },
+  memShowAgain:function(serial){ memShowCard(serial); },
+  memReissueDo:function(serial){
+    var old = memFind(serial); if(!old) return;
+    var m = memCreateCard({ uuid:old.customerUuid, name:old.customerName, address:old.customerAddress }, old.tier, old.validFrom, old.validUntil, old.notes, 'Replacement for lost card '+old.serial);
+    if(!m) return;
+    old.revoked = true; old.replacedBy = m.serial;
+    memLog(old, 'Revoked — replaced by '+m.serial);
+    saveMemberships();
+    toast('Replacement '+m.serial+' created');
+    memShowCard(m.serial);
+    if(appView==='memberships') renderMembershipsScreen();
+  },
+  memRevokeAsk:function(serial){
+    openModal('<h3>Revoke card</h3><p style="font-size:13px;color:var(--muted);">Scans of <span style="font-family:monospace;">'+serial+'</span> will show it as revoked. Use this for cancelled agreements or lost cards that are not being replaced.</p>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.memShowAgain(\''+serial+'\')">Cancel</button><button class="vs-btn danger" onclick="VS.memRevokeDo(\''+serial+'\')">Revoke</button></div>');
+  },
+  memRevokeDo:function(serial){
+    var m = memFind(serial); if(!m) return;
+    m.revoked = true; memLog(m, 'Revoked');
+    saveMemberships();
+    toast('Card revoked');
+    memShowCard(serial);
+    if(appView==='memberships') renderMembershipsScreen();
+  },
+  memEditNotes:function(serial){
+    var m = memFind(serial); if(!m || !memIsAdmin()) return;
+    openModal('<h3>Edit card</h3><div class="vs-field"><label>Valid from</label><input type="date" id="mem-ed-from" value="'+(m.validFrom||'')+'"></div>'+
+      '<div class="vs-field"><label>Valid until</label><input type="date" id="mem-ed-to" value="'+(m.validUntil||'')+'"></div>'+
+      '<div class="vs-field"><label>Notes</label><textarea id="mem-ed-notes" rows="3">'+memEsc(m.notes||'')+'</textarea></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.memShowAgain(\''+serial+'\')">Cancel</button><button class="vs-btn primary" onclick="VS.memEditSave(\''+serial+'\')">Save</button></div>');
+  },
+  memEditSave:function(serial){
+    var m = memFind(serial); if(!m) return;
+    var from = document.getElementById('mem-ed-from').value, to = document.getElementById('mem-ed-to').value;
+    if(!from || !to || to < from){ toast('Check the dates'); return; }
+    m.validFrom = from; m.validUntil = to; m.notes = document.getElementById('mem-ed-notes').value.trim();
+    memLog(m, 'Edited dates / notes');
+    saveMemberships();
+    memShowCard(serial);
+    if(appView==='memberships') renderMembershipsScreen();
+  },
+  memDownload:function(serial){
+    var m = memFind(serial); if(!m) return;
+    toast('Building card PDF…');
+    memBuildCardPdf(m).then(function(doc){
+      if(!doc) return;
+      sharePdf(doc, fileSafeName('KHG_Card_'+m.tier+'_'+m.customerName+'_'+m.serial, 'KHG_Card')+'.pdf');
+    });
+  },
+  memSaveSettings:function(){
+    var v = document.getElementById('mem-qrbase').value.trim();
+    var c = memConfig(); c.qrBase = v;
+    saveMembershipConfig(); toast('QR address saved');
+  },
+  memSaveTiers:function(){
+    var c = memConfig();
+    MEM_ORDER.forEach(function(k){
+      var el = document.getElementById('mem-ben-'+k);
+      if(el){ c.tiers[k] = c.tiers[k] || {}; c.tiers[k].benefits = el.value; }
+    });
+    saveMembershipConfig(); toast('Tier details saved');
   },
   addCctvCamera:function(){
     var wrap = document.getElementById('cctv-cams');
