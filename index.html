@@ -171,7 +171,24 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
 .vs-empty{ text-align:center; padding:30px 10px; color:var(--muted-2); font-size:13.5px; }
 .vs-modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.55); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; overflow-y:auto; }
 .vs-modal{ background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:20px; width:100%; max-width:380px; max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; box-sizing:border-box; }
-#vs-memberships-content{ color:var(--text); }
+#vs-memberships-content, #vs-crates-content{ color:var(--text); }
+#vs-tools-content{ color:var(--text); }
+.tool-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px; }
+.tool-answer{ border-color:var(--accent); }
+.tool-warn{ background:rgba(224,160,48,.12); border:1px solid rgba(224,160,48,.5); border-radius:10px; padding:10px 12px; font-size:12.5px; margin-bottom:12px; }
+.tool-hint{ font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
+.tool-adv{ margin-top:6px; } .tool-adv summary, .tool-learn summary{ cursor:pointer; font-weight:700; font-size:13.5px; padding:4px 0; }
+.tool-learn{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:8px; }
+.tool-learn-body{ font-size:13px; line-height:1.5; padding:6px 0 4px 0; } .tool-learn-body ul{ margin:6px 0; padding-left:18px; } .tool-learn-body li{ margin-bottom:5px; }
+.tool-f{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; line-height:1.55; word-break:break-word; margin:3px 0; }
+.tool-big{ font-size:14px; padding:10px; background:var(--panel-2); border-radius:8px; }
+.tool-sub{ color:var(--muted); } .tool-res{ font-weight:800; }
+.tool-step{ display:flex; gap:10px; padding:10px 0; border-top:1px solid var(--line); } .tool-step:first-of-type{ border-top:none; }
+.tool-step-n{ flex:0 0 24px; height:24px; border-radius:50%; background:var(--accent-dim,#243); color:var(--accent); font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center; }
+.tool-note{ font-size:12px; color:var(--muted); margin-bottom:6px; }
+.tool-line{ background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:8px; margin-bottom:8px; }
+.tool-line input{ width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 10px; color:var(--text); font-size:16px; }
+.tl-name{ margin-bottom:6px; } .tl-row{ display:flex; gap:6px; align-items:flex-end; } .tl-row label{ flex:1; min-width:0; font-size:10.5px; color:var(--muted); display:block; } .tl-row label input{ margin-top:3px; }
 .vs-modal h3{ font-size:16px; margin:0 0 14px 0; font-weight:800; }
 .vs-field{ margin-bottom:12px; }
 .vs-field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:5px; font-weight:600; }
@@ -537,6 +554,36 @@ main{ padding:18px 20px calc(70px + env(safe-area-inset-bottom)) 20px; max-width
   <main id="vs-memberships-content"></main>
 </div>
 
+<div id="vs-tools-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
+        <h1>Tools</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+      <div class="vs-shared-note">Calculators and reference</div>
+    </div>
+    <div class="vs-who-badge" id="vs-tools-who-badge"></div>
+  </div>
+  <main id="vs-tools-content"></main>
+</div>
+
+<div id="vs-crates-wrap" style="display:none">
+  <div class="vs-header">
+    <div class="vs-header-top">
+      <div class="vs-title">
+        <button class="vs-home-btn" onclick="VS.showHome()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>Home</button>
+        <h1>Crates</h1>
+        <span class="vs-tag">KHG</span>
+      </div>
+      <div class="vs-shared-note">Scan a crate, assign it to a job, pack stock into it</div>
+    </div>
+    <div class="vs-who-badge" id="vs-crates-who-badge"></div>
+  </div>
+  <main id="vs-crates-content"></main>
+</div>
+
 <div id="vs-help-wrap" style="display:none">
   <div class="vs-header">
     <div class="vs-header-top">
@@ -607,6 +654,7 @@ function isAdminPerson(person){ return !!(person && person.isAdmin); }
 
 var HOME_TILES = [
   { key:'stock', label:'Stock', sub:'Van &amp; stores stock', onclick:'VS.enterStock()', icon:'<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>' },
+  { key:'crates', label:'Crates', sub:'Pack &amp; assign to jobs', onclick:'VS.enterCrates()', icon:'<path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>' },
   { key:'leave', label:'Leave &amp; Rota', sub:'', onclick:'VS.enterLeave()', icon:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>', badgeFn: leaveRotaSectionBadgeCount },
   { key:'jobs', label:'Jobs', sub:'Live from ServiceM8', onclick:'VS.enterJobs()', icon:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 4v3M16 4v3"/><path d="M7 13h4M7 16h7"/>' },
   { key:'customers', label:'Customers', sub:'Live from ServiceM8', onclick:'VS.enterCustomers()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16.5 8h4M18.5 6v4"/>' },
@@ -616,6 +664,7 @@ var HOME_TILES = [
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
   { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
   { key:'hr', label:'HR', sub:'', onclick:'VS.enterHR()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>', badgeFn: hrSectionBadgeCount },
+  { key:'tools', label:'Tools', sub:'Battery calculators', onclick:'VS.enterTools()', icon:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01M8 15h.01M12 15h.01M16 15h.01" stroke-width="2.4" stroke-linecap="round"/>' },
   { key:'help', label:'Help', sub:'How to use the app', onclick:'VS.enterHelp()', icon:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-1.5 2-2.2 2.7-.4.4-.6.9-.6 1.3"/><circle cx="12" cy="16.5" r="0.9"/>' },
   { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', fullWidth:true }
 ];
@@ -727,7 +776,7 @@ function initials(name){
 // truth for what's on screen, checked first on every auth change and every nav click.
 
 function hideAllScreens(){
-  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap','vs-hr-wrap','vs-customers-wrap','vs-memberships-wrap','vs-help-wrap'].forEach(function(id){
+  ['vs-home-wrap','vs-placeholder-wrap','vs-lock-wrap','vs-setup-wrap','vs-root','vs-leave-wrap','vs-manuals-wrap','vs-jobs-wrap','vs-forms-wrap','vs-vehicles-wrap','vs-followups-wrap','vs-hr-wrap','vs-customers-wrap','vs-memberships-wrap','vs-tools-wrap','vs-crates-wrap','vs-help-wrap'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.style.display = 'none';
   });
@@ -809,6 +858,12 @@ function refreshAppScreen(){
     if(!personCanSeeSection(currentPerson(),'memberships')){ appView='home'; refreshAppScreen(); return; }
     document.getElementById('vs-memberships-wrap').style.display = 'block';
     renderMembershipsScreen();
+  } else if(appView==='crates'){
+    document.getElementById('vs-crates-wrap').style.display = 'block';
+    renderCratesScreen();
+  } else if(appView==='tools'){
+    document.getElementById('vs-tools-wrap').style.display = 'block';
+    renderToolsScreen();
   } else if(appView==='help'){
     document.getElementById('vs-help-wrap').style.display = 'block';
     renderHelpScreen();
@@ -1309,7 +1364,7 @@ function renderWhoBadge(){
     (faceIdSupported() ? ' \u00b7 '+(getFaceId() ? '<button class="vs-transfer-link" style="font-size:12px;" onclick="VS.faceIdOff()">turn off Face ID</button>' : '<button class="vs-transfer-link" style="font-size:12px;" onclick="VS.faceIdOn()">turn on Face ID</button>') : '')+
     '</div>'
   ) : '';
-  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge','vs-customers-who-badge','vs-memberships-who-badge','vs-help-who-badge'].forEach(function(id){
+  ['vs-who-badge','vs-home-who-badge','vs-leave-who-badge','vs-manuals-who-badge','vs-jobs-who-badge','vs-forms-who-badge','vs-vehicles-who-badge','vs-followups-who-badge','vs-hr-who-badge','vs-customers-who-badge','vs-memberships-who-badge','vs-tools-who-badge','vs-crates-who-badge','vs-help-who-badge'].forEach(function(id){
     var el = document.getElementById(id);
     if(el) el.innerHTML = html;
   });
@@ -1572,6 +1627,10 @@ function startLiveSync(){
     onSharedUpdate('memberships');
     memHandlePending();
   });
+  subscribeShared('crates', function(value, exists){
+    try{ state.crates = exists ? JSON.parse(value) : {}; }catch(e){ state.crates = {}; }
+    onSharedUpdate('crates');
+  });
   subscribeShared('membership-config', function(value, exists){
     try{ state.memConfig = exists ? JSON.parse(value) : {}; }catch(e){ state.memConfig = {}; }
     onSharedUpdate('memConfig');
@@ -1635,6 +1694,7 @@ function onSharedUpdate(changedKey){
   if(appView==='home' && ['catalog','leave','swaps','overtime','feedback','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeTiles(); }
   if(appView==='hr' && ['catalog','feedback','hrDocuments'].indexOf(changedKey)!==-1){ renderHRScreen(); }
   if(appView==='customers' && changedKey==='customerInfo'){ renderCustomersScreen(); }
+  if(appView==='crates' && changedKey==='crates'){ renderCratesScreen(); }
   if(appView==='memberships' && ['memberships','memConfig','memScans'].indexOf(changedKey)!==-1){ renderMembershipsScreen(); }
   if(appView==='home' && ['catalog','stock','stockAlertsSeen','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ renderHomeNotifications(); }
   else if(state.currentUser && ['catalog','leave','swaps','overtime','monthlyReports'].indexOf(changedKey)!==-1){ updateAppBadge(computeAlertCounts().total); }
@@ -2029,7 +2089,7 @@ function historyRowHtml(h){
   var actorInitials = (actorEng && actorEng.code) ? actorEng.code : initials(actorName);
   return '<div class="vs-hist-row"><span class="vs-hist-actor" title="'+escapeAttr(actorName)+'">'+escapeAttr(actorInitials)+'</span>'+
     '<div class="vs-hist-time">'+timeStr+'</div><div class="vs-hist-what">'+
-    (h.locationLabel||'')+' '+verb+qtyPart+itName+(h.note?' — '+h.note:'')+'</div></div>';
+    (h.locationLabel||'')+' '+verb+qtyPart+itName+(h.note?' — '+memEsc(h.note):'')+'</div></div>';
 }
 
 function renderVan(c){
@@ -2166,7 +2226,7 @@ function renderItems(c){
       '<button class="vs-btn small danger" id="items-remove-sel" onclick="VS.removeSelectedItems()">Remove selected</button>'+
     '</div>';
   }
-  html += '<div class="vs-scroll-x"><table class="vs-cat-table"><thead><tr>'+(admin?'<th></th><th></th>':'')+'<th style="min-width:150px;">Name</th><th>Category</th>'+(admin?'<th>Tracked in</th>':'')+'<th>Unit</th><th>Van Min</th><th>Stores Min</th>'+(admin?'<th></th>':'')+'</tr></thead><tbody id="vs-items-tbody">';
+  html += '<div class="vs-scroll-x"><table class="vs-cat-table"><thead><tr>'+(admin?'<th></th><th></th>':'')+'<th style="min-width:150px;">Name</th><th>Category</th>'+(admin?'<th>Tracked in</th>':'')+'<th>Unit</th><th>Van Min</th><th>Stores Min</th>'+(admin?'<th style="min-width:150px;">Barcode</th><th></th>':'')+'</tr></thead><tbody id="vs-items-tbody">';
   state.catalog.items.forEach(function(it){
     var scope = it.scope || 'both';
     html += '<tr data-item-id="'+it.id+'">'+
@@ -2178,6 +2238,7 @@ function renderItems(c){
       '<td><input value="'+escapeAttr(it.unit)+'" onchange="VS.editItem(\''+it.id+'\',\'unit\',this.value)" style="width:60px" '+(admin?'':'disabled')+'></td>'+
       '<td><input type="number" min="0" value="'+it.vanPar+'" onchange="VS.editItem(\''+it.id+'\',\'vanPar\',this.value)" style="width:60px" '+(scope==='warehouse'||!editPars?'disabled':'')+'></td>'+
       '<td><input type="number" min="0" value="'+it.whPar+'" onchange="VS.editItem(\''+it.id+'\',\'whPar\',this.value)" style="width:60px" '+(scope==='van'||!editPars?'disabled':'')+'></td>'+
+      (admin?'<td><div style="display:flex;gap:4px;"><input inputmode="numeric" placeholder="none" value="'+escapeAttr(it.barcode||'')+'" onchange="VS.editItem(\''+it.id+'\',\'barcode\',this.value)" style="width:110px;font-size:13px;"><button class="vs-btn small" onclick="VS.scanItemBarcode(\''+it.id+'\')">Scan</button></div></td>':'')+
       (admin?'<td><button class="vs-btn small danger" onclick="VS.removeItem(\''+it.id+'\')">Remove</button></td>':'')+
       '</tr>';
   });
@@ -2333,6 +2394,19 @@ function renderHelpScreen(){
     helpItem('Items', 'the item catalog \u2014 admins can add, edit, reorder (drag the handle), or remove items, and set minimum stock levels for vans and stores separately.')+
     helpItem('Show low stock only', 'a button in Vans and Stores that filters the list down to just what\u2019s low or out, so you can see what needs restocking at a glance.')+
     helpItem('Transfer &amp; ServiceM8', 'stock can be transferred from Stores to a van, and material used on a job can be logged straight to that job in ServiceM8.')
+  );
+
+  html += helpSection('Crates', ''+
+    helpItem('Scan a crate', 'tap Scan a crate and point the camera at the QR sticker, or type the ID (like CRT-001, or just 1).')+
+    helpItem('Assign to a job', 'pick the ServiceM8 job from the list, or type what the crate is for if there is no job.')+
+    helpItem('Scan stock in', 'choose Stores or your van, then scan each item\u2019s barcode. The stock is taken off that location and put in the crate. No barcode? Pick the item from the list. A new barcode can be linked to an item on the spot.')+
+    helpItem('Move out', 'tap Move / remove on an item to put it in another crate (scan that crate), back to Stores or a van, or remove it when it has been used or left on site.')
+  );
+
+  html += helpSection('Tools', ''+
+    helpItem('Intruder battery', 'works out the battery size for an intruder alarm from the grade, standby current and alarm current.')+
+    helpItem('Fire alarm battery', 'the same for fire alarms using the BS 5839-1 method (24 h standby plus 30 min alarm, or the generator / unoccupied options).')+
+    helpItem('The working', 'every step of the sum is shown under the answer, and the \u201cLearn the calculation\u201d boxes explain the formula so you can check it by hand.')
   );
 
   html += helpSection('Leave &amp; Rota', ''+
@@ -6354,7 +6428,7 @@ function memBuildCardPdf(m){
   }).catch(function(e){ toast('Card artwork could not be loaded — is the card-art folder uploaded?'); return null; });
 }
 
-function memJobsChanged(){ if(document.getElementById('mem-jobs-marker') && memUI.shownSerial) memShowCard(memUI.shownSerial); }
+function memJobsChanged(){ crateJobsChanged(); if(document.getElementById('mem-jobs-marker') && memUI.shownSerial) memShowCard(memUI.shownSerial); }
 function memHandlePending(){
   var ser = memUI.pendingSerial;
   if(!ser || !liveLoaded.memberships) return;
@@ -6365,6 +6439,570 @@ function memHandlePending(){
   if(!personCanSeeSection(p,'memberships')) return;
   appView = 'memberships'; refreshAppScreen();
   memOpenSerial(ser, 'link');
+}
+
+// ===================== TOOLS: battery calculators =====================
+var TOOL_STD_SIZES = [1.2, 2.1, 3.2, 7, 9, 12, 17, 18, 24, 26, 38, 40]; // common sealed lead-acid sizes (Ah)
+var toolState = {
+  tab: 'intruder',
+  intruder: { grade:'2', arc:true, customStandby:'12', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] },
+  fire:     { standby:'24', unoccHours:'48', customStandby:'24', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] }
+};
+
+function toolNum(v){ var n = parseFloat(String(v).replace(',','.')); return isFinite(n) ? n : NaN; }
+function toolFmt(n, dp){ if(!isFinite(n)) return '\u2013'; return n.toFixed(dp==null?2:dp).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,''); }
+
+// Standby hours for the chosen scheme
+function toolStandby(kind, p){
+  if(kind==='intruder'){
+    if(p.grade==='1' || p.grade==='2') return { h:12, why:'Grade '+p.grade+': 12 hours (EN 50131-1 / PD 6662)' };
+    if(p.grade==='3' || p.grade==='4') return p.arc ? { h:30, why:'Grade '+p.grade+' with mains failure signalled to an ARC: 30 hours' } : { h:60, why:'Grade '+p.grade+': 60 hours' };
+    return { h:toolNum(p.customStandby), why:'Custom standby period' };
+  }
+  if(p.standby==='24') return { h:24, why:'Standard fire alarm standby: 24 hours' };
+  if(p.standby==='gen') return { h:6, why:'Automatic standby generator supplying the system: 6 hours' };
+  if(p.standby==='unocc'){
+    var u = toolNum(p.unoccHours);
+    return { h: isFinite(u) ? Math.min(u+24, 72) : NaN, why:'Unoccupied premises: unoccupied period + 24 h, capped at 72 h' };
+  }
+  return { h:toolNum(p.customStandby), why:'Custom standby period' };
+}
+// Total currents in amps
+function toolCurrents(p){
+  var k = p.unit==='A' ? 1 : 0.001;
+  if(p.mode==='lines'){
+    var sb = 0, al = 0;
+    p.lines.forEach(function(l){
+      var q = toolNum(l.qty); if(!isFinite(q)) q = 0;
+      var a = toolNum(l.sb), b = toolNum(l.al);
+      if(isFinite(a)) sb += q*a; if(isFinite(b)) al += q*b;
+    });
+    return { i1: sb*0.001, i2: al*0.001, fromLines:true, sbMa:sb, alMa:al };
+  }
+  return { i1: toolNum(p.i1)*k, i2: toolNum(p.i2)*k };
+}
+function toolCalc(kind){
+  var p = toolState[kind];
+  var st = toolStandby(kind, p), c = toolCurrents(p);
+  var t2 = toolNum(p.alarmMin)/60, ageing = toolNum(p.ageing), D = toolNum(p.derate);
+  var r = { kind:kind, p:p, T1:st.h, why:st.why, I1:c.i1, I2:c.i2, T2:t2, ageing:ageing, D:D, lines:c };
+  r.ok = [r.T1, r.I1, r.I2, r.T2, r.ageing, r.D].every(function(x){ return isFinite(x) && x>=0; }) && r.T1>0 && r.I1>0 && r.I2>0 && r.T2>0 && r.ageing>0 && r.D>0;
+  if(r.ok){
+    r.standbyAh = r.T1*r.I1;
+    r.alarmAh = r.D*r.I2*r.T2;
+    r.sum = r.standbyAh + r.alarmAh;
+    r.cmin = r.ageing*r.sum;
+    r.std = null;
+    for(var i=0;i<TOOL_STD_SIZES.length;i++){ if(TOOL_STD_SIZES[i] >= r.cmin){ r.std = TOOL_STD_SIZES[i]; break; } }
+  }
+  return r;
+}
+function toolWorking(r){
+  var f = function(n,d){ return toolFmt(n,d==null?4:d); };
+  var h = '<div class="tool-working">';
+  var step = function(n, title, formula, sub, result){
+    return '<div class="tool-step"><div class="tool-step-n">'+n+'</div><div style="min-width:0;"><div style="font-weight:700;font-size:13px;">'+title+'</div>'+
+      '<div class="tool-f">'+formula+'</div><div class="tool-f tool-sub">'+sub+'</div>'+
+      '<div class="tool-f tool-res">'+result+'</div></div></div>';
+  };
+  var unitNote = '';
+  if(r.lines.fromLines) unitNote = '<div class="tool-note">Device lines added up: standby = '+f(r.lines.sbMa,2)+' mA = '+f(r.I1,4)+' A; alarm = '+f(r.lines.alMa,2)+' mA = '+f(r.I2,4)+' A.</div>';
+  else if(r.p.unit==='mA') unitNote = '<div class="tool-note">Currents entered in mA are divided by 1000 first: I1 = '+f(r.I1,4)+' A, I2 = '+f(r.I2,4)+' A.</div>';
+  h += unitNote;
+  h += step(1,'Standby capacity','Standby Ah = T1 × I1','= '+f(r.T1,2)+' h × '+f(r.I1,4)+' A','= '+f(r.standbyAh)+' Ah');
+  h += step(2,'Alarm capacity (de-rated)','Alarm Ah = D × I2 × T2','= '+f(r.D,2)+' × '+f(r.I2,4)+' A × '+f(r.T2,4)+' h','= '+f(r.alarmAh)+' Ah');
+  h += step(3,'Add them together','Subtotal = Standby Ah + Alarm Ah','= '+f(r.standbyAh)+' + '+f(r.alarmAh),'= '+f(r.sum)+' Ah');
+  h += step(4,'Allow for battery ageing','Cmin = ageing × Subtotal','= '+f(r.ageing,2)+' × '+f(r.sum),'= '+f(r.cmin,2)+' Ah');
+  h += step(5,'Choose a battery','Next standard size at or above Cmin', TOOL_STD_SIZES.join(' · ')+' Ah', r.std ? '= '+r.std+' Ah' : 'Above '+TOOL_STD_SIZES[TOOL_STD_SIZES.length-1]+' Ah: use batteries in parallel or check the panel limit');
+  return h+'</div>';
+}
+function toolResultHtml(kind){
+  var r = toolCalc(kind);
+  var warn = '';
+  if(!r.ok){
+    return '<div class="tool-card"><p style="margin:0;font-size:13px;color:var(--muted);">Enter the standby current and the alarm current to see the result and the working.</p></div>';
+  }
+  if(r.I2 < r.I1) warn += '<div class="tool-warn">The alarm current is lower than the standby current. Alarm current should be the <b>whole system</b> total with the sounders going, so it is normally higher.</div>';
+  if(r.cmin > 40) warn += '<div class="tool-warn">That is more than a single 40 Ah battery. Check the panel’s maximum battery size / charger limit before choosing batteries.</div>';
+  var h = '<div class="tool-card tool-answer">'+
+    '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Minimum battery capacity (when new)</div>'+
+    '<div style="font-size:34px;font-weight:800;line-height:1.1;margin:2px 0;">'+toolFmt(r.cmin,2)+' <span style="font-size:16px;font-weight:700;">Ah</span></div>'+
+    '<div style="font-size:14px;">'+(r.std ? 'Next standard size: <b>'+r.std+' Ah</b>' : 'Above the standard single-battery sizes')+'</div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-top:4px;">Standby period used: '+toolFmt(r.T1,2)+' h — '+memEsc(r.why)+'</div>'+
+    '<div style="display:flex;gap:8px;margin-top:10px;"><button class="vs-btn small" onclick="VS.toolCopy(\''+kind+'\')">Copy result</button><button class="vs-btn small" onclick="VS.toolReset(\''+kind+'\')">Reset</button></div></div>';
+  h += warn;
+  h += '<div class="tool-card"><div style="font-weight:800;margin-bottom:8px;">The working</div>'+toolWorking(r)+'</div>';
+  return h;
+}
+
+function toolLinesHtml(kind){
+  var p = toolState[kind];
+  var h = '<div class="tool-lines">';
+  p.lines.forEach(function(l,i){
+    h += '<div class="tool-line">'+
+      '<input class="tl-name" placeholder="Device (e.g. keypad)" value="'+memEsc(l.name)+'" oninput="VS.toolLine(\''+kind+'\','+i+',\'name\',this.value)">'+
+      '<div class="tl-row"><label>Qty<input inputmode="decimal" value="'+memEsc(l.qty)+'" oninput="VS.toolLine(\''+kind+'\','+i+',\'qty\',this.value)"></label>'+
+      '<label>Standby mA each<input inputmode="decimal" value="'+memEsc(l.sb)+'" oninput="VS.toolLine(\''+kind+'\','+i+',\'sb\',this.value)"></label>'+
+      '<label>Alarm mA each<input inputmode="decimal" value="'+memEsc(l.al)+'" oninput="VS.toolLine(\''+kind+'\','+i+',\'al\',this.value)"></label>'+
+      '<button class="vs-btn small danger" onclick="VS.toolLineDel(\''+kind+'\','+i+')">×</button></div></div>';
+  });
+  h += '<button class="vs-btn small" onclick="VS.toolLineAdd(\''+kind+'\')">+ Add device line</button>'+
+    '<p class="tool-hint">Take the currents from each device’s datasheet. In the <b>alarm</b> column put what it draws with the alarm sounding (devices that don’t change, like a keypad, use the same figure as standby).</p></div>';
+  return h;
+}
+
+function toolInputsHtml(kind){
+  var p = toolState[kind];
+  var fld = function(label, inner, hint){ return '<div class="vs-field"><label>'+label+'</label>'+inner+(hint?'<div class="tool-hint">'+hint+'</div>':'')+'</div>'; };
+  var inp = function(field, ph){ return '<input inputmode="decimal" placeholder="'+(ph||'')+'" value="'+memEsc(p[field])+'" oninput="VS.toolSet(\''+kind+'\',\''+field+'\',this.value)">'; };
+  var h = '';
+  if(kind==='intruder'){
+    h += fld('Security grade', '<select onchange="VS.toolSet(\'intruder\',\'grade\',this.value,true)">'+
+      [['1','Grade 1'],['2','Grade 2'],['3','Grade 3'],['4','Grade 4'],['custom','Another period']].map(function(o){ return '<option value="'+o[0]+'"'+(p.grade===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>');
+    if(p.grade==='3' || p.grade==='4'){
+      h += '<div class="vs-field"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" style="width:auto;" '+(p.arc?'checked':'')+' onchange="VS.toolSet(\'intruder\',\'arc\',this.checked,true)">Mains failure is signalled to an ARC (30 h instead of 60 h)</label></div>';
+    }
+    if(p.grade==='custom') h += fld('Standby period (hours)', inp('customStandby','12'));
+  } else {
+    h += fld('Standby period', '<select onchange="VS.toolSet(\'fire\',\'standby\',this.value,true)">'+
+      [['24','Standard — 24 hours'],['gen','Automatic standby generator — 6 hours'],['unocc','Unoccupied premises — unoccupied period + 24 h (max 72 h)'],['custom','Custom']].map(function(o){ return '<option value="'+o[0]+'"'+(p.standby===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>');
+    if(p.standby==='unocc') h += fld('Longest unoccupied period (hours)', inp('unoccHours','48'));
+    if(p.standby==='custom') h += fld('Standby period (hours)', inp('customStandby','24'));
+  }
+  h += '<div class="vs-field"><label>How do you want to enter the current?</label><div style="display:flex;gap:6px;">'+
+    '<button class="vs-btn small'+(p.mode==='totals'?' primary':'')+'" style="flex:1;" onclick="VS.toolSet(\''+kind+'\',\'mode\',\'totals\',true)">I know the totals</button>'+
+    '<button class="vs-btn small'+(p.mode==='lines'?' primary':'')+'" style="flex:1;" onclick="VS.toolSet(\''+kind+'\',\'mode\',\'lines\',true)">Add up devices</button></div></div>';
+  if(p.mode==='lines'){
+    h += toolLinesHtml(kind);
+  } else {
+    h += fld('Units', '<select onchange="VS.toolSet(\''+kind+'\',\'unit\',this.value,true)"><option value="mA"'+(p.unit==='mA'?' selected':'')+'>Milliamps (mA)</option><option value="A"'+(p.unit==='A'?' selected':'')+'>Amps (A)</option></select>');
+    h += fld('Standby current, I1 ('+p.unit+')', inp('i1', p.unit==='mA'?'e.g. 200':'e.g. 0.2'), kind==='intruder' ? 'Whole system on battery with <b>no alarm</b>: panel, keypads, detectors, quiet sounder and communicator.' : 'Whole system on battery with <b>no alarm</b>: panel, detectors, interfaces and any other loads.');
+    h += fld('Alarm current, I2 ('+p.unit+')', inp('i2', p.unit==='mA'?'e.g. 900':'e.g. 0.9'), 'The same system with <b>everything sounding</b> — all sounders / beacons and the communicator at full draw.');
+  }
+  h += fld('Alarm period, T2 (minutes)', inp('alarmMin','30'), 'How long the alarm must sound after the standby period. 30 minutes unless the specification says otherwise.');
+  h += '<details class="tool-adv"><summary>Advanced factors</summary>'+
+    fld('Ageing factor', inp('ageing','1.25'), 'Default 1.25 (5% a year over 4 years). Some makers use about 85% usable capacity, roughly 1.18.')+
+    fld('De-rating factor, D', inp('derate','1.75'), 'Default 1.75. Applied to the alarm load only, because batteries give less capacity when drained quickly.')+'</details>';
+  return h;
+}
+
+function toolLearnHtml(kind){
+  var d = function(title, body, open){ return '<details class="tool-learn"'+(open?' open':'')+'><summary>'+title+'</summary><div class="tool-learn-body">'+body+'</div></details>'; };
+  var ex = kind==='intruder' ?
+    '<p><b>Example 1 — Grade 2, 200 mA standby, 900 mA alarm, 30 min:</b></p>'+
+    '<div class="tool-f">Standby = 12 h × 0.2 A = 2.4 Ah<br>Alarm = 1.75 × 0.9 A × 0.5 h = 0.7875 Ah<br>Cmin = 1.25 × (2.4 + 0.7875) = <b>3.98 Ah</b> → 7 Ah battery</div>'+
+    '<button class="vs-btn small" onclick="VS.toolExample(\'intruder\',1)">Load this example</button>'+
+    '<p style="margin-top:12px;"><b>Example 2 — Grade 3 with ARC signalling (30 h), 350 mA standby, 1.2 A alarm, 30 min:</b></p>'+
+    '<div class="tool-f">Standby = 30 h × 0.35 A = 10.5 Ah<br>Alarm = 1.75 × 1.2 A × 0.5 h = 1.05 Ah<br>Cmin = 1.25 × (10.5 + 1.05) = <b>14.44 Ah</b> → 17 Ah battery</div>'+
+    '<button class="vs-btn small" onclick="VS.toolExample(\'intruder\',2)">Load this example</button>'
+  :
+    '<p><b>Example 1 — 24 h standby, 100 mA standby, 1 A alarm, 30 min:</b></p>'+
+    '<div class="tool-f">Standby = 24 h × 0.1 A = 2.4 Ah<br>Alarm = 1.75 × 1 A × 0.5 h = 0.875 Ah<br>Cmin = 1.25 × (2.4 + 0.875) = <b>4.09 Ah</b> → 7 Ah battery</div>'+
+    '<button class="vs-btn small" onclick="VS.toolExample(\'fire\',1)">Load this example</button>'+
+    '<p style="margin-top:12px;"><b>Example 2 — unoccupied premises, 48 h unoccupied, same currents:</b></p>'+
+    '<div class="tool-f">Standby period = 48 + 24 = 72 h (the cap)<br>Standby = 72 h × 0.1 A = 7.2 Ah<br>Cmin = 1.25 × (7.2 + 0.875) = <b>10.09 Ah</b> → 12 Ah battery</div>'+
+    '<button class="vs-btn small" onclick="VS.toolExample(\'fire\',2)">Load this example</button>';
+  var h = '';
+  h += d('The formula', '<div class="tool-f tool-big">Cmin = ageing × ( I1 × T1 + D × I2 × T2 )</div>'+
+    '<p>The same method is used for fire (BS 5839-1) and intruder (EN 50131 / PD 6662) systems. Only the <b>standby period</b> differs.</p>'+
+    '<ul><li><b>Cmin</b> — minimum capacity of the battery <i>when new</i>, in amp-hours at the 20-hour rate and 20 °C.</li>'+
+    '<li><b>I1</b> — standby current in amps: the whole system running on battery with no alarm.</li>'+
+    '<li><b>T1</b> — standby period in hours: how long the system must keep running with no mains.</li>'+
+    '<li><b>I2</b> — alarm current in amps: the whole system with the sounders and beacons going.</li>'+
+    '<li><b>T2</b> — alarm period in hours (minutes ÷ 60). 30 minutes = 0.5 h.</li>'+
+    '<li><b>D</b> — de-rating factor, normally 1.75. A battery drained quickly gives back less than its label capacity, so the alarm load is increased.</li>'+
+    '<li><b>Ageing factor</b> — 1.25. It allows for 5% capacity loss per year over a 4-year battery life.</li></ul>', true);
+  if(kind==='intruder'){
+    h += d('Standby periods by grade', '<ul><li><b>Grades 1 and 2:</b> 12 hours</li><li><b>Grades 3 and 4:</b> 60 hours, or 30 hours where mains failure is signalled to an alarm receiving centre (ARC)</li></ul>'+
+      '<p>The alarm period is normally 30 minutes unless the system specification, insurer or certification body asks for something different. Some panel manuals also give a maximum recharge time (for example 72 hours for Grades 1 and 2, 24 hours for Grade 3). Check the panel manual.</p>');
+  } else {
+    h += d('Standby periods for fire alarms', '<ul><li><b>Standard (Category L and M):</b> 24 hours, then at least 30 minutes of full alarm with all sounders operating.</li>'+
+      '<li><b>Automatic standby generator:</b> 6 hours, then 30 minutes of alarm.</li>'+
+      '<li><b>Unoccupied premises:</b> the longest unoccupied period plus 24 hours, up to a maximum of 72 hours, then 30 minutes of alarm.</li></ul>'+
+      '<p>In BS 5839-1:2025 the calculation is in Annex E (earlier editions placed it in Annex D). The 2025 edition also recommends marking each battery with its installation date.</p>');
+  }
+  h += d('Worked examples', ex);
+  h += d('Practical tips and common mistakes', '<ul>'+
+    '<li><b>Use the whole system.</b> I1 and I2 are totals, not just the panel. Forgetting keypads, interfaces, communicators and sounders is the most common error.</li>'+
+    '<li><b>Alarm current is not an add-on.</b> It is the total with everything sounding, so it includes the standby loads that keep running.</li>'+
+    '<li><b>Use datasheet figures</b> from the panel and device manufacturers, and check the result against the panel manual’s own battery table.</li>'+
+    '<li><b>Series or parallel.</b> Two 12 V batteries in <b>series</b> make 24 V at the <i>same</i> Ah. Two batteries in <b>parallel</b> keep 12 V and <i>add</i> their Ah.</li>'+
+    '<li><b>Charger limit.</b> Panels have a maximum battery size they can recharge in a reasonable time. Never choose above that.</li>'+
+    '<li><b>Batteries age.</b> Plan to replace sealed lead-acid batteries about every 4 years and write the install date on the case.</li>'+
+    '<li>This is an estimate to help with sizing. It is not a compliance check. Always confirm against the current standard and the manufacturer’s data.</li></ul>');
+  return h;
+}
+
+function renderToolsScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-tools-content');
+  if(!c) return;
+  var kind = toolState.tab;
+  var html = '<div style="display:flex;gap:6px;margin-bottom:14px;">'+
+    [['intruder','Intruder battery'],['fire','Fire alarm battery']].map(function(t){
+      return '<button class="vs-btn'+(kind===t[0]?' primary':'')+'" style="flex:1;" onclick="VS.toolTab(\''+t[0]+'\')">'+t[1]+'</button>';
+    }).join('')+'</div>';
+  html += '<h2 style="font-size:18px;margin:0 0 4px 0;">'+(kind==='intruder' ? 'Intruder alarm battery calculator' : 'Fire alarm battery calculator')+'</h2>'+
+    '<p style="font-size:12.5px;color:var(--muted);margin:0 0 14px 0;">'+(kind==='intruder'
+      ? 'Works out the battery capacity needed to run the system through a mains failure and then sound the alarm.'
+      : 'Works out the minimum standby battery capacity for a fire alarm panel, using the BS 5839-1 method.')+' Estimate only, not a compliance check.</p>';
+  html += '<div class="tool-card">'+toolInputsHtml(kind)+'</div>';
+  html += '<div id="tool-result">'+toolResultHtml(kind)+'</div>';
+  html += '<div style="font-weight:800;font-size:15px;margin:18px 0 8px 0;">Learn the calculation</div>'+toolLearnHtml(kind);
+  html += '<p style="font-size:11.5px;color:var(--muted);margin:16px 0 4px 0;">Method: Cmin = 1.25 × (I1 × T1 + D × I2 × T2), as set out in BS 5839-1 (Annex E in the 2025 edition; Annex D in 2013) and used for intruder systems with the standby periods of EN 50131-1 / PD 6662.</p>';
+  c.innerHTML = html;
+}
+function toolRefreshResult(){
+  var el = document.getElementById('tool-result');
+  if(el) el.innerHTML = toolResultHtml(toolState.tab);
+}
+function enterTools(){ appView = 'tools'; refreshAppScreen(); }
+
+// ===================== BARCODE SCAN (one-shot) + CRATES =====================
+var scanOnceCb = null;
+function openScanOnce(title, cb, o){
+  o = o || {};
+  scanOnceCb = cb;
+  var html = '<h3>'+memEsc(title)+'</h3>'+
+    '<div id="qr-reader" style="width:100%;border-radius:8px;overflow:hidden;background:var(--panel-2);"></div>'+
+    '<div id="qr-result" style="margin-top:10px;"></div>'+
+    (o.manual ? '<div class="vs-field" style="margin-top:12px;"><label>'+memEsc(o.manual)+'</label><div style="display:flex;gap:6px;"><input id="scan-once-manual" autocapitalize="characters" style="flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:16px;"><button class="vs-btn primary" onclick="VS.scanOnceManual()">OK</button></div></div>' : '')+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="'+(o.cancel||'VS.closeModal()')+'">Cancel</button></div>';
+  openModal(html);
+  if(typeof Html5Qrcode==='undefined'){
+    document.getElementById('qr-result').innerHTML = '<p style="color:var(--red);font-size:13px;">Camera scanner failed to load — check your connection'+(o.manual?' or type it in below':'')+'.</p>';
+    return;
+  }
+  scannerInstance = new Html5Qrcode('qr-reader');
+  var done = false;
+  scannerInstance.start({ facingMode:'environment' }, { fps:10, qrbox: o.wide ? { width:270, height:150 } : { width:230, height:230 } },
+    function(text){ if(done) return; done = true; scanOnceFinish(text); },
+    function(){}
+  ).catch(function(err){
+    var el = document.getElementById('qr-result');
+    if(el) el.innerHTML = '<p style="color:var(--red);font-size:13px;">Could not start the camera ('+memEsc(String(err))+').'+(o.manual?' Type it in below instead.':'')+'</p>';
+  });
+}
+function scanOnceFinish(text){
+  if(scannerInstance){
+    var si = scannerInstance; scannerInstance = null; scannerContext = null;
+    si.stop().then(function(){ si.clear(); }).catch(function(){});
+  }
+  var cb = scanOnceCb; scanOnceCb = null;
+  if(cb) cb(String(text||'').trim());
+}
+
+// ----- item barcodes (Stock -> Items) -----
+var addItemDraft = null;
+function itemWithBarcode(code, exceptId){
+  return state.catalog.items.filter(function(i){ return i.barcode && i.barcode===code && i.id!==exceptId; })[0];
+}
+function scanItemBarcode(id){
+  var it = itemById(id); if(!it) return;
+  openScanOnce('Scan barcode: '+it.name, function(code){
+    if(!code){ closeModal(); return; }
+    var other = itemWithBarcode(code, id);
+    if(other && !confirm('That barcode is already linked to “'+other.name+'”. Move it to “'+it.name+'” instead?')){ closeModal(); return; }
+    if(other){ delete other.barcode; }
+    it.barcode = code;
+    saveCatalog();
+    addHistory({type:'item_edit', itemId:id, locationLabel:'Catalog:', note:'barcode scanned'});
+    closeModal(); render();
+    toast('Barcode saved for '+it.name);
+  }, { wide:true, manual:'Or type the barcode number' });
+}
+function openAddItem(draft){
+  draft = draft || {};
+  var scopeOptions = SCOPES.map(function(s){return '<option value="'+s.v+'"'+(draft.scope===s.v?' selected':'')+'>'+s.label+'</option>';}).join('');
+  var html = '<h3>Add item</h3>'+
+    '<div class="vs-field"><label>Name</label><input id="vs-ai-name" placeholder="e.g. Wireless PIR" value="'+memEsc(draft.name||'')+'"></div>'+
+    '<div class="vs-field"><label>Category</label><select id="vs-ai-cat">'+categoryOptions(draft.category||CATEGORIES[0])+'</select></div>'+
+    '<div class="vs-field"><label>Tracked in</label><select id="vs-ai-scope">'+scopeOptions+'</select></div>'+
+    '<div class="vs-field"><label>Unit</label><input id="vs-ai-unit" value="'+memEsc(draft.unit||'ea')+'"></div>'+
+    '<div class="vs-field"><label>Van Min</label><input id="vs-ai-vanpar" type="number" min="0" value="'+(draft.vanPar!=null?memEsc(draft.vanPar):'1')+'"></div>'+
+    '<div class="vs-field"><label>Stores Min</label><input id="vs-ai-whpar" type="number" min="0" value="'+(draft.whPar!=null?memEsc(draft.whPar):'5')+'"></div>'+
+    '<div class="vs-field"><label>Barcode (optional)</label><div style="display:flex;gap:6px;"><input id="vs-ai-barcode" inputmode="numeric" placeholder="none" value="'+memEsc(draft.barcode||'')+'" style="flex:1;"><button class="vs-btn" onclick="VS.scanNewItemBarcode()">Scan</button></div></div>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doAddItem()">Add</button></div>';
+  openModal(html);
+}
+function readAddItemDraft(){
+  var g = function(id){ var e = document.getElementById(id); return e ? e.value : ''; };
+  return { name:g('vs-ai-name'), category:g('vs-ai-cat'), scope:g('vs-ai-scope'), unit:g('vs-ai-unit'), vanPar:g('vs-ai-vanpar'), whPar:g('vs-ai-whpar'), barcode:g('vs-ai-barcode') };
+}
+
+// ----- crates -----
+var crateUI = { source:null, pendingCode:null, scanCrate:null, jobSearch:'' };
+function crateMap(){ if(!state.crates || typeof state.crates!=='object' || Array.isArray(state.crates)) state.crates = {}; return state.crates; }
+function crateParseId(text){
+  if(!text) return null;
+  var t = String(text).trim().toUpperCase();
+  if(/LOC-?\d/.test(t) && !/CRT/.test(t)) return 'LOC';
+  var m = t.match(/CRT-?(\d{1,4})/) || t.match(/^(\d{1,4})$/);
+  if(!m) return null;
+  var n = parseInt(m[1],10);
+  if(!n) return null;
+  return 'CRT-'+String(n).padStart(3,'0');
+}
+function crateName(id){ return id.replace('CRT-','CRATE '); }
+function crateGet(id, create){
+  var m = crateMap();
+  if(!m[id] && create) m[id] = { id:id, job:null, contents:{}, log:[] };
+  return m[id] || null;
+}
+function crateView(id){ return crateGet(id,false) || { id:id, job:null, contents:{}, log:[] }; }
+function crateJobLabel(c){
+  if(!c || !c.job) return '';
+  var j = c.job;
+  if(j.manual) return j.manual;
+  return (j.number ? '#'+j.number+' — ' : '')+(j.name || j.description || 'Job');
+}
+function crateCount(c){ var n = 0; Object.keys(c.contents||{}).forEach(function(k){ n += c.contents[k]||0; }); return n; }
+function crateLog(c, what){
+  var me = currentPerson();
+  if(!c.log) c.log = [];
+  c.log.push({ at:new Date().toISOString(), by: me?me.name:'Unknown', what:what });
+  if(c.log.length>40) c.log = c.log.slice(-40);
+}
+function saveCrates(){ return trackSave(function(){ return storageSet('crates', JSON.stringify(crateMap()), true); }); }
+function crateLoc(src){
+  if(src==='warehouse') return 'Stores';
+  var e = engById(src); return e ? e.name+'’s van' : 'Van';
+}
+function crateSrcQty(src, itemId){
+  if(src==='warehouse') return state.stock.warehouse[itemId]||0;
+  return (state.stock.van[src] && state.stock.van[src][itemId]) || 0;
+}
+function crateSrcAdj(src, itemId, delta){
+  if(src==='warehouse'){ state.stock.warehouse[itemId] = Math.max(0,(state.stock.warehouse[itemId]||0)+delta); return; }
+  if(!state.stock.van[src]) state.stock.van[src] = {};
+  state.stock.van[src][itemId] = Math.max(0,(state.stock.van[src][itemId]||0)+delta);
+}
+function crateSourceOptions(sel){
+  var o = '<option value="warehouse"'+(sel==='warehouse'?' selected':'')+'>Stores</option>';
+  visibleVanHolders().forEach(function(e){ o += '<option value="'+e.id+'"'+(sel===e.id?' selected':'')+'>'+memEsc(e.name)+'’s van</option>'; });
+  return o;
+}
+function crateDefaultSource(){
+  var me = currentPerson();
+  var vans = visibleVanHolders();
+  if(crateUI.source && (crateUI.source==='warehouse' || vans.some(function(e){ return e.id===crateUI.source; }))) return crateUI.source;
+  return (me && personHasVan(me)) ? me.id : 'warehouse';
+}
+
+function renderCratesScreen(){
+  renderWhoBadge();
+  var c = document.getElementById('vs-crates-content');
+  if(!c) return;
+  var admin = isAdminPerson(currentPerson());
+  var html = '<div style="display:flex;gap:8px;margin-bottom:10px;">'+
+    '<button class="vs-btn primary" style="flex:1;font-size:15px;padding:13px;" onclick="VS.crateScan()">Scan a crate</button>'+
+    (admin ? '<button class="vs-btn" style="flex:1;font-size:15px;padding:13px;" onclick="VS.crateLabelsForm()">Print QR labels</button>' : '')+
+  '</div>'+
+  '<div style="display:flex;gap:6px;margin-bottom:16px;"><input id="crate-id-input" placeholder="Or type crate ID, e.g. CRT-001 or 1" autocapitalize="characters" style="flex:1;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:16px;" onkeydown="if(event.key===\'Enter\')VS.crateOpenTyped()">'+
+  '<button class="vs-btn" onclick="VS.crateOpenTyped()">Open</button></div>';
+  var m = crateMap();
+  var ids = Object.keys(m).filter(function(id){ return m[id].job || crateCount(m[id])>0; }).sort();
+  html += '<div style="font-weight:800;font-size:15px;margin-bottom:8px;">Crates in use <span style="font-weight:600;color:var(--muted);font-size:12px;">('+ids.length+')</span></div>';
+  if(!ids.length){
+    html += '<p style="font-size:13px;color:var(--muted);">No crates are assigned or packed yet. Scan a crate sticker to start.</p>';
+  } else {
+    html += ids.map(function(id){
+      var cr = m[id], n = crateCount(cr);
+      return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.crateOpen(\''+id+'\')"><div class="vs-item-info">'+
+        '<div class="vs-item-name">'+crateName(id)+(cr.job ? '' : ' <span class="vs-stock-badge low">NO JOB</span>')+'</div>'+
+        '<div class="vs-item-meta">'+(cr.job ? memEsc(crateJobLabel(cr)) : 'Not assigned to a job')+' · '+n+' item'+(n===1?'':'s')+'</div></div></div>';
+    }).join('');
+  }
+  c.innerHTML = html;
+}
+
+function crateScanStart(){
+  openScanOnce('Scan crate QR code', function(code){
+    var id = crateParseId(code);
+    if(id==='LOC'){ closeModal(); toast('That’s a shelf label, not a crate'); return; }
+    if(!id){ closeModal(); toast('Not a KHG crate code'); return; }
+    crateShow(id);
+  }, { manual:'Or type the crate ID (e.g. CRT-001)' });
+}
+
+function crateShow(id){
+  var c = crateView(id), admin = isAdminPerson(currentPerson());
+  var n = crateCount(c);
+  var html = '<h3 style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+crateName(id)+(c.job ? '<span class="vs-stock-badge ok">ASSIGNED</span>' : '<span class="vs-stock-badge low">NOT ASSIGNED</span>')+'</h3>';
+  html += '<div style="background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px;">';
+  if(c.job){
+    html += '<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;">Assigned to</div>'+
+      '<div style="font-weight:800;font-size:15px;margin-top:2px;">'+memEsc(crateJobLabel(c))+'</div>'+
+      (c.job.address ? '<div style="font-size:12.5px;color:var(--muted);">'+memEsc(c.job.address)+'</div>' : '')+
+      (c.job.description && !c.job.manual ? '<div style="font-size:12.5px;color:var(--muted);margin-top:2px;">'+memEsc(c.job.description)+'</div>' : '')+
+      '<div style="display:flex;gap:6px;margin-top:8px;"><button class="vs-btn small" onclick="VS.crateJobForm(\''+id+'\')">Change</button><button class="vs-btn small danger" onclick="VS.crateUnassign(\''+id+'\')">Unassign</button></div>';
+  } else {
+    html += '<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">This crate isn’t assigned to anything yet.</div>'+
+      '<button class="vs-btn primary" style="width:100%;" onclick="VS.crateJobForm(\''+id+'\')">Assign crate to job</button>';
+  }
+  html += '</div>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;"><div style="font-weight:800;">Contents <span style="font-weight:600;color:var(--muted);font-size:12px;">('+n+' item'+(n===1?'':'s')+')</span></div></div>';
+  var keys = Object.keys(c.contents||{}).filter(function(k){ return c.contents[k]>0; });
+  if(!keys.length) html += '<p style="font-size:13px;color:var(--muted);margin:0 0 10px 0;">Empty.</p>';
+  else html += keys.map(function(k){
+    var it = itemById(k);
+    return '<div class="vs-item-row"><div class="vs-item-info"><div class="vs-item-name">'+memEsc(it?it.name:'(deleted item)')+'</div><div class="vs-item-meta">Qty '+c.contents[k]+'</div></div>'+
+      '<button class="vs-btn small" onclick="VS.crateMoveForm(\''+id+'\',\''+k+'\')">Move / remove</button></div>';
+  }).join('');
+  html += '<div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">'+
+    '<button class="vs-btn primary" style="width:100%;" onclick="VS.crateScanIn(\''+id+'\')">Scan stock into this crate</button>'+
+    (keys.length ? '<button class="vs-btn small" style="width:100%;" onclick="VS.crateEmptyAsk(\''+id+'\')">Empty crate back to Stores</button>' : '')+'</div>';
+  var log = (c.log||[]).slice().reverse().slice(0,8);
+  if(log.length) html += '<div style="margin-top:12px;font-size:11.5px;color:var(--muted);">'+log.map(function(l){ return '<div>'+new Date(l.at).toLocaleDateString(undefined,{day:'numeric',month:'short'})+' — '+memEsc(l.what)+' ('+memEsc(l.by)+')</div>'; }).join('')+'</div>';
+  html += '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Close</button></div>';
+  openModal(html);
+  crateUI.scanCrate = id;
+}
+function crateAfter(id){
+  if(appView==='crates') renderCratesScreen();
+  crateShow(id);
+}
+
+// ----- job assignment -----
+function crateJobResultsHtml(id){
+  var q = (crateUI.jobSearch||'').trim().toLowerCase();
+  if(state.jobsCache===null) return '<p style="font-size:12.5px;color:var(--muted);">Loading ServiceM8 jobs…</p>';
+  if(!q) return '<p style="font-size:12.5px;color:var(--muted);">Type a job number, customer or address to search.</p>';
+  var list = state.jobsCache.filter(function(j){
+    return (j.jobNumber||'').toLowerCase().indexOf(q)!==-1 || (j.description||'').toLowerCase().indexOf(q)!==-1 ||
+      (j.address||'').toLowerCase().indexOf(q)!==-1 || (j.companyName||'').toLowerCase().indexOf(q)!==-1;
+  }).slice(0,25);
+  if(!list.length) return '<p style="font-size:12.5px;color:var(--muted);">No jobs match.</p>';
+  return list.map(function(j){
+    return '<div class="vs-item-row" style="cursor:pointer;" onclick="VS.crateJobPick(\''+id+'\',\''+j.uuid+'\')"><div class="vs-item-info"><div class="vs-item-name">'+(j.jobNumber?'#'+memEsc(j.jobNumber)+' — ':'')+memEsc(j.companyName||j.description||'(no description)')+'</div>'+
+      '<div class="vs-item-meta">'+memEsc(j.description||'')+(j.address?' · '+memEsc(j.address):'')+'</div></div></div>';
+  }).join('');
+}
+function crateJobsChanged(){
+  var el = document.getElementById('crate-job-results');
+  if(el && crateUI.scanCrate) el.innerHTML = crateJobResultsHtml(crateUI.scanCrate);
+}
+
+// ----- scanning stock in -----
+function crateScanInOpen(id){
+  crateUI.source = crateDefaultSource();
+  crateUI.pendingCode = null;
+  var items = state.catalog.items;
+  var html = '<h3>Add stock to '+crateName(id)+'</h3>'+
+    '<div class="vs-field"><label>Take stock from</label><select id="crate-src" onchange="VS.crateSetSource(this.value)">'+crateSourceOptions(crateUI.source)+'</select></div>'+
+    '<div id="qr-reader" style="width:100%;border-radius:8px;overflow:hidden;background:var(--panel-2);"></div>'+
+    '<div id="qr-result" style="margin-top:10px;"></div>'+
+    '<div style="border-top:1px solid var(--line);margin:12px 0;"></div>'+
+    '<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">No barcode? Pick the item:</div>'+
+    '<div style="display:flex;gap:6px;"><select id="crate-man-item" style="flex:1;min-width:0;"><option value="">— choose item —</option>'+items.map(function(it){ return '<option value="'+it.id+'">'+memEsc(it.name)+'</option>'; }).join('')+'</select>'+
+    '<input id="crate-man-qty" type="number" min="1" value="1" style="width:64px;"></div>'+
+    '<button class="vs-btn" style="width:100%;margin-top:8px;" onclick="VS.crateManualAdd(\''+id+'\')">Add to crate</button>'+
+    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.crateShowAgain(\''+id+'\')">Done</button></div>';
+  openModal(html);
+  crateUI.scanCrate = id;
+  if(typeof Html5Qrcode==='undefined'){
+    document.getElementById('qr-result').innerHTML = '<p style="color:var(--red);font-size:13px;">Scanner failed to load — pick the item below instead.</p>';
+    return;
+  }
+  scannerInstance = new Html5Qrcode('qr-reader');
+  scannerInstance.start({ facingMode:'environment' }, { fps:10, qrbox:{ width:270, height:150 } },
+    function(text){ crateHandleScan(id, text); }, function(){}
+  ).catch(function(err){
+    var el = document.getElementById('qr-result');
+    if(el) el.innerHTML = '<p style="color:var(--red);font-size:13px;">Could not start the camera ('+memEsc(String(err))+'). Pick the item below instead.</p>';
+  });
+}
+function crateHandleScan(crateId, code){
+  if(crateUI.pendingCode===code) return;
+  crateUI.pendingCode = code;
+  if(scannerInstance){ try{ scannerInstance.pause(true); }catch(e){} }
+  var el = document.getElementById('qr-result'); if(!el) return;
+  var it = state.catalog.items.filter(function(i){ return i.barcode && i.barcode===code; })[0];
+  var src = crateUI.source;
+  if(it){
+    var avail = crateSrcQty(src, it.id);
+    el.innerHTML = '<div class="vs-field"><label>'+memEsc(it.name)+' — '+avail+' in '+memEsc(crateLoc(src))+'</label>'+
+      '<input type="number" id="crate-scan-qty" min="1" value="1"></div>'+
+      '<button class="vs-btn primary" style="width:100%;" onclick="VS.crateScanAdd(\''+crateId+'\',\''+it.id+'\')">Add to crate</button>'+
+      '<button class="vs-btn small" style="width:100%;margin-top:6px;" onclick="VS.crateScanNext()">Skip / scan next</button>';
+  } else {
+    var opts = state.catalog.items.map(function(i){ return '<option value="'+i.id+'">'+memEsc(i.name)+'</option>'; }).join('');
+    el.innerHTML = '<p style="font-size:13px;color:var(--muted);">Unrecognised barcode: '+memEsc(code)+'</p>'+
+      '<div class="vs-field"><label>Which item is this?</label><select id="crate-link-item"><option value="">— choose —</option>'+opts+'</select></div>'+
+      '<button class="vs-btn small" style="width:100%;margin-bottom:6px;" onclick="VS.crateScanLink(\''+crateId+'\')">Link this barcode to the item</button>'+
+      '<button class="vs-btn small" style="width:100%;" onclick="VS.crateScanNext()">Skip / scan next</button>';
+  }
+}
+// Moves qty of an item from a stock location into a crate. Returns true on success.
+function crateAddStock(crateId, itemId, qty, src){
+  var it = itemById(itemId);
+  if(!it){ toast('Item not found'); return false; }
+  if(!qty || qty<1){ toast('Enter a valid quantity'); return false; }
+  if(!itemAppliesTo(it, src==='warehouse'?'warehouse':'van')){ toast(it.name+' isn’t tracked in '+crateLoc(src)); return false; }
+  var have = crateSrcQty(src, itemId);
+  if(qty>have && !confirm('Only '+have+' recorded in '+crateLoc(src)+'. Add '+qty+' to the crate anyway? (the stock count will go to 0)')) return false;
+  var c = crateGet(crateId, true);
+  crateSrcAdj(src, itemId, -qty);
+  c.contents[itemId] = (c.contents[itemId]||0) + qty;
+  crateLog(c, qty+' × '+it.name+' from '+crateLoc(src));
+  saveStock(); saveCrates();
+  addHistory({type:'transfer', itemId:itemId, qty:qty, locationLabel:crateLoc(src)+' → '+crateName(crateId), note:crateJobLabel(c)||undefined});
+  return true;
+}
+// Takes qty out of a crate. dest: 'warehouse' | van engineer id | 'remove' | 'CRT-xxx'
+function crateMoveStock(crateId, itemId, qty, dest){
+  var c = crateGet(crateId, false), it = itemById(itemId);
+  if(!c || !it) return false;
+  var have = c.contents[itemId]||0;
+  if(!qty || qty<1 || qty>have){ toast('Quantity must be between 1 and '+have); return false; }
+  var label, hist;
+  if(/^CRT-\d+$/.test(dest)){
+    if(dest===crateId){ toast('Choose a different crate'); return false; }
+    var d = crateGet(dest, true);
+    d.contents[itemId] = (d.contents[itemId]||0) + qty;
+    crateLog(d, qty+' × '+it.name+' from '+crateName(crateId));
+    label = crateName(dest);
+    hist = {type:'transfer', itemId:itemId, qty:qty, locationLabel:crateName(crateId)+' → '+crateName(dest), note:(crateJobLabel(d)||undefined)};
+  } else if(dest==='remove'){
+    label = 'removed';
+    hist = {type:'use', itemId:itemId, qty:-qty, locationLabel:crateName(crateId), note:'used / left on site'+(crateJobLabel(c)?' — '+crateJobLabel(c):'')};
+  } else {
+    if(!itemAppliesTo(it, dest==='warehouse'?'warehouse':'van')){ toast(it.name+' isn’t tracked in '+crateLoc(dest)); return false; }
+    crateSrcAdj(dest, itemId, qty);
+    label = crateLoc(dest);
+    hist = {type:'transfer', itemId:itemId, qty:qty, locationLabel:crateName(crateId)+' → '+crateLoc(dest)};
+    saveStock();
+  }
+  c.contents[itemId] = have - qty;
+  if(c.contents[itemId]<=0) delete c.contents[itemId];
+  crateLog(c, qty+' × '+it.name+' → '+label);
+  saveCrates();
+  addHistory(hist);
+  return true;
+}
+function crateLabelsPdf(kind, start, count){
+  if(typeof window.jspdf==='undefined'){ toast('PDF library failed to load — check your connection'); return null; }
+  var doc = new window.jspdf.jsPDF({ unit:'mm', format:'a4' });
+  var SW = 50, SH = 56, QRS = 33, COLS = 4, ROWS = 5, MX = (210-COLS*SW)/2, MY = (297-ROWS*SH)/2, per = COLS*ROWS;
+  for(var i=0;i<count;i++){
+    if(i && i%per===0) doc.addPage();
+    var s = i%per, x = MX+(s%COLS)*SW, y = MY+Math.floor(s/COLS)*SH;
+    var num = String(start+i).padStart(3,'0'), code = 'KHG-'+kind+'-'+num;
+    doc.setDrawColor(190); doc.setLineWidth(0.2);
+    try{ doc.setLineDashPattern([1,1],0); }catch(e){}
+    doc.roundedRect(x, y, SW, SH, 2.5, 2.5, 'S');
+    try{ doc.setLineDashPattern([],0); }catch(e){}
+    var mat = KHGQR.make(code), n = mat.length, m = QRS/n, qx = x+(SW-QRS)/2, qy = y+6.5;
+    doc.setFillColor(0,0,0);
+    for(var r=0;r<n;r++) for(var k=0;k<n;k++) if(mat[r][k]) doc.rect(qx+k*m, qy+r*m, m+0.03, m+0.03, 'F');
+    doc.setTextColor(0); doc.setFont('helvetica','bold'); doc.setFontSize(12.5);
+    doc.text((kind==='CRT'?'CRATE ':'LOCATION ')+num, x+SW/2, y+SH-9.6+1.2, { align:'center' });
+    doc.setFont('courier','bold'); doc.setFontSize(6.2);
+    doc.text(code, x+SW/2, y+SH-5.6+0.8, { align:'center' });
+    doc.setFont('helvetica','normal'); doc.setFontSize(4.6); doc.setTextColor(70);
+    doc.text('KHG SECURITY  ·  khgsecurity.com', x+SW/2, y+SH-2.4+0.5, { align:'center' });
+  }
+  return doc;
 }
 
 function renderServiceReportForm(c){
@@ -8641,19 +9279,6 @@ function doAddPerson(){
   toast('Added '+name+' to the team');
 }
 
-function openAddItem(){
-  var scopeOptions = SCOPES.map(function(s){return '<option value="'+s.v+'">'+s.label+'</option>';}).join('');
-  var html = '<h3>Add item</h3>'+
-    '<div class="vs-field"><label>Name</label><input id="vs-ai-name" placeholder="e.g. Wireless PIR"></div>'+
-    '<div class="vs-field"><label>Category</label><select id="vs-ai-cat">'+categoryOptions(CATEGORIES[0])+'</select></div>'+
-    '<div class="vs-field"><label>Tracked in</label><select id="vs-ai-scope">'+scopeOptions+'</select></div>'+
-    '<div class="vs-field"><label>Unit</label><input id="vs-ai-unit" value="ea"></div>'+
-    '<div class="vs-field"><label>Van Min</label><input id="vs-ai-vanpar" type="number" min="0" value="1"></div>'+
-    '<div class="vs-field"><label>Stores Min</label><input id="vs-ai-whpar" type="number" min="0" value="5"></div>'+
-    '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.doAddItem()">Add</button></div>';
-  openModal(html);
-}
-
 function doAddItem(){
   var name = document.getElementById('vs-ai-name').value.trim();
   if(!name){ toast('Enter an item name'); return; }
@@ -8666,6 +9291,13 @@ function doAddItem(){
     vanPar:parseInt(document.getElementById('vs-ai-vanpar').value,10)||0,
     whPar:parseInt(document.getElementById('vs-ai-whpar').value,10)||0
   };
+  var bc = (document.getElementById('vs-ai-barcode')||{value:''}).value.trim();
+  if(bc){
+    var dup = itemWithBarcode(bc, null);
+    if(dup && !confirm('That barcode is already linked to \u201c'+dup.name+'\u201d. Move it to the new item?')) return;
+    if(dup) delete dup.barcode;
+    item.barcode = bc;
+  }
   state.catalog.items.push(item);
   if(itemAppliesTo(item,'warehouse')) state.stock.warehouse[id]=0;
   if(itemAppliesTo(item,'van')){
@@ -10215,6 +10847,225 @@ var VS = {
     });
     saveMembershipConfig(); toast('Tier details saved');
   },
+  // ---------- Tools (battery calculators) ----------
+  enterTools:enterTools,
+  toolTab:function(t){ toolState.tab = t; renderToolsScreen(); window.scrollTo(0,0); },
+  toolSet:function(kind, field, value, rerender){
+    toolState[kind][field] = value;
+    if(rerender) renderToolsScreen(); else toolRefreshResult();
+  },
+  toolLine:function(kind, i, field, value){ toolState[kind].lines[i][field] = value; toolRefreshResult(); },
+  toolLineAdd:function(kind){ toolState[kind].lines.push({name:'',qty:'1',sb:'',al:''}); renderToolsScreen(); },
+  toolLineDel:function(kind, i){
+    var l = toolState[kind].lines; l.splice(i,1);
+    if(!l.length) l.push({name:'',qty:'1',sb:'',al:''});
+    renderToolsScreen();
+  },
+  toolReset:function(kind){
+    var keep = toolState[kind];
+    if(kind==='intruder') toolState.intruder = { grade:'2', arc:true, customStandby:'12', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] };
+    else toolState.fire = { standby:'24', unoccHours:'48', customStandby:'24', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] };
+    renderToolsScreen(); window.scrollTo(0,0);
+  },
+  toolExample:function(kind, n){
+    var p = toolState[kind];
+    p.mode = 'totals'; p.unit = 'mA'; p.alarmMin = '30'; p.ageing = '1.25'; p.derate = '1.75';
+    if(kind==='intruder'){
+      if(n===1){ p.grade = '2'; p.i1 = '200'; p.i2 = '900'; }
+      else { p.grade = '3'; p.arc = true; p.i1 = '350'; p.i2 = '1200'; }
+    } else {
+      p.i1 = '100'; p.i2 = '1000';
+      if(n===1){ p.standby = '24'; } else { p.standby = 'unocc'; p.unoccHours = '48'; }
+    }
+    renderToolsScreen(); window.scrollTo(0,0);
+  },
+  toolCopy:function(kind){
+    var r = toolCalc(kind); if(!r.ok) return;
+    var f = function(n,d){ return toolFmt(n,d); };
+    var txt = (kind==='intruder' ? 'Intruder alarm battery calculation' : 'Fire alarm battery calculation')+'\n'+
+      'Standby '+f(r.T1,2)+' h ('+r.why+'), I1 = '+f(r.I1,4)+' A\n'+
+      'Alarm '+f(r.T2*60,0)+' min, I2 = '+f(r.I2,4)+' A, D = '+f(r.D,2)+', ageing = '+f(r.ageing,2)+'\n'+
+      'Cmin = '+f(r.ageing,2)+' x ('+f(r.T1,2)+' x '+f(r.I1,4)+' + '+f(r.D,2)+' x '+f(r.I2,4)+' x '+f(r.T2,4)+') = '+f(r.cmin,2)+' Ah\n'+
+      (r.std ? 'Next standard size: '+r.std+' Ah' : 'Above standard single-battery sizes');
+    try{ navigator.clipboard.writeText(txt).then(function(){ toast('Result copied'); }, function(){ toast('Could not copy'); }); }
+    catch(e){ toast('Could not copy'); }
+  },
+  // ---------- Barcode scan helpers + Crates ----------
+  scanOnceManual:function(){
+    var el = document.getElementById('scan-once-manual');
+    var v = el ? el.value.trim() : '';
+    if(!v){ toast('Type a code first'); return; }
+    scanOnceFinish(v);
+  },
+  scanItemBarcode:function(id){ scanItemBarcode(id); },
+  scanNewItemBarcode:function(){
+    addItemDraft = readAddItemDraft();
+    openScanOnce('Scan item barcode', function(code){
+      addItemDraft.barcode = code;
+      openAddItem(addItemDraft);
+    }, { wide:true, manual:'Or type the barcode number', cancel:'VS.cancelScanNewItem()' });
+  },
+  cancelScanNewItem:function(){ closeModal(); openAddItem(addItemDraft||{}); },
+  enterCrates:function(){ appView = 'crates'; refreshAppScreen(); },
+  crateScan:function(){ crateScanStart(); },
+  crateOpenTyped:function(){
+    var el = document.getElementById('crate-id-input');
+    var id = crateParseId(el ? el.value : '');
+    if(!id || id==='LOC'){ toast('Type a crate ID like CRT-001 or just 1'); return; }
+    crateShow(id);
+  },
+  crateOpen:function(id){ crateShow(id); },
+  crateShowAgain:function(id){ closeModal(); crateShow(id); if(appView==='crates') renderCratesScreen(); },
+  crateJobForm:function(id){
+    crateUI.jobSearch = ''; crateUI.scanCrate = id;
+    if(state.jobsCache===null){ loadJobsFromLocalCache(); }
+    openModal('<h3>Assign '+crateName(id)+' to a job</h3>'+
+      '<input placeholder="Search ServiceM8 jobs\u2026" oninput="VS.crateJobSearch(this.value)" style="width:100%;box-sizing:border-box;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--text);font-size:16px;margin-bottom:8px;">'+
+      '<div id="crate-job-results">'+crateJobResultsHtml(id)+'</div>'+
+      '<div style="border-top:1px solid var(--line);margin:12px 0;"></div>'+
+      '<div class="vs-field"><label>Or type what it\u2019s assigned to</label><input id="crate-job-manual" placeholder="e.g. Training room kit, Warehouse spares" style="font-size:16px;"></div>'+
+      '<button class="vs-btn" style="width:100%;" onclick="VS.crateJobManual(\''+id+'\')">Assign to this</button>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.crateShowAgain(\''+id+'\')">Cancel</button></div>');
+  },
+  crateJobSearch:function(v){ crateUI.jobSearch = v; crateJobsChanged(); },
+  crateJobPick:function(id, uuid){
+    var j = (state.jobsCache||[]).filter(function(x){ return x.uuid===uuid; })[0];
+    if(!j) return;
+    var c = crateGet(id, true);
+    c.job = { uuid:j.uuid, number:j.jobNumber||'', name:j.companyName||'', address:j.address||'', description:j.description||'' };
+    crateLog(c, 'Assigned to '+crateJobLabel(c));
+    saveCrates(); toast(crateName(id)+' assigned to '+(j.jobNumber?'job #'+j.jobNumber:'job'));
+    crateAfter(id);
+  },
+  crateJobManual:function(id){
+    var el = document.getElementById('crate-job-manual');
+    var t = el ? el.value.trim() : '';
+    if(!t){ toast('Type what the crate is for'); return; }
+    var c = crateGet(id, true);
+    c.job = { manual:t };
+    crateLog(c, 'Assigned to \u201c'+t+'\u201d');
+    saveCrates(); toast(crateName(id)+' assigned');
+    crateAfter(id);
+  },
+  crateUnassign:function(id){
+    var c = crateGet(id, false); if(!c) return;
+    crateLog(c, 'Unassigned from '+crateJobLabel(c));
+    c.job = null; saveCrates();
+    crateAfter(id);
+  },
+  crateScanIn:function(id){ crateScanInOpen(id); },
+  crateSetSource:function(v){
+    crateUI.source = v;
+    var code = crateUI.pendingCode;
+    if(code && crateUI.scanCrate){ crateUI.pendingCode = null; crateHandleScan(crateUI.scanCrate, code); }
+  },
+  crateScanAdd:function(id, itemId){
+    var q = document.getElementById('crate-scan-qty');
+    var qty = q ? parseInt(q.value,10) : 0;
+    var it = itemById(itemId);
+    if(crateAddStock(id, itemId, qty, crateUI.source)){
+      toast('Added '+qty+' \u00d7 '+(it?it.name:'item')+' to '+crateName(id));
+      if(appView==='crates') renderCratesScreen();
+      this.crateScanNext();
+    }
+  },
+  crateScanLink:function(id){
+    var sel = document.getElementById('crate-link-item');
+    var itemId = sel ? sel.value : '';
+    if(!itemId){ toast('Choose an item'); return; }
+    var it = itemById(itemId), code = crateUI.pendingCode;
+    if(!it || !code) return;
+    var other = itemWithBarcode(code, itemId);
+    if(other && !confirm('That barcode is already linked to \u201c'+other.name+'\u201d. Move it to \u201c'+it.name+'\u201d?')) return;
+    if(other) delete other.barcode;
+    it.barcode = code; saveCatalog();
+    toast('Linked to '+it.name);
+    crateUI.pendingCode = null;
+    crateHandleScan(id, code);
+  },
+  crateScanNext:function(){
+    crateUI.pendingCode = null;
+    var el = document.getElementById('qr-result'); if(el) el.innerHTML = '';
+    if(scannerInstance){ try{ scannerInstance.resume(); }catch(e){} }
+  },
+  crateManualAdd:function(id){
+    var sel = document.getElementById('crate-man-item'), q = document.getElementById('crate-man-qty');
+    var itemId = sel ? sel.value : '', qty = q ? parseInt(q.value,10) : 0;
+    if(!itemId){ toast('Choose an item'); return; }
+    var it = itemById(itemId);
+    if(crateAddStock(id, itemId, qty, crateUI.source)){
+      toast('Added '+qty+' \u00d7 '+it.name);
+      if(sel) sel.value = '';
+      if(appView==='crates') renderCratesScreen();
+    }
+  },
+  crateMoveForm:function(id, itemId, draft){
+    draft = draft || {};
+    var c = crateView(id), it = itemById(itemId), have = c.contents[itemId]||0;
+    var dest = draft.dest || 'warehouse';
+    var opts = [['crate','Another crate'],['warehouse','Back to Stores']];
+    visibleVanHolders().forEach(function(e){ opts.push([e.id, 'Back to '+e.name+'\u2019s van']); });
+    opts.push(['remove','Remove \u2014 used / left on site']);
+    openModal('<h3>Move out of '+crateName(id)+'</h3>'+
+      '<p style="font-size:13px;margin:0 0 10px 0;"><b>'+memEsc(it?it.name:'Item')+'</b> \u2014 '+have+' in this crate</p>'+
+      '<div class="vs-field"><label>Quantity</label><input id="crate-move-qty" type="number" min="1" max="'+have+'" value="'+memEsc(draft.qty||have)+'"></div>'+
+      '<div class="vs-field"><label>Move to</label><select id="crate-move-dest" onchange="VS.crateMoveDest(this.value)">'+opts.map(function(o){ return '<option value="'+o[0]+'"'+(dest===o[0]?' selected':'')+'>'+memEsc(o[1])+'</option>'; }).join('')+'</select></div>'+
+      '<div id="crate-move-crate-box" style="display:'+(dest==='crate'?'block':'none')+';" class="vs-field"><label>Destination crate</label><div style="display:flex;gap:6px;"><input id="crate-move-crate" placeholder="CRT-002" autocapitalize="characters" value="'+memEsc(draft.crate||'')+'" style="flex:1;"><button class="vs-btn" onclick="VS.crateMoveScan(\''+id+'\',\''+itemId+'\')">Scan</button></div></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.crateShowAgain(\''+id+'\')">Cancel</button><button class="vs-btn primary" onclick="VS.crateMoveDo(\''+id+'\',\''+itemId+'\')">Move</button></div>');
+  },
+  crateMoveDest:function(v){
+    var b = document.getElementById('crate-move-crate-box'); if(b) b.style.display = v==='crate' ? 'block' : 'none';
+  },
+  crateMoveScan:function(id, itemId){
+    var g = function(i){ var e = document.getElementById(i); return e ? e.value : ''; };
+    var draft = { qty:g('crate-move-qty'), dest:'crate' };
+    openScanOnce('Scan destination crate', function(code){
+      var d = crateParseId(code);
+      if(!d || d==='LOC'){ toast('Not a crate code'); VS.crateMoveForm(id, itemId, draft); return; }
+      draft.crate = d; VS.crateMoveForm(id, itemId, draft);
+    }, { manual:'Or type the crate ID', cancel:'VS.crateMoveBack(\''+id+'\',\''+itemId+'\')' });
+  },
+  crateMoveBack:function(id, itemId){ closeModal(); VS.crateMoveForm(id, itemId, {}); },
+  crateMoveDo:function(id, itemId){
+    var g = function(i){ var e = document.getElementById(i); return e ? e.value : ''; };
+    var qty = parseInt(g('crate-move-qty'),10), dest = g('crate-move-dest');
+    if(dest==='crate'){
+      var d = crateParseId(g('crate-move-crate'));
+      if(!d || d==='LOC'){ toast('Enter or scan the destination crate'); return; }
+      dest = d;
+    }
+    var it = itemById(itemId);
+    if(crateMoveStock(id, itemId, qty, dest)){
+      toast('Moved '+qty+' \u00d7 '+(it?it.name:'item'));
+      crateAfter(id);
+    }
+  },
+  crateEmptyAsk:function(id){
+    var c = crateView(id);
+    if(!confirm('Return everything in '+crateName(id)+' to Stores?')) return;
+    Object.keys(c.contents||{}).forEach(function(k){ crateMoveStock(id, k, c.contents[k], 'warehouse'); });
+    crateAfter(id);
+  },
+  crateLabelsForm:function(){
+    if(!isAdminPerson(currentPerson())) return;
+    var m = crateMap(), maxN = 0;
+    Object.keys(m).forEach(function(k){ var n = parseInt(k.replace('CRT-',''),10); if(n>maxN) maxN = n; });
+    openModal('<h3>Print QR labels</h3>'+
+      '<p style="font-size:12.5px;color:var(--muted);margin:0 0 10px 0;">Makes an A4 sheet PDF of 50 \u00d7 56 mm stickers (20 per page). Print at 100% / actual size.</p>'+
+      '<div class="vs-field"><label>Type</label><select id="lbl-kind"><option value="CRT">Crate</option><option value="LOC">Shelf / location</option></select></div>'+
+      '<div class="vs-field"><label>Start at number</label><input id="lbl-start" type="number" min="1" value="1"></div>'+
+      '<div class="vs-field"><label>How many</label><input id="lbl-count" type="number" min="1" max="100" value="20"></div>'+
+      '<div class="vs-modal-actions"><button class="vs-btn" onclick="VS.closeModal()">Cancel</button><button class="vs-btn primary" onclick="VS.crateLabelsMake()">Make PDF</button></div>');
+  },
+  crateLabelsMake:function(){
+    var kind = document.getElementById('lbl-kind').value;
+    var start = parseInt(document.getElementById('lbl-start').value,10), count = parseInt(document.getElementById('lbl-count').value,10);
+    if(!start || start<1 || !count || count<1 || count>100 || start+count>1000){ toast('Check the numbers (max 100 labels)'); return; }
+    var doc = crateLabelsPdf(kind, start, count);
+    if(!doc) return;
+    closeModal();
+    sharePdf(doc, 'KHG_'+(kind==='CRT'?'Crate':'Location')+'_QR_labels_'+String(start).padStart(3,'0')+'-'+String(start+count-1).padStart(3,'0')+'.pdf');
+  },
   addCctvCamera:function(){
     var wrap = document.getElementById('cctv-cams');
     if(!wrap) return;
@@ -11534,6 +12385,13 @@ var VS = {
   editItem:function(id, field, value){
     var it = itemById(id); if(!it) return;
     if(field==='vanPar' || field==='whPar'){ value = Math.max(0, parseInt(value,10)||0); }
+    if(field==='barcode'){
+      value = String(value||'').trim();
+      var other = value ? itemWithBarcode(value, id) : null;
+      if(other && !confirm('That barcode is already linked to \u201c'+other.name+'\u201d. Move it to \u201c'+it.name+'\u201d?')){ render(); return; }
+      if(other) delete other.barcode;
+      if(!value){ delete it.barcode; saveCatalog(); toast('Saved'); return; }
+    }
     it[field]=value;
     saveCatalog();
     addHistory({type:'item_edit', itemId:id, locationLabel:'Catalog:', note:field+' updated'});
