@@ -6445,7 +6445,7 @@ function memHandlePending(){
 var TOOL_STD_SIZES = [1.2, 2.1, 3.2, 7, 9, 12, 17, 18, 24, 26, 38, 40]; // common sealed lead-acid sizes (Ah)
 var toolState = {
   tab: 'intruder',
-  intruder: { grade:'2', arc:true, customStandby:'12', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] },
+  intruder: { grade:'2', arc:true, customStandby:'12', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'20', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] },
   fire:     { standby:'24', unoccHours:'48', customStandby:'24', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] }
 };
 
@@ -6579,7 +6579,7 @@ function toolInputsHtml(kind){
     h += fld('Standby current, I1 ('+p.unit+')', inp('i1', p.unit==='mA'?'e.g. 200':'e.g. 0.2'), kind==='intruder' ? 'Whole system on battery with <b>no alarm</b>: panel, keypads, detectors, quiet sounder and communicator.' : 'Whole system on battery with <b>no alarm</b>: panel, detectors, interfaces and any other loads.');
     h += fld('Alarm current, I2 ('+p.unit+')', inp('i2', p.unit==='mA'?'e.g. 900':'e.g. 0.9'), 'The same system with <b>everything sounding</b> — all sounders / beacons and the communicator at full draw.');
   }
-  h += fld('Alarm period, T2 (minutes)', inp('alarmMin','30'), 'How long the alarm must sound after the standby period. 30 minutes unless the specification says otherwise.');
+  h += fld('Alarm period, T2 (minutes)', inp('alarmMin','30'), 'How long the alarm must sound after the standby period. '+(kind==='intruder' ? '20 minutes' : '30 minutes')+' unless the specification says otherwise.');
   h += '<details class="tool-adv"><summary>Advanced factors</summary>'+
     fld('Ageing factor', inp('ageing','1.25'), 'Default 1.25 (5% a year over 4 years). Some makers use about 85% usable capacity, roughly 1.18.')+
     fld('De-rating factor, D', inp('derate','1.75'), 'Default 1.75. Applied to the alarm load only, because batteries give less capacity when drained quickly.')+'</details>';
@@ -6589,11 +6589,11 @@ function toolInputsHtml(kind){
 function toolLearnHtml(kind){
   var d = function(title, body, open){ return '<details class="tool-learn"'+(open?' open':'')+'><summary>'+title+'</summary><div class="tool-learn-body">'+body+'</div></details>'; };
   var ex = kind==='intruder' ?
-    '<p><b>Example 1 — Grade 2, 200 mA standby, 900 mA alarm, 30 min:</b></p>'+
-    '<div class="tool-f">Standby = 12 h × 0.2 A = 2.4 Ah<br>Alarm = 1.75 × 0.9 A × 0.5 h = 0.7875 Ah<br>Cmin = 1.25 × (2.4 + 0.7875) = <b>3.98 Ah</b> → 7 Ah battery</div>'+
+    '<p><b>Example 1 — Grade 2, 200 mA standby, 900 mA alarm, 20 min:</b></p>'+
+    '<div class="tool-f">Standby = 12 h × 0.2 A = 2.4 Ah<br>Alarm = 1.75 × 0.9 A × 0.3333 h = 0.525 Ah<br>Cmin = 1.25 × (2.4 + 0.525) = <b>3.66 Ah</b> → 7 Ah battery</div>'+
     '<button class="vs-btn small" onclick="VS.toolExample(\'intruder\',1)">Load this example</button>'+
-    '<p style="margin-top:12px;"><b>Example 2 — Grade 3 with ARC signalling (30 h), 350 mA standby, 1.2 A alarm, 30 min:</b></p>'+
-    '<div class="tool-f">Standby = 30 h × 0.35 A = 10.5 Ah<br>Alarm = 1.75 × 1.2 A × 0.5 h = 1.05 Ah<br>Cmin = 1.25 × (10.5 + 1.05) = <b>14.44 Ah</b> → 17 Ah battery</div>'+
+    '<p style="margin-top:12px;"><b>Example 2 — Grade 3 with ARC signalling (30 h), 350 mA standby, 1.2 A alarm, 20 min:</b></p>'+
+    '<div class="tool-f">Standby = 30 h × 0.35 A = 10.5 Ah<br>Alarm = 1.75 × 1.2 A × 0.3333 h = 0.7 Ah<br>Cmin = 1.25 × (10.5 + 0.7) = <b>14 Ah</b> → 17 Ah battery</div>'+
     '<button class="vs-btn small" onclick="VS.toolExample(\'intruder\',2)">Load this example</button>'
   :
     '<p><b>Example 1 — 24 h standby, 100 mA standby, 1 A alarm, 30 min:</b></p>'+
@@ -6614,7 +6614,7 @@ function toolLearnHtml(kind){
     '<li><b>Ageing factor</b> — 1.25. It allows for 5% capacity loss per year over a 4-year battery life.</li></ul>', true);
   if(kind==='intruder'){
     h += d('Standby periods by grade', '<ul><li><b>Grades 1 and 2:</b> 12 hours</li><li><b>Grades 3 and 4:</b> 60 hours, or 30 hours where mains failure is signalled to an alarm receiving centre (ARC)</li></ul>'+
-      '<p>The alarm period is normally 30 minutes unless the system specification, insurer or certification body asks for something different. Some panel manuals also give a maximum recharge time (for example 72 hours for Grades 1 and 2, 24 hours for Grade 3). Check the panel manual.</p>');
+      '<p>The alarm period used here is 20 minutes unless the system specification, insurer or certification body asks for something different. Some panel manuals also give a maximum recharge time (for example 72 hours for Grades 1 and 2, 24 hours for Grade 3). Check the panel manual.</p>');
   } else {
     h += d('Standby periods for fire alarms', '<ul><li><b>Standard (Category L and M):</b> 24 hours, then at least 30 minutes of full alarm with all sounders operating.</li>'+
       '<li><b>Automatic standby generator:</b> 6 hours, then 30 minutes of alarm.</li>'+
@@ -10863,13 +10863,13 @@ var VS = {
   },
   toolReset:function(kind){
     var keep = toolState[kind];
-    if(kind==='intruder') toolState.intruder = { grade:'2', arc:true, customStandby:'12', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] };
+    if(kind==='intruder') toolState.intruder = { grade:'2', arc:true, customStandby:'12', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'20', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] };
     else toolState.fire = { standby:'24', unoccHours:'48', customStandby:'24', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] };
     renderToolsScreen(); window.scrollTo(0,0);
   },
   toolExample:function(kind, n){
     var p = toolState[kind];
-    p.mode = 'totals'; p.unit = 'mA'; p.alarmMin = '30'; p.ageing = '1.25'; p.derate = '1.75';
+    p.mode = 'totals'; p.unit = 'mA'; p.alarmMin = (kind==='intruder' ? '20' : '30'); p.ageing = '1.25'; p.derate = '1.75';
     if(kind==='intruder'){
       if(n===1){ p.grade = '2'; p.i1 = '200'; p.i2 = '900'; }
       else { p.grade = '3'; p.arc = true; p.i1 = '350'; p.i2 = '1200'; }
