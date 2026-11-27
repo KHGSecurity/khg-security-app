@@ -664,7 +664,7 @@ var HOME_TILES = [
   { key:'forms', label:'Forms', sub:'', onclick:'VS.enterForms()', icon:'<path d="M9 2h6l3 3v17H6V5l3-3z"/><path d="M9 11h6M9 15h6M9 7h2"/>' },
   { key:'vehicles', label:'Vehicles', sub:'', onclick:'VS.enterVehicles()', icon:'<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><path d="M3 13h18v4a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H6v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><circle cx="7" cy="17" r="1.4"/><circle cx="17" cy="17" r="1.4"/>' },
   { key:'hr', label:'HR', sub:'', onclick:'VS.enterHR()', icon:'<circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="18" cy="8.5" r="2.3"/><path d="M16.5 14.2c2.6.4 4.5 2.3 4.9 5.3"/>', badgeFn: hrSectionBadgeCount },
-  { key:'tools', label:'Tools', sub:'Battery calculators', onclick:'VS.enterTools()', icon:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01M8 15h.01M12 15h.01M16 15h.01" stroke-width="2.4" stroke-linecap="round"/>' },
+  { key:'tools', label:'Tools', sub:'Battery &amp; CCTV calculators', onclick:'VS.enterTools()', icon:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8"/><path d="M8 11.5h.01M12 11.5h.01M16 11.5h.01M8 15h.01M12 15h.01M16 15h.01" stroke-width="2.4" stroke-linecap="round"/>' },
   { key:'help', label:'Help', sub:'How to use the app', onclick:'VS.enterHelp()', icon:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-1.5 2-2.2 2.7-.4.4-.6.9-.6 1.3"/><circle cx="12" cy="16.5" r="0.9"/>' },
   { key:'followups', label:'Follow Up', sub:'', onclick:'VS.enterFollowUps()', icon:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>', fullWidth:true }
 ];
@@ -2406,6 +2406,7 @@ function renderHelpScreen(){
   html += helpSection('Tools', ''+
     helpItem('Intruder battery', 'works out the battery size for an intruder alarm from the grade, standby current and alarm current.')+
     helpItem('Fire alarm battery', 'the same for fire alarms using the BS 5839-1 method (24 h standby plus 30 min alarm, or the generator / unoccupied options).')+
+    helpItem('CCTV storage', 'estimates the recorder storage needed from the number of cameras, resolution, frame rate, compression, days kept, quality and scene activity.')+
     helpItem('The working', 'every step of the sum is shown under the answer, and the \u201cLearn the calculation\u201d boxes explain the formula so you can check it by hand.')
   );
 
@@ -6517,6 +6518,7 @@ function toolWorking(r){
   return h+'</div>';
 }
 function toolResultHtml(kind){
+  if(kind==='cctv') return cctvResultHtml();
   var r = toolCalc(kind);
   var warn = '';
   if(!r.ok){
@@ -6633,15 +6635,174 @@ function toolLearnHtml(kind){
   return h;
 }
 
+// ----- CCTV storage calculator -----
+var CCTV_CODEC = { h264:{ label:'H.264', f:1.0 }, h265:{ label:'H.265', f:0.6 }, h265p:{ label:'H.265+', f:0.4 } };
+var CCTV_QUAL  = { low:{ label:'Low', f:0.7 }, medium:{ label:'Medium', f:1.0 }, high:{ label:'High', f:1.3 } };
+var CCTV_ACT   = { low:{ label:'Low', f:0.6 }, medium:{ label:'Medium', f:1.0 }, high:{ label:'High', f:1.4 } };
+var CCTV_MBPS_PER_MP = 2;   // H.264, 30 fps, medium quality, medium activity
+var CCTV_RES = { 2:'2 MP (1080p)', 3:'3 MP', 4:'4 MP (2K)', 5:'5 MP', 6:'6 MP', 7:'7 MP', 8:'8 MP (4K)' };
+var CCTV_DRIVES = [1,2,4,6,8,10,12,14,16,18,20,22,24];
+function cctvDefaults(){ return { cams:'8', mp:'4', fps:'15', days:'30', codec:'h265', quality:'medium', activity:'medium', hours:'24', headroom:'10', override:'', raid:'none', drive:'8' }; }
+toolState.cctv = cctvDefaults();
+
+function cctvCalc(){
+  var p = toolState.cctv, r = { p:p };
+  r.cams = toolNum(p.cams); r.mp = toolNum(p.mp); r.fps = toolNum(p.fps); r.days = toolNum(p.days);
+  r.hours = toolNum(p.hours); r.head = toolNum(p.headroom); if(!isFinite(r.head)) r.head = 0;
+  r.codec = CCTV_CODEC[p.codec]; r.qual = CCTV_QUAL[p.quality]; r.act = CCTV_ACT[p.activity];
+  r.ov = toolNum(p.override);
+  r.ok = [r.cams, r.mp, r.fps, r.days, r.hours].every(function(x){ return isFinite(x) && x>0; }) && r.hours<=24;
+  if(!r.ok) return r;
+  r.base = CCTV_MBPS_PER_MP * r.mp;            // Mbps at 30 fps, H.264, medium/medium
+  r.afterFps = r.base * (r.fps/30);
+  r.afterCodec = r.afterFps * r.codec.f;
+  r.afterQual = r.afterCodec * r.qual.f;
+  r.est = r.afterQual * r.act.f;               // estimated Mbps per camera
+  r.useOv = isFinite(r.ov) && r.ov>0;
+  r.mbps = r.useOv ? r.ov : r.est;
+  r.gbDay = r.mbps * 10.8 * (r.hours/24);      // GB per camera per day
+  r.gbCam = r.gbDay * r.days;                  // GB per camera over retention
+  r.gbAll = r.gbCam * r.cams;
+  r.gbHead = r.gbAll * (1 + r.head/100);
+  r.tb = r.gbHead/1000;
+  var size = toolNum(p.drive); r.size = size;
+  r.dataDrives = Math.ceil(r.tb/size);
+  var n = r.dataDrives;
+  if(p.raid==='none'){ r.drives = n; r.raidNote = 'No redundancy: '+n+' × '+size+' TB'; }
+  else if(p.raid==='1'){ r.drives = 2*n; r.raidNote = 'RAID 1 (mirror): every drive doubled'; }
+  else if(p.raid==='10'){ r.drives = Math.max(4, 2*n); r.raidNote = 'RAID 10: mirrored pairs, so drives doubled (min 4)'; }
+  else if(p.raid==='5'){ r.drives = Math.max(3, n+1); r.raidNote = 'RAID 5: one drive’s worth of capacity goes on parity (min 3 drives)'; }
+  else { r.drives = Math.max(4, n+2); r.raidNote = 'RAID 6: two drives’ worth go on parity (min 4 drives)'; }
+  return r;
+}
+function cctvTB(gb){ return toolFmt(gb/1000, gb<10000?2:1); }
+function cctvResultHtml(){
+  var r = cctvCalc();
+  if(!r.ok) return '<div class="tool-card"><p style="margin:0;font-size:13px;color:var(--muted);">Enter the number of cameras and the recording hours per day (1–24) to see the result.</p></div>';
+  var f = toolFmt, h = '';
+  h += '<div class="tool-card tool-answer"><div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Estimated storage needed</div>'+
+    '<div style="font-size:34px;font-weight:800;line-height:1.1;margin:2px 0;">'+toolFmt(r.tb, r.tb<10?2:1)+' <span style="font-size:16px;font-weight:700;">TB</span></div>'+
+    '<div style="font-size:14px;">'+r.cams+' camera'+(r.cams===1?'':'s')+' × '+r.days+' days, including '+f(r.head,0)+'% headroom</div>'+
+    '<div style="font-size:13px;margin-top:6px;">Drives: <b>'+r.drives+' × '+r.size+' TB</b> <span style="color:var(--muted);">('+memEsc(r.raidNote)+')</span></div>'+
+    '<div style="font-size:12px;color:var(--muted);margin-top:6px;">Per camera: '+f(r.mbps,2)+' Mbps · '+f(r.gbDay,1)+' GB per day · '+f(r.gbCam/1000,2)+' TB over '+r.days+' days</div>'+
+    '<div style="display:flex;gap:8px;margin-top:10px;"><button class="vs-btn small" onclick="VS.toolCopy(\'cctv\')">Copy result</button><button class="vs-btn small" onclick="VS.toolReset(\'cctv\')">Reset</button></div></div>';
+  if(r.useOv) h += '<div class="tool-warn">You entered a bitrate, so the resolution, frame rate, compression, quality and activity settings are <b>not</b> used in the working below.</div>';
+  h += '<div class="tool-card"><div style="font-weight:800;margin-bottom:8px;">The working</div><div class="tool-working">';
+  var step = function(n, title, formula, sub, res){
+    return '<div class="tool-step"><div class="tool-step-n">'+n+'</div><div style="min-width:0;"><div style="font-weight:700;font-size:13px;">'+title+'</div>'+
+      '<div class="tool-f">'+formula+'</div><div class="tool-f tool-sub">'+sub+'</div><div class="tool-f tool-res">'+res+'</div></div></div>';
+  };
+  if(r.useOv){
+    h += step(1,'Bitrate per camera','Entered by you','', '= '+f(r.mbps,3)+' Mbps');
+  } else {
+    h += step(1,'Base bitrate for the resolution','Base = '+CCTV_MBPS_PER_MP+' Mbps × megapixels (H.264, 30 fps, medium/medium)','= '+CCTV_MBPS_PER_MP+' × '+r.mp, '= '+f(r.base,2)+' Mbps');
+    h += step(2,'Adjust for frame rate','× fps ÷ 30','= '+f(r.base,2)+' × '+r.fps+' ÷ 30', '= '+f(r.afterFps,3)+' Mbps');
+    h += step(3,'Adjust for compression','× '+r.codec.label+' factor ('+f(r.codec.f,2)+')','= '+f(r.afterFps,3)+' × '+f(r.codec.f,2), '= '+f(r.afterCodec,3)+' Mbps');
+    h += step(4,'Adjust for quality and scene activity','× quality ('+r.qual.label+' '+f(r.qual.f,2)+') × activity ('+r.act.label+' '+f(r.act.f,2)+')','= '+f(r.afterCodec,3)+' × '+f(r.qual.f,2)+' × '+f(r.act.f,2), '= '+f(r.est,3)+' Mbps per camera');
+  }
+  h += step(5,'Storage per camera per day','GB/day = Mbps × 10.8 × (hours ÷ 24)','= '+f(r.mbps,3)+' × 10.8 × ('+f(r.hours,1)+' ÷ 24)','= '+f(r.gbDay,2)+' GB');
+  h += step(6,'Whole system over the retention period','Total GB = GB/day × days × cameras','= '+f(r.gbDay,2)+' × '+r.days+' × '+r.cams,'= '+f(r.gbAll,1)+' GB ('+cctvTB(r.gbAll)+' TB)');
+  h += step(7,'Add headroom','× (1 + headroom%)','= '+f(r.gbAll,1)+' × '+f(1+r.head/100,2),'= '+f(r.gbHead,1)+' GB = '+toolFmt(r.tb,2)+' TB');
+  h += step(8,'Choose drives','Data drives = TB ÷ drive size, rounded up','= '+toolFmt(r.tb,2)+' ÷ '+r.size+' TB = '+r.dataDrives+' drive'+(r.dataDrives===1?'':'s')+'. '+memEsc(r.raidNote),'= '+r.drives+' × '+r.size+' TB');
+  return h+'</div></div>';
+}
+function cctvInputsHtml(){
+  var p = toolState.cctv;
+  var fld = function(label, inner, hint){ return '<div class="vs-field"><label>'+label+'</label>'+inner+(hint?'<div class="tool-hint">'+hint+'</div>':'')+'</div>'; };
+  var num = function(field, ph, min, max){ return '<input type="number" inputmode="decimal" min="'+min+'" max="'+max+'" placeholder="'+ph+'" value="'+memEsc(p[field])+'" oninput="VS.toolSet(\'cctv\',\''+field+'\',this.value)">'; };
+  var pills = function(field, obj){ return '<div style="display:flex;gap:6px;">'+Object.keys(obj).map(function(k){
+    return '<button class="vs-btn small'+(p[field]===k?' primary':'')+'" style="flex:1;" onclick="VS.toolSet(\'cctv\',\''+field+'\',\''+k+'\',true)">'+obj[k].label+'</button>'; }).join('')+'</div>'; };
+  var h = '';
+  h += fld('Number of cameras', num('cams','e.g. 8',1,512));
+  h += fld('Resolution', '<select onchange="VS.toolSet(\'cctv\',\'mp\',this.value)">'+Object.keys(CCTV_RES).map(function(k){ return '<option value="'+k+'"'+(p.mp===k?' selected':'')+'>'+CCTV_RES[k]+'</option>'; }).join('')+'</select>');
+  h += fld('Frame rate: <b id="cctv-fps-val">'+memEsc(p.fps)+'</b> fps',
+    '<input type="range" min="5" max="30" step="1" value="'+memEsc(p.fps)+'" oninput="document.getElementById(\'cctv-fps-val\').textContent=this.value;VS.toolSet(\'cctv\',\'fps\',this.value)" style="width:100%;">',
+    '5–30 fps. 10–15 fps suits people walking; 30 fps only for fast movement such as vehicles or tills.');
+  h += fld('Storage time: <b id="cctv-days-val">'+memEsc(p.days)+'</b> days',
+    '<input type="range" min="7" max="120" step="1" value="'+memEsc(p.days)+'" oninput="document.getElementById(\'cctv-days-val\').textContent=this.value;VS.toolSet(\'cctv\',\'days\',this.value)" style="width:100%;">',
+    '7–120 days. Common choices are 28 or 31 days.');
+  h += fld('Video compression', pills('codec', CCTV_CODEC), 'The recorder and cameras must both support the format you choose.');
+  h += fld('Video quality', pills('quality', CCTV_QUAL), 'If the camera has no quality setting, use Medium.');
+  h += fld('Scene activity', pills('activity', CCTV_ACT), 'Low: quiet corridor or alley. Medium: shop floor, office entrance. High: busy road, car park entrance, crowds.');
+  h += fld('Recording hours per day', num('hours','24',1,24), '24 for continuous recording. Use fewer hours for systems that only record while a premises is open.');
+  h += '<details class="tool-adv"><summary>Advanced: headroom, drives and your own bitrate</summary>'+
+    fld('Headroom (%)', num('headroom','10',0,100), 'Spare space so the oldest footage isn’t overwritten early. Default 10%.')+
+    fld('Drive size', '<select onchange="VS.toolSet(\'cctv\',\'drive\',this.value)">'+CCTV_DRIVES.map(function(d){ return '<option value="'+d+'"'+(String(d)===String(p.drive)?' selected':'')+'>'+d+' TB</option>'; }).join('')+'</select>')+
+    fld('Redundancy', '<select onchange="VS.toolSet(\'cctv\',\'raid\',this.value)">'+[['none','None (single drives)'],['1','RAID 1'],['5','RAID 5'],['6','RAID 6'],['10','RAID 10']].map(function(o){ return '<option value="'+o[0]+'"'+(p.raid===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')+'</select>')+
+    fld('Known bitrate per camera (Mbps)', num('override','leave blank to estimate',0,100), 'If you know the real bitrate from the camera or recorder, enter it here. It overrides the estimate above.')+'</details>';
+  return h;
+}
+function cctvLearnHtml(){
+  var d = function(title, body, open){ return '<details class="tool-learn"'+(open?' open':'')+'><summary>'+title+'</summary><div class="tool-learn-body">'+body+'</div></details>'; };
+  var h = '';
+  h += d('The idea in one line', '<div class="tool-f tool-big">Storage = bitrate × time × cameras</div>'+
+    '<p>Every camera sends a stream of video measured in <b>megabits per second (Mbps)</b>. Multiply that by how long you record and by how many cameras you have, then convert the bits to gigabytes.</p>'+
+    '<div class="tool-f tool-big">GB per day = Mbps × 10.8 (for 24 h)</div>'+
+    '<p><b>Why 10.8?</b> 1 Mbps is 1,000,000 bits a second, which is 125,000 bytes a second. A day has 86,400 seconds, so 125,000 × 86,400 = 10,800,000,000 bytes, or 10.8 GB. Here 1 GB is one billion bytes and 1 TB is one trillion, the same as drive makers use. Your computer may show a slightly smaller usable size.</p>', true);
+  h += d('How this calculator estimates the bitrate', '<p>The bitrate is what changes most between cameras, so it is estimated in steps from a typical starting point:</p>'+
+    '<div class="tool-f tool-big">Mbps = 2 × MP × (fps ÷ 30) × codec × quality × activity</div>'+
+    '<ul><li><b>Starting point:</b> 2 Mbps per megapixel, for H.264 at 30 fps with medium quality and medium activity. That gives about 4 Mbps for 2 MP, 8 Mbps for 4 MP and 16 Mbps for 8 MP, which matches commonly quoted averages.</li>'+
+    '<li><b>Frame rate:</b> storage rises in step with the frame rate. Halving the fps roughly halves the storage.</li>'+
+    '<li><b>Compression:</b> H.264 = 1.0, H.265 = 0.6, H.265+ = 0.4. H.265 typically saves 30–40% on H.264. H.265+ saves more, but how much depends on the scene.</li>'+
+    '<li><b>Quality:</b> Low 0.7, Medium 1.0, High 1.3.</li>'+
+    '<li><b>Scene activity:</b> Low 0.6, Medium 1.0, High 1.4. Busy scenes change more from frame to frame, so the video compresses less.</li></ul>'+
+    '<p>These multipliers are planning averages, not manufacturer data. If you know the actual bitrate of the camera or recorder, enter it under Advanced and it replaces the estimate.</p>');
+  h += d('Resolution and bitrate (H.264, 30 fps, medium)', '<table class="vs-cat-table" style="width:100%;"><thead><tr><th>Resolution</th><th>Mbps</th><th>GB per day</th><th>30 days</th></tr></thead><tbody>'+
+    [2,3,4,5,6,7,8].map(function(m){ var b = 2*m; return '<tr><td>'+CCTV_RES[m]+'</td><td>'+b+'</td><td>'+toolFmt(b*10.8,1)+'</td><td>'+toolFmt(b*10.8*30/1000,2)+' TB</td></tr>'; }).join('')+
+    '</tbody></table><p>Per camera, recording 24 hours a day. An 8 MP camera needs roughly four times the storage of a 2 MP camera.</p>');
+  h += d('Worked examples',
+    '<p><b>Example 1 — 8 × 4 MP cameras, 15 fps, H.265, 30 days, medium quality and activity, 10% headroom:</b></p>'+
+    '<div class="tool-f">Base = 2 × 4 = 8 Mbps<br>× 15 ÷ 30 = 4 Mbps<br>× 0.6 (H.265) = 2.4 Mbps<br>GB/day = 2.4 × 10.8 = 25.92 GB per camera<br>Total = 25.92 × 30 × 8 = 6,220.8 GB<br>+10% = 6,843 GB = <b>6.84 TB</b></div>'+
+    '<button class="vs-btn small" onclick="VS.toolExample(\'cctv\',1)">Load this example</button>'+
+    '<p style="margin-top:12px;"><b>Example 2 — 16 × 8 MP cameras, 20 fps, H.265+, 60 days, high activity:</b></p>'+
+    '<div class="tool-f">Base = 2 × 8 = 16 Mbps<br>× 20 ÷ 30 = 10.67 Mbps<br>× 0.4 (H.265+) = 4.27 Mbps<br>× 1.4 (high activity) = 5.97 Mbps<br>GB/day = 5.97 × 10.8 = 64.5 GB per camera<br>Total = 64.5 × 60 × 16 = 61,931 GB<br>+10% = <b>68.1 TB</b></div>'+
+    '<button class="vs-btn small" onclick="VS.toolExample(\'cctv\',2)">Load this example</button>');
+  h += d('Choosing settings', '<ul><li><b>Frame rate:</b> 10–15 fps is normally enough where people walk. Use 30 fps only where things move fast. Doubling the fps roughly doubles storage.</li>'+
+    '<li><b>Resolution:</b> 2 MP is a good balance of clarity and cost. Higher resolution helps with identification and wide areas, but costs a lot of storage.</li>'+
+    '<li><b>Compression:</b> H.265 is the biggest saving for no loss in detail. Check the recorder supports it.</li>'+
+    '<li><b>Quality and activity:</b> if the camera has no quality setting, use Medium. Choose the activity level from the busiest period, since that is what fills the disk.</li>'+
+    '<li><b>Motion recording:</b> recording only on events uses far less space. As a rough guide, use the hours-per-day box for the hours it records, but test real sites before relying on it.</li></ul>');
+  h += d('Drives, redundancy and headroom', '<ul><li><b>Headroom:</b> the recorder overwrites the oldest footage when full. Allow some extra so the full retention period is still met when scenes get busier than planned.</li>'+
+    '<li><b>RAID 1 / 10:</b> mirrored, so you need twice the drives.</li>'+
+    '<li><b>RAID 5:</b> one drive’s worth is used for parity, and survives one failed drive (minimum 3 drives).</li>'+
+    '<li><b>RAID 6:</b> two drives’ worth for parity, and survives two failed drives (minimum 4 drives).</li>'+
+    '<li>Use surveillance-rated drives (built for constant writing) and check the recorder’s maximum drive size and number of bays.</li></ul>');
+  h += d('How accurate is this?', '<p>This is an estimate for planning. Real bitrates depend on the make of camera, its encoder settings (constant or variable bitrate), the lighting and the scene. Night-time noise can push the bitrate up a lot. The audio track, if recorded, adds a little. Before ordering drives for a large or critical system, check the figure with the camera or recorder manufacturer’s own calculator, or measure the real bitrate on site.</p>');
+  return h;
+}
+function cctvPageHtml(){
+  return '<h2 style="font-size:18px;margin:0 0 4px 0;">CCTV storage calculator</h2>'+
+    '<p style="font-size:12.5px;color:var(--muted);margin:0 0 14px 0;">Works out how much recorder storage a CCTV system needs for the cameras, settings and number of days you choose. Estimate only.</p>'+
+    '<div class="tool-card">'+cctvInputsHtml()+'</div><div id="tool-result">'+cctvResultHtml()+'</div>'+
+    '<div style="font-weight:800;font-size:15px;margin:18px 0 8px 0;">Learn the calculation</div>'+cctvLearnHtml();
+}
+function cctvCopy(){
+  var r = cctvCalc(); if(!r.ok) return;
+  var f = toolFmt;
+  var txt = 'CCTV storage estimate\n'+r.cams+' cameras, '+(r.useOv?'bitrate entered by user':CCTV_RES[r.p.mp]+', '+r.fps+' fps, '+r.codec.label+', quality '+r.qual.label+', activity '+r.act.label)+'\n'+
+    r.days+' days, '+f(r.hours,1)+' h/day, '+f(r.head,0)+'% headroom\n'+
+    f(r.mbps,2)+' Mbps per camera = '+f(r.gbDay,1)+' GB/day per camera\n'+
+    'Total: '+f(r.tb,2)+' TB  ->  '+r.drives+' x '+r.size+' TB ('+r.raidNote+')';
+  try{ navigator.clipboard.writeText(txt).then(function(){ toast('Result copied'); }, function(){ toast('Could not copy'); }); }
+  catch(e){ toast('Could not copy'); }
+}
+function cctvExample(n){
+  var p = toolState.cctv = cctvDefaults();
+  if(n===1){ p.cams='8'; p.mp='4'; p.fps='15'; p.days='30'; p.codec='h265'; }
+  else { p.cams='16'; p.mp='8'; p.fps='20'; p.days='60'; p.codec='h265p'; p.activity='high'; }
+  renderToolsScreen(); window.scrollTo(0,0);
+}
+
 function renderToolsScreen(){
   renderWhoBadge();
   var c = document.getElementById('vs-tools-content');
   if(!c) return;
   var kind = toolState.tab;
   var html = '<div style="display:flex;gap:6px;margin-bottom:14px;">'+
-    [['intruder','Intruder battery'],['fire','Fire alarm battery']].map(function(t){
-      return '<button class="vs-btn'+(kind===t[0]?' primary':'')+'" style="flex:1;" onclick="VS.toolTab(\''+t[0]+'\')">'+t[1]+'</button>';
+    [['intruder','Intruder battery'],['fire','Fire battery'],['cctv','CCTV storage']].map(function(t){
+      return '<button class="vs-btn small'+(kind===t[0]?' primary':'')+'" style="flex:1;padding-left:4px;padding-right:4px;" onclick="VS.toolTab(\''+t[0]+'\')">'+t[1]+'</button>';
     }).join('')+'</div>';
+  if(kind==='cctv'){ c.innerHTML = html + cctvPageHtml(); return; }
   html += '<h2 style="font-size:18px;margin:0 0 4px 0;">'+(kind==='intruder' ? 'Intruder alarm battery calculator' : 'Fire alarm battery calculator')+'</h2>'+
     '<p style="font-size:12.5px;color:var(--muted);margin:0 0 14px 0;">'+(kind==='intruder'
       ? 'Works out the battery capacity needed to run the system through a mains failure and then sound the alarm.'
@@ -10862,12 +11023,14 @@ var VS = {
     renderToolsScreen();
   },
   toolReset:function(kind){
+    if(kind==='cctv'){ toolState.cctv = cctvDefaults(); renderToolsScreen(); window.scrollTo(0,0); return; }
     var keep = toolState[kind];
     if(kind==='intruder') toolState.intruder = { grade:'2', arc:true, customStandby:'12', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'20', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] };
     else toolState.fire = { standby:'24', unoccHours:'48', customStandby:'24', mode:'totals', unit:'mA', i1:'', i2:'', alarmMin:'30', ageing:'1.25', derate:'1.75', lines:[{name:'',qty:'1',sb:'',al:''}] };
     renderToolsScreen(); window.scrollTo(0,0);
   },
   toolExample:function(kind, n){
+    if(kind==='cctv'){ cctvExample(n); return; }
     var p = toolState[kind];
     p.mode = 'totals'; p.unit = 'mA'; p.alarmMin = (kind==='intruder' ? '20' : '30'); p.ageing = '1.25'; p.derate = '1.75';
     if(kind==='intruder'){
@@ -10880,6 +11043,7 @@ var VS = {
     renderToolsScreen(); window.scrollTo(0,0);
   },
   toolCopy:function(kind){
+    if(kind==='cctv'){ cctvCopy(); return; }
     var r = toolCalc(kind); if(!r.ok) return;
     var f = function(n,d){ return toolFmt(n,d); };
     var txt = (kind==='intruder' ? 'Intruder alarm battery calculation' : 'Fire alarm battery calculation')+'\n'+
